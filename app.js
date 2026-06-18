@@ -1,4 +1,5 @@
 const MAX_VISUAL_PATHS = 200;
+const RETURN_BLOCK_YEARS = 5;
 
 const state = {
   marketData: null,
@@ -351,6 +352,10 @@ function runSimulation() {
 }
 
 function simulateScenario(scenario, returnRows) {
+  if (!returnRows.length) {
+    throw new Error("No historical market data loaded.");
+  }
+
   const years = range(scenario.currentYear, scenario.deathYear);
   const failures = [];
   const terminalWealth = [];
@@ -365,6 +370,7 @@ function simulateScenario(scenario, returnRows) {
     let failureYear = null;
     let sampledReturnCount = 0;
     let sampledRealReturnSum = 0;
+    const sampledReturnPath = buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS);
     const path = [];
     const pathYearRows = [];
 
@@ -375,7 +381,8 @@ function simulateScenario(scenario, returnRows) {
         const income = cashFlowForYear(scenario.income, year);
         const expenses = cashFlowForYear(scenario.expenses, year);
         const netCashFlow = income - expenses;
-        const returnRow = returnRows[randomIndex(returnRows.length)];
+        const sampledReturn = sampledReturnPath[yearIndex];
+        const returnRow = sampledReturn.row;
         const nominalSpyReturn = returnRow.nominalReturn ?? returnRow.return;
         const nominalRiskFreeReturn = returnRow.riskFreeReturn ?? 0;
         const nominalSpyExcessReturn = nominalSpyReturn - nominalRiskFreeReturn;
@@ -400,6 +407,8 @@ function simulateScenario(scenario, returnRows) {
           simulation: i + 1,
           year,
           historicalReturnYear: returnRow.year,
+          historicalBlockStartYear: sampledReturn.blockStartYear,
+          historicalBlockEndYear: sampledReturn.blockEndYear,
           startingWealth: yearResult.startingWealth,
           income,
           expenses,
@@ -423,6 +432,8 @@ function simulateScenario(scenario, returnRows) {
           simulation: i + 1,
           year,
           historicalReturnYear: "",
+          historicalBlockStartYear: "",
+          historicalBlockEndYear: "",
           startingWealth: 0,
           income: 0,
           expenses: 0,
@@ -533,6 +544,29 @@ function addReservoirSample(samples, item, seenIndex, maxSamples) {
   }
 }
 
+function buildSampledReturnPath(returnRows, pathLength, blockYears) {
+  const path = [];
+  const blockLength = Math.min(blockYears, returnRows.length);
+  const maxStartIndex = returnRows.length - blockLength;
+
+  while (path.length < pathLength) {
+    const startIndex = randomIndex(maxStartIndex + 1);
+    const endIndex = startIndex + blockLength - 1;
+    const blockStartYear = returnRows[startIndex].year;
+    const blockEndYear = returnRows[endIndex].year;
+
+    for (let offset = 0; offset < blockLength && path.length < pathLength; offset += 1) {
+      path.push({
+        row: returnRows[startIndex + offset],
+        blockStartYear,
+        blockEndYear
+      });
+    }
+  }
+
+  return path;
+}
+
 function cashFlowForYear(flows, year) {
   return flows.reduce((sum, flow) => {
     if (year < flow.startYear || year > flow.endYear) return sum;
@@ -622,7 +656,7 @@ function renderSimulationPathTable(results) {
   const selectedSimulation = Number(els.simulationSelect.value) || 1;
   const rows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
   if (!rows.length) {
-    els.simulationPathTable.innerHTML = `<tr><td colspan="14">No rows for this simulation.</td></tr>`;
+    els.simulationPathTable.innerHTML = `<tr><td colspan="15">No rows for this simulation.</td></tr>`;
     return;
   }
 
@@ -636,6 +670,7 @@ function renderSimulationPathTable(results) {
       "<tr>",
       `<td>${row.year}</td>`,
       `<td>${row.historicalReturnYear || "--"}</td>`,
+      `<td>${formatHistoricalBlock(row)}</td>`,
       `<td>${formatCurrency(row.startingWealth)}</td>`,
       `<td>${formatCurrency(row.income)}</td>`,
       `<td>${formatCurrency(row.expenses)}</td>`,
@@ -653,12 +688,19 @@ function renderSimulationPathTable(results) {
   }).join("");
 }
 
+function formatHistoricalBlock(row) {
+  if (!row.historicalBlockStartYear || !row.historicalBlockEndYear) return "--";
+  return `${row.historicalBlockStartYear}-${row.historicalBlockEndYear}`;
+}
+
 function downloadSimulationCsv() {
   if (!state.results) return;
   const headers = [
     "simulation",
     "year",
     "historical_return_year",
+    "historical_return_block_start_year",
+    "historical_return_block_end_year",
     "starting_wealth_current_dollars",
     "income_current_dollars",
     "expenses_current_dollars",
@@ -686,6 +728,8 @@ function downloadSimulationCsv() {
       row.simulation,
       row.year,
       row.historicalReturnYear,
+      row.historicalBlockStartYear,
+      row.historicalBlockEndYear,
       row.startingWealth,
       row.income,
       row.expenses,

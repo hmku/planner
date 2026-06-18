@@ -13,7 +13,7 @@
           <div class="brand-row">
             <div>
               <h1>Financial Runway Planner</h1>
-              <p>Monte Carlo depletion years from annual SPY-like returns.</p>
+              <p>Monte Carlo depletion years from 5-year historical return blocks.</p>
             </div>
             <button id="runSimulation" class="primary-action" type="button">Run</button>
           </div>
@@ -153,7 +153,7 @@
               <div class="section-header compact">
                 <div>
                   <h2>Inspect Simulation</h2>
-                  <p>Select one downsampled path, sorted by ending net worth, to inspect sampled return years, returns, inflation, cash flows, and start/end wealth.</p>
+                  <p>Select one downsampled path, sorted by ending net worth, to inspect sampled 5-year return blocks, annual returns, inflation, cash flows, and start/end wealth.</p>
                 </div>
                 <label class="simulation-picker">
                   <span>Simulation</span>
@@ -166,6 +166,7 @@
                     <tr>
                       <th>Plan year</th>
                       <th>Sampled year</th>
+                      <th>Sampled block</th>
                       <th>Start wealth</th>
                       <th>Income</th>
                       <th>Expenses</th>
@@ -182,7 +183,7 @@
                   </thead>
                   <tbody id="simulationPathTable">
                     <tr>
-                      <td colspan="14">No results yet.</td>
+                      <td colspan="15">No results yet.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -196,11 +197,11 @@
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
-                  <p>The simulator samples annual S&amp;P 500 total-return years, 3-month T-bill returns, and CPI inflation from 1928-2025. Each sampled year keeps those observations paired together.</p>
+                  <p>The simulator samples contiguous 5-year historical blocks from 1928-2025. Within each block, annual S&amp;P 500 total returns, 3-month T-bill returns, and CPI inflation stay paired and in historical order.</p>
                 </article>
                 <article>
                   <h3>Return Model</h3>
-                  <p>Each simulated year is selected randomly with replacement from the historical data. Portfolio nominal return is the sampled T-bill return plus SPY beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor.</p>
+                  <p>Each simulation path is built by sampling 5-year historical blocks with replacement, truncating the final block if needed. Portfolio nominal return is the sampled T-bill return plus SPY beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>
