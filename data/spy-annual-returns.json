@@ -1,0 +1,793 @@
+{
+  "name": "S&P 500 annual total returns, 3-month T-bill returns, and CPI inflation",
+  "description": "Annual S&P 500 nominal total returns including dividends and annual 3-month T-bill returns, paired with December-to-December CPI-U inflation. The planner uses T-bills as the risk-free return and converts simulated portfolio returns into current-dollar real returns. SPY began trading in 1993, so pre-1993 observations come from the underlying index return series.",
+  "stockAndRiskFreeReturnSource": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
+  "inflationSource": "https://fred.stlouisfed.org/series/CPIAUCNS",
+  "updated": "2026-06-18",
+  "returns": [
+    {
+      "year": 1928,
+      "nominalReturn": 0.4381,
+      "riskFreeReturn": 0.0308,
+      "inflation": -0.011561,
+      "realReturn": 0.45492,
+      "realRiskFreeReturn": 0.042856
+    },
+    {
+      "year": 1929,
+      "nominalReturn": -0.083,
+      "riskFreeReturn": 0.0316,
+      "inflation": 0.005848,
+      "realReturn": -0.088331,
+      "realRiskFreeReturn": 0.025602
+    },
+    {
+      "year": 1930,
+      "nominalReturn": -0.2512,
+      "riskFreeReturn": 0.0455,
+      "inflation": -0.063953,
+      "realReturn": -0.20004,
+      "realRiskFreeReturn": 0.116931
+    },
+    {
+      "year": 1931,
+      "nominalReturn": -0.4384,
+      "riskFreeReturn": 0.0231,
+      "inflation": -0.093168,
+      "realReturn": -0.380701,
+      "realRiskFreeReturn": 0.128213
+    },
+    {
+      "year": 1932,
+      "nominalReturn": -0.0864,
+      "riskFreeReturn": 0.0107,
+      "inflation": -0.10274,
+      "realReturn": 0.018211,
+      "realRiskFreeReturn": 0.126429
+    },
+    {
+      "year": 1933,
+      "nominalReturn": 0.4998,
+      "riskFreeReturn": 0.0096,
+      "inflation": 0.007634,
+      "realReturn": 0.488437,
+      "realRiskFreeReturn": 0.001951
+    },
+    {
+      "year": 1934,
+      "nominalReturn": -0.0119,
+      "riskFreeReturn": 0.0028,
+      "inflation": 0.015152,
+      "realReturn": -0.026648,
+      "realRiskFreeReturn": -0.012168
+    },
+    {
+      "year": 1935,
+      "nominalReturn": 0.4674,
+      "riskFreeReturn": 0.0017,
+      "inflation": 0.029851,
+      "realReturn": 0.424866,
+      "realRiskFreeReturn": -0.027335
+    },
+    {
+      "year": 1936,
+      "nominalReturn": 0.3194,
+      "riskFreeReturn": 0.0017,
+      "inflation": 0.014493,
+      "realReturn": 0.300551,
+      "realRiskFreeReturn": -0.01261
+    },
+    {
+      "year": 1937,
+      "nominalReturn": -0.3534,
+      "riskFreeReturn": 0.0028,
+      "inflation": 0.028571,
+      "realReturn": -0.371361,
+      "realRiskFreeReturn": -0.025055
+    },
+    {
+      "year": 1938,
+      "nominalReturn": 0.2928,
+      "riskFreeReturn": 0.0007,
+      "inflation": -0.027778,
+      "realReturn": 0.329737,
+      "realRiskFreeReturn": 0.029292
+    },
+    {
+      "year": 1939,
+      "nominalReturn": -0.011,
+      "riskFreeReturn": 0.0005,
+      "inflation": 0.0,
+      "realReturn": -0.011,
+      "realRiskFreeReturn": 0.0005
+    },
+    {
+      "year": 1940,
+      "nominalReturn": -0.1067,
+      "riskFreeReturn": 0.0004,
+      "inflation": 0.007143,
+      "realReturn": -0.113036,
+      "realRiskFreeReturn": -0.006695
+    },
+    {
+      "year": 1941,
+      "nominalReturn": -0.1277,
+      "riskFreeReturn": 0.0013,
+      "inflation": 0.099291,
+      "realReturn": -0.206489,
+      "realRiskFreeReturn": -0.08914
+    },
+    {
+      "year": 1942,
+      "nominalReturn": 0.1917,
+      "riskFreeReturn": 0.0034,
+      "inflation": 0.090323,
+      "realReturn": 0.092979,
+      "realRiskFreeReturn": -0.079722
+    },
+    {
+      "year": 1943,
+      "nominalReturn": 0.2506,
+      "riskFreeReturn": 0.0038,
+      "inflation": 0.029586,
+      "realReturn": 0.214663,
+      "realRiskFreeReturn": -0.025045
+    },
+    {
+      "year": 1944,
+      "nominalReturn": 0.1903,
+      "riskFreeReturn": 0.0038,
+      "inflation": 0.022989,
+      "realReturn": 0.163551,
+      "realRiskFreeReturn": -0.018758
+    },
+    {
+      "year": 1945,
+      "nominalReturn": 0.3582,
+      "riskFreeReturn": 0.0038,
+      "inflation": 0.022472,
+      "realReturn": 0.328349,
+      "realRiskFreeReturn": -0.018262
+    },
+    {
+      "year": 1946,
+      "nominalReturn": -0.0843,
+      "riskFreeReturn": 0.0038,
+      "inflation": 0.181319,
+      "realReturn": -0.22485,
+      "realRiskFreeReturn": -0.150272
+    },
+    {
+      "year": 1947,
+      "nominalReturn": 0.052,
+      "riskFreeReturn": 0.006,
+      "inflation": 0.088372,
+      "realReturn": -0.033419,
+      "realRiskFreeReturn": -0.075684
+    },
+    {
+      "year": 1948,
+      "nominalReturn": 0.057,
+      "riskFreeReturn": 0.0105,
+      "inflation": 0.029915,
+      "realReturn": 0.026298,
+      "realRiskFreeReturn": -0.018851
+    },
+    {
+      "year": 1949,
+      "nominalReturn": 0.183,
+      "riskFreeReturn": 0.0112,
+      "inflation": -0.020747,
+      "realReturn": 0.208064,
+      "realRiskFreeReturn": 0.032624
+    },
+    {
+      "year": 1950,
+      "nominalReturn": 0.3081,
+      "riskFreeReturn": 0.012,
+      "inflation": 0.059322,
+      "realReturn": 0.234846,
+      "realRiskFreeReturn": -0.044672
+    },
+    {
+      "year": 1951,
+      "nominalReturn": 0.2368,
+      "riskFreeReturn": 0.0152,
+      "inflation": 0.06,
+      "realReturn": 0.166792,
+      "realRiskFreeReturn": -0.042264
+    },
+    {
+      "year": 1952,
+      "nominalReturn": 0.1815,
+      "riskFreeReturn": 0.0172,
+      "inflation": 0.007547,
+      "realReturn": 0.17265,
+      "realRiskFreeReturn": 0.009581
+    },
+    {
+      "year": 1953,
+      "nominalReturn": -0.0121,
+      "riskFreeReturn": 0.0189,
+      "inflation": 0.007491,
+      "realReturn": -0.019445,
+      "realRiskFreeReturn": 0.011324
+    },
+    {
+      "year": 1954,
+      "nominalReturn": 0.5256,
+      "riskFreeReturn": 0.0094,
+      "inflation": -0.007435,
+      "realReturn": 0.537028,
+      "realRiskFreeReturn": 0.016961
+    },
+    {
+      "year": 1955,
+      "nominalReturn": 0.326,
+      "riskFreeReturn": 0.0172,
+      "inflation": 0.003745,
+      "realReturn": 0.321053,
+      "realRiskFreeReturn": 0.013405
+    },
+    {
+      "year": 1956,
+      "nominalReturn": 0.0744,
+      "riskFreeReturn": 0.0262,
+      "inflation": 0.029851,
+      "realReturn": 0.043258,
+      "realRiskFreeReturn": -0.003545
+    },
+    {
+      "year": 1957,
+      "nominalReturn": -0.1046,
+      "riskFreeReturn": 0.0322,
+      "inflation": 0.028986,
+      "realReturn": -0.129823,
+      "realRiskFreeReturn": 0.003123
+    },
+    {
+      "year": 1958,
+      "nominalReturn": 0.4372,
+      "riskFreeReturn": 0.0177,
+      "inflation": 0.017606,
+      "realReturn": 0.412334,
+      "realRiskFreeReturn": 9.2e-05
+    },
+    {
+      "year": 1959,
+      "nominalReturn": 0.1206,
+      "riskFreeReturn": 0.0339,
+      "inflation": 0.017301,
+      "realReturn": 0.101542,
+      "realRiskFreeReturn": 0.016317
+    },
+    {
+      "year": 1960,
+      "nominalReturn": 0.0034,
+      "riskFreeReturn": 0.0287,
+      "inflation": 0.013605,
+      "realReturn": -0.010068,
+      "realRiskFreeReturn": 0.014892
+    },
+    {
+      "year": 1961,
+      "nominalReturn": 0.2664,
+      "riskFreeReturn": 0.0235,
+      "inflation": 0.006711,
+      "realReturn": 0.257958,
+      "realRiskFreeReturn": 0.016677
+    },
+    {
+      "year": 1962,
+      "nominalReturn": -0.0881,
+      "riskFreeReturn": 0.0277,
+      "inflation": 0.013333,
+      "realReturn": -0.100098,
+      "realRiskFreeReturn": 0.014178
+    },
+    {
+      "year": 1963,
+      "nominalReturn": 0.2261,
+      "riskFreeReturn": 0.0316,
+      "inflation": 0.016447,
+      "realReturn": 0.206261,
+      "realRiskFreeReturn": 0.014908
+    },
+    {
+      "year": 1964,
+      "nominalReturn": 0.1642,
+      "riskFreeReturn": 0.0355,
+      "inflation": 0.009709,
+      "realReturn": 0.153005,
+      "realRiskFreeReturn": 0.025543
+    },
+    {
+      "year": 1965,
+      "nominalReturn": 0.124,
+      "riskFreeReturn": 0.0395,
+      "inflation": 0.019231,
+      "realReturn": 0.102792,
+      "realRiskFreeReturn": 0.019887
+    },
+    {
+      "year": 1966,
+      "nominalReturn": -0.0997,
+      "riskFreeReturn": 0.0486,
+      "inflation": 0.034591,
+      "realReturn": -0.129801,
+      "realRiskFreeReturn": 0.013541
+    },
+    {
+      "year": 1967,
+      "nominalReturn": 0.238,
+      "riskFreeReturn": 0.0429,
+      "inflation": 0.030395,
+      "realReturn": 0.201481,
+      "realRiskFreeReturn": 0.012136
+    },
+    {
+      "year": 1968,
+      "nominalReturn": 0.1081,
+      "riskFreeReturn": 0.0534,
+      "inflation": 0.047198,
+      "realReturn": 0.058157,
+      "realRiskFreeReturn": 0.005922
+    },
+    {
+      "year": 1969,
+      "nominalReturn": -0.0824,
+      "riskFreeReturn": 0.0667,
+      "inflation": 0.061972,
+      "realReturn": -0.135947,
+      "realRiskFreeReturn": 0.004452
+    },
+    {
+      "year": 1970,
+      "nominalReturn": 0.0356,
+      "riskFreeReturn": 0.0639,
+      "inflation": 0.055703,
+      "realReturn": -0.019042,
+      "realRiskFreeReturn": 0.007764
+    },
+    {
+      "year": 1971,
+      "nominalReturn": 0.1422,
+      "riskFreeReturn": 0.0433,
+      "inflation": 0.032663,
+      "realReturn": 0.106072,
+      "realRiskFreeReturn": 0.010301
+    },
+    {
+      "year": 1972,
+      "nominalReturn": 0.1876,
+      "riskFreeReturn": 0.0406,
+      "inflation": 0.034063,
+      "realReturn": 0.148479,
+      "realRiskFreeReturn": 0.006322
+    },
+    {
+      "year": 1973,
+      "nominalReturn": -0.1431,
+      "riskFreeReturn": 0.0704,
+      "inflation": 0.087059,
+      "realReturn": -0.211726,
+      "realRiskFreeReturn": -0.015325
+    },
+    {
+      "year": 1974,
+      "nominalReturn": -0.259,
+      "riskFreeReturn": 0.0785,
+      "inflation": 0.123377,
+      "realReturn": -0.340382,
+      "realRiskFreeReturn": -0.039948
+    },
+    {
+      "year": 1975,
+      "nominalReturn": 0.37,
+      "riskFreeReturn": 0.0579,
+      "inflation": 0.069364,
+      "realReturn": 0.281135,
+      "realRiskFreeReturn": -0.01072
+    },
+    {
+      "year": 1976,
+      "nominalReturn": 0.2383,
+      "riskFreeReturn": 0.0498,
+      "inflation": 0.048649,
+      "realReturn": 0.180853,
+      "realRiskFreeReturn": 0.001098
+    },
+    {
+      "year": 1977,
+      "nominalReturn": -0.0698,
+      "riskFreeReturn": 0.0526,
+      "inflation": 0.06701,
+      "realReturn": -0.128218,
+      "realRiskFreeReturn": -0.013505
+    },
+    {
+      "year": 1978,
+      "nominalReturn": 0.0651,
+      "riskFreeReturn": 0.0718,
+      "inflation": 0.090177,
+      "realReturn": -0.023003,
+      "realRiskFreeReturn": -0.016857
+    },
+    {
+      "year": 1979,
+      "nominalReturn": 0.1852,
+      "riskFreeReturn": 0.1005,
+      "inflation": 0.132939,
+      "realReturn": 0.046129,
+      "realRiskFreeReturn": -0.028633
+    },
+    {
+      "year": 1980,
+      "nominalReturn": 0.3174,
+      "riskFreeReturn": 0.1139,
+      "inflation": 0.125163,
+      "realReturn": 0.170853,
+      "realRiskFreeReturn": -0.01001
+    },
+    {
+      "year": 1981,
+      "nominalReturn": -0.047,
+      "riskFreeReturn": 0.1404,
+      "inflation": 0.089224,
+      "realReturn": -0.125065,
+      "realRiskFreeReturn": 0.046984
+    },
+    {
+      "year": 1982,
+      "nominalReturn": 0.2042,
+      "riskFreeReturn": 0.1109,
+      "inflation": 0.038298,
+      "realReturn": 0.159783,
+      "realRiskFreeReturn": 0.069924
+    },
+    {
+      "year": 1983,
+      "nominalReturn": 0.2234,
+      "riskFreeReturn": 0.0895,
+      "inflation": 0.03791,
+      "realReturn": 0.178715,
+      "realRiskFreeReturn": 0.049706
+    },
+    {
+      "year": 1984,
+      "nominalReturn": 0.0615,
+      "riskFreeReturn": 0.0992,
+      "inflation": 0.039487,
+      "realReturn": 0.021177,
+      "realRiskFreeReturn": 0.057445
+    },
+    {
+      "year": 1985,
+      "nominalReturn": 0.3124,
+      "riskFreeReturn": 0.0772,
+      "inflation": 0.037987,
+      "realReturn": 0.26437,
+      "realRiskFreeReturn": 0.037778
+    },
+    {
+      "year": 1986,
+      "nominalReturn": 0.1849,
+      "riskFreeReturn": 0.0615,
+      "inflation": 0.010979,
+      "realReturn": 0.172032,
+      "realRiskFreeReturn": 0.049972
+    },
+    {
+      "year": 1987,
+      "nominalReturn": 0.0581,
+      "riskFreeReturn": 0.0596,
+      "inflation": 0.044344,
+      "realReturn": 0.013172,
+      "realRiskFreeReturn": 0.014608
+    },
+    {
+      "year": 1988,
+      "nominalReturn": 0.1654,
+      "riskFreeReturn": 0.0689,
+      "inflation": 0.044194,
+      "realReturn": 0.116076,
+      "realRiskFreeReturn": 0.02366
+    },
+    {
+      "year": 1989,
+      "nominalReturn": 0.3148,
+      "riskFreeReturn": 0.0839,
+      "inflation": 0.046473,
+      "realReturn": 0.256411,
+      "realRiskFreeReturn": 0.035765
+    },
+    {
+      "year": 1990,
+      "nominalReturn": -0.0306,
+      "riskFreeReturn": 0.0775,
+      "inflation": 0.061063,
+      "realReturn": -0.086388,
+      "realRiskFreeReturn": 0.015491
+    },
+    {
+      "year": 1991,
+      "nominalReturn": 0.3023,
+      "riskFreeReturn": 0.0554,
+      "inflation": 0.030643,
+      "realReturn": 0.26358,
+      "realRiskFreeReturn": 0.024021
+    },
+    {
+      "year": 1992,
+      "nominalReturn": 0.0749,
+      "riskFreeReturn": 0.0351,
+      "inflation": 0.029007,
+      "realReturn": 0.044599,
+      "realRiskFreeReturn": 0.005921
+    },
+    {
+      "year": 1993,
+      "nominalReturn": 0.0997,
+      "riskFreeReturn": 0.0307,
+      "inflation": 0.027484,
+      "realReturn": 0.070284,
+      "realRiskFreeReturn": 0.00313
+    },
+    {
+      "year": 1994,
+      "nominalReturn": 0.0133,
+      "riskFreeReturn": 0.0437,
+      "inflation": 0.026749,
+      "realReturn": -0.013099,
+      "realRiskFreeReturn": 0.016509
+    },
+    {
+      "year": 1995,
+      "nominalReturn": 0.372,
+      "riskFreeReturn": 0.0566,
+      "inflation": 0.025384,
+      "realReturn": 0.338035,
+      "realRiskFreeReturn": 0.030443
+    },
+    {
+      "year": 1996,
+      "nominalReturn": 0.2268,
+      "riskFreeReturn": 0.0515,
+      "inflation": 0.033225,
+      "realReturn": 0.18735,
+      "realRiskFreeReturn": 0.017687
+    },
+    {
+      "year": 1997,
+      "nominalReturn": 0.331,
+      "riskFreeReturn": 0.052,
+      "inflation": 0.017024,
+      "realReturn": 0.30872,
+      "realRiskFreeReturn": 0.034391
+    },
+    {
+      "year": 1998,
+      "nominalReturn": 0.2834,
+      "riskFreeReturn": 0.0491,
+      "inflation": 0.016119,
+      "realReturn": 0.263041,
+      "realRiskFreeReturn": 0.032458
+    },
+    {
+      "year": 1999,
+      "nominalReturn": 0.2089,
+      "riskFreeReturn": 0.0478,
+      "inflation": 0.026846,
+      "realReturn": 0.177294,
+      "realRiskFreeReturn": 0.020406
+    },
+    {
+      "year": 2000,
+      "nominalReturn": -0.0903,
+      "riskFreeReturn": 0.06,
+      "inflation": 0.033868,
+      "realReturn": -0.1201,
+      "realRiskFreeReturn": 0.025276
+    },
+    {
+      "year": 2001,
+      "nominalReturn": -0.1185,
+      "riskFreeReturn": 0.0348,
+      "inflation": 0.015517,
+      "realReturn": -0.131969,
+      "realRiskFreeReturn": 0.018988
+    },
+    {
+      "year": 2002,
+      "nominalReturn": -0.2197,
+      "riskFreeReturn": 0.0164,
+      "inflation": 0.023769,
+      "realReturn": -0.237816,
+      "realRiskFreeReturn": -0.007198
+    },
+    {
+      "year": 2003,
+      "nominalReturn": 0.2836,
+      "riskFreeReturn": 0.0103,
+      "inflation": 0.018795,
+      "realReturn": 0.25992,
+      "realRiskFreeReturn": -0.008338
+    },
+    {
+      "year": 2004,
+      "nominalReturn": 0.1074,
+      "riskFreeReturn": 0.014,
+      "inflation": 0.032556,
+      "realReturn": 0.072484,
+      "realRiskFreeReturn": -0.017971
+    },
+    {
+      "year": 2005,
+      "nominalReturn": 0.0483,
+      "riskFreeReturn": 0.0322,
+      "inflation": 0.034157,
+      "realReturn": 0.013676,
+      "realRiskFreeReturn": -0.001892
+    },
+    {
+      "year": 2006,
+      "nominalReturn": 0.1561,
+      "riskFreeReturn": 0.0485,
+      "inflation": 0.025407,
+      "realReturn": 0.127455,
+      "realRiskFreeReturn": 0.022521
+    },
+    {
+      "year": 2007,
+      "nominalReturn": 0.0548,
+      "riskFreeReturn": 0.0448,
+      "inflation": 0.040813,
+      "realReturn": 0.013439,
+      "realRiskFreeReturn": 0.003831
+    },
+    {
+      "year": 2008,
+      "nominalReturn": -0.3655,
+      "riskFreeReturn": 0.014,
+      "inflation": 0.000914,
+      "realReturn": -0.366079,
+      "realRiskFreeReturn": 0.013074
+    },
+    {
+      "year": 2009,
+      "nominalReturn": 0.2594,
+      "riskFreeReturn": 0.0015,
+      "inflation": 0.027213,
+      "realReturn": 0.226036,
+      "realRiskFreeReturn": -0.025032
+    },
+    {
+      "year": 2010,
+      "nominalReturn": 0.1482,
+      "riskFreeReturn": 0.0014,
+      "inflation": 0.014957,
+      "realReturn": 0.131279,
+      "realRiskFreeReturn": -0.013357
+    },
+    {
+      "year": 2011,
+      "nominalReturn": 0.021,
+      "riskFreeReturn": 0.0005,
+      "inflation": 0.029624,
+      "realReturn": -0.008376,
+      "realRiskFreeReturn": -0.028286
+    },
+    {
+      "year": 2012,
+      "nominalReturn": 0.1589,
+      "riskFreeReturn": 0.0009,
+      "inflation": 0.01741,
+      "realReturn": 0.139069,
+      "realRiskFreeReturn": -0.016227
+    },
+    {
+      "year": 2013,
+      "nominalReturn": 0.3215,
+      "riskFreeReturn": 0.0006,
+      "inflation": 0.015017,
+      "realReturn": 0.301949,
+      "realRiskFreeReturn": -0.014204
+    },
+    {
+      "year": 2014,
+      "nominalReturn": 0.1352,
+      "riskFreeReturn": 0.0003,
+      "inflation": 0.007565,
+      "realReturn": 0.126677,
+      "realRiskFreeReturn": -0.00721
+    },
+    {
+      "year": 2015,
+      "nominalReturn": 0.0138,
+      "riskFreeReturn": 0.0005,
+      "inflation": 0.007295,
+      "realReturn": 0.006458,
+      "realRiskFreeReturn": -0.006746
+    },
+    {
+      "year": 2016,
+      "nominalReturn": 0.1177,
+      "riskFreeReturn": 0.0032,
+      "inflation": 0.020746,
+      "realReturn": 0.094983,
+      "realRiskFreeReturn": -0.017189
+    },
+    {
+      "year": 2017,
+      "nominalReturn": 0.2161,
+      "riskFreeReturn": 0.0095,
+      "inflation": 0.021091,
+      "realReturn": 0.190981,
+      "realRiskFreeReturn": -0.011352
+    },
+    {
+      "year": 2018,
+      "nominalReturn": -0.0423,
+      "riskFreeReturn": 0.0197,
+      "inflation": 0.019102,
+      "realReturn": -0.060251,
+      "realRiskFreeReturn": 0.000587
+    },
+    {
+      "year": 2019,
+      "nominalReturn": 0.3121,
+      "riskFreeReturn": 0.0211,
+      "inflation": 0.022851,
+      "realReturn": 0.282787,
+      "realRiskFreeReturn": -0.001712
+    },
+    {
+      "year": 2020,
+      "nominalReturn": 0.1802,
+      "riskFreeReturn": 0.0036,
+      "inflation": 0.01362,
+      "realReturn": 0.164342,
+      "realRiskFreeReturn": -0.009885
+    },
+    {
+      "year": 2021,
+      "nominalReturn": 0.2847,
+      "riskFreeReturn": 0.0004,
+      "inflation": 0.070364,
+      "realReturn": 0.200246,
+      "realRiskFreeReturn": -0.065365
+    },
+    {
+      "year": 2022,
+      "nominalReturn": -0.1804,
+      "riskFreeReturn": 0.0209,
+      "inflation": 0.064544,
+      "realReturn": -0.230093,
+      "realRiskFreeReturn": -0.040998
+    },
+    {
+      "year": 2023,
+      "nominalReturn": 0.2606,
+      "riskFreeReturn": 0.0528,
+      "inflation": 0.033521,
+      "realReturn": 0.219714,
+      "realRiskFreeReturn": 0.018654
+    },
+    {
+      "year": 2024,
+      "nominalReturn": 0.2488,
+      "riskFreeReturn": 0.0518,
+      "inflation": 0.028881,
+      "realReturn": 0.213746,
+      "realRiskFreeReturn": 0.022276
+    },
+    {
+      "year": 2025,
+      "nominalReturn": 0.1778,
+      "riskFreeReturn": 0.0421,
+      "inflation": 0.026771,
+      "realReturn": 0.147091,
+      "realRiskFreeReturn": 0.014929
+    }
+  ]
+}
