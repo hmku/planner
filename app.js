@@ -481,6 +481,7 @@ function simulateScenario(scenario, returnRows) {
   simulationRows.forEach((row) => {
     row.endingPercentile = percentileRank(terminalWealthSorted, row.terminalWealth);
   });
+  const inspectionPaths = [...visualPaths].sort((a, b) => a.terminalWealth - b.terminalWealth);
 
   return {
     scenario,
@@ -493,6 +494,7 @@ function simulateScenario(scenario, returnRows) {
     terminalWealth,
     terminalWealthSorted,
     visualPaths,
+    inspectionPaths,
     expectedPath,
     depletedDistribution,
     notDepletedCount,
@@ -587,20 +589,23 @@ function renderDistributionTable(results) {
 
 function renderSimulationSelect(results) {
   const previousValue = Number(els.simulationSelect.value) || 1;
-  const selectedSimulation = Math.min(Math.max(1, previousValue), results.scenario.simulationCount);
   const fragment = document.createDocumentFragment();
 
-  results.simulationRows.forEach((row) => {
+  results.inspectionPaths.forEach((path, index) => {
     const option = document.createElement("option");
-    option.value = String(row.simulation);
-    option.textContent = row.failureYear
-      ? `Simulation ${formatNumber(row.simulation)} - depleted ${row.failureYear}`
-      : `Simulation ${formatNumber(row.simulation)} - not depleted`;
+    const rankLabel = `${formatNumber(index + 1)} of ${formatNumber(results.inspectionPaths.length)}`;
+    option.value = String(path.simulation);
+    option.textContent = path.failureYear
+      ? `${rankLabel} - ${formatCurrency(path.terminalWealth)} ending wealth - simulation ${formatNumber(path.simulation)} - depleted ${path.failureYear}`
+      : `${rankLabel} - ${formatCurrency(path.terminalWealth)} ending wealth - simulation ${formatNumber(path.simulation)}`;
     fragment.appendChild(option);
   });
 
   els.simulationSelect.replaceChildren(fragment);
-  els.simulationSelect.value = String(selectedSimulation);
+  const hasPreviousSelection = results.inspectionPaths.some((path) => path.simulation === previousValue);
+  els.simulationSelect.value = hasPreviousSelection
+    ? String(previousValue)
+    : String(results.inspectionPaths[0]?.simulation || 1);
 }
 
 function renderSimulationPathTable(results) {
