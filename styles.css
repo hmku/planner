@@ -129,6 +129,47 @@ p {
   background: var(--accent-dark);
 }
 
+.primary-action:disabled {
+  background: #d6ddd8;
+  border-color: #cbd5cf;
+  color: #7b8982;
+  cursor: default;
+}
+
+.primary-action:disabled:hover {
+  background: #d6ddd8;
+}
+
+.run-controls {
+  display: grid;
+  gap: 7px;
+  justify-items: end;
+  min-width: 92px;
+}
+
+.run-progress {
+  width: 92px;
+  height: 5px;
+  overflow: hidden;
+  background: #dbe4df;
+  border-radius: 999px;
+}
+
+.run-progress > div {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.run-progress-label {
+  min-height: 14px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+}
+
 .secondary-action,
 .page-button {
   background: #fff;
@@ -515,6 +556,15 @@ th {
   }
 
   .primary-action {
+    width: 100%;
+  }
+
+  .run-controls {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .run-progress {
     width: 100%;
   }
 

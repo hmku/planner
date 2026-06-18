@@ -1,12 +1,16 @@
 const MAX_VISUAL_PATHS = 200;
 const RETURN_BLOCK_YEARS = 5;
+const SIMULATION_CHUNK_SIZE = 250;
 
 const state = {
   marketData: null,
   results: null,
   activePage: "overview",
   hover: null,
-  pathHitAreas: []
+  pathHitAreas: [],
+  isDirty: true,
+  isRunning: false,
+  inputVersion: 0
 };
 
 const DEFAULT_INCOME = [
@@ -24,14 +28,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
   setDefaults();
   bindEvents();
+  updateRunState();
   await loadMarketData();
-  runSimulation();
+  markDirty();
 });
 
 function cacheElements() {
   Object.assign(els, {
     form: document.querySelector("#plannerForm"),
     runSimulation: document.querySelector("#runSimulation"),
+    runProgress: document.querySelector("#runProgress"),
+    runProgressBar: document.querySelector("#runProgressBar"),
+    runProgressLabel: document.querySelector("#runProgressLabel"),
     currentYear: document.querySelector("#currentYear"),
     deathYear: document.querySelector("#deathYear"),
     netWorth: document.querySelector("#netWorth"),
@@ -84,8 +92,15 @@ function bindEvents() {
     event.preventDefault();
     runSimulation();
   });
-  [els.currentYear, els.deathYear, els.netWorth, els.spyBeta, els.simulationCount].forEach((input) => {
-    input.addEventListener("change", runSimulation);
+  els.form.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    runSimulation();
+  });
+  els.form.addEventListener("input", markDirty);
+  els.form.addEventListener("change", markDirty);
+  [els.currentYear, els.deathYear].forEach((input) => {
+    input.addEventListener("change", syncRelativeFlowYears);
   });
   els.addIncome.addEventListener("click", () => {
     addFlowRow(els.incomeRows, {
@@ -96,6 +111,7 @@ function bindEvents() {
       endMode: "death",
       endYear: Number(els.deathYear.value)
     });
+    markDirty();
   });
   els.addExpense.addEventListener("click", () => {
     addFlowRow(els.expenseRows, {
@@ -106,6 +122,7 @@ function bindEvents() {
       endMode: "death",
       endYear: Number(els.deathYear.value)
     });
+    markDirty();
   });
   els.downloadCsv.addEventListener("click", downloadSimulationCsv);
   els.pageButtons.forEach((button) => {
@@ -142,6 +159,42 @@ async function loadMarketData() {
   els.dataSpanMetric.textContent = `${Math.min(...years)}-${Math.max(...years)}`;
 }
 
+function markDirty() {
+  if (!state.isDirty || state.isRunning) {
+    state.inputVersion += 1;
+  }
+  state.isDirty = true;
+  updateRunState();
+}
+
+function updateRunState() {
+  const canRun = Boolean(state.marketData) && state.isDirty && !state.isRunning;
+  els.runSimulation.disabled = !canRun;
+  els.runSimulation.textContent = state.isRunning ? "Running" : "Run";
+}
+
+function showProgress() {
+  els.runProgress.hidden = false;
+  setProgress(0);
+}
+
+function hideProgress() {
+  els.runProgress.hidden = true;
+  els.runProgressLabel.textContent = "";
+  setProgress(0);
+}
+
+function setProgress(value) {
+  const percent = Math.max(0, Math.min(100, Math.round(value * 100)));
+  els.runProgressBar.style.width = `${percent}%`;
+  els.runProgress.setAttribute("aria-valuenow", String(percent));
+  els.runProgressLabel.textContent = state.isRunning ? `${percent}%` : "";
+}
+
+function syncRelativeFlowYears() {
+  document.querySelectorAll(".flow-row").forEach(updateFlowYearInputs);
+}
+
 function addFlowRow(container, flow) {
   const node = els.template.content.firstElementChild.cloneNode(true);
   node.querySelector('[data-field="name"]').value = flow.name;
@@ -152,14 +205,14 @@ function addFlowRow(container, flow) {
   node.querySelector('[data-field="endYear"]').value = flow.endYear;
   node.querySelector(".remove-flow").addEventListener("click", () => {
     node.remove();
-    runSimulation();
+    markDirty();
   });
   bindFormattedInputs(node);
   formatAllFormattedInputs(node);
   node.querySelectorAll("input, select").forEach((field) => {
     field.addEventListener("change", () => {
       updateFlowYearInputs(node);
-      runSimulation();
+      markDirty();
     });
   });
   updateFlowYearInputs(node);
@@ -337,21 +390,42 @@ function caretAfterDigitCount(value, digitCount) {
   return value.length;
 }
 
-function runSimulation() {
-  if (!state.marketData) return;
+async function runSimulation() {
+  if (!state.marketData || state.isRunning || !state.isDirty) return;
+
+  const runVersion = state.inputVersion;
+  let scenario;
+  try {
+    scenario = readScenario();
+  } catch (error) {
+    els.scenarioSummary.textContent = error.message;
+    state.isDirty = true;
+    updateRunState();
+    return;
+  }
+
+  state.isRunning = true;
+  state.hover = null;
+  showProgress();
+  updateRunState();
+  await yieldToBrowser();
 
   try {
-    const scenario = readScenario();
-    const results = simulateScenario(scenario, state.marketData.returns);
+    const results = await simulateScenario(scenario, state.marketData.returns, setProgress);
     state.results = results;
-    state.hover = null;
+    state.isDirty = state.inputVersion !== runVersion;
     renderResults(results);
   } catch (error) {
     els.scenarioSummary.textContent = error.message;
+    state.isDirty = true;
+  } finally {
+    state.isRunning = false;
+    hideProgress();
+    updateRunState();
   }
 }
 
-function simulateScenario(scenario, returnRows) {
+async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
   if (!returnRows.length) {
     throw new Error("No historical market data loaded.");
   }
@@ -365,7 +439,13 @@ function simulateScenario(scenario, returnRows) {
   const visualPaths = [];
   const wealthSums = new Array(years.length).fill(0);
 
+  onProgress(0);
   for (let i = 0; i < scenario.simulationCount; i += 1) {
+    if (i > 0 && i % SIMULATION_CHUNK_SIZE === 0) {
+      onProgress(i / scenario.simulationCount);
+      await yieldToBrowser();
+    }
+
     let wealth = scenario.netWorth;
     let failureYear = null;
     let sampledReturnCount = 0;
@@ -477,6 +557,7 @@ function simulateScenario(scenario, returnRows) {
     });
     simulationYearRowsBySimulation.set(i + 1, pathYearRows);
   }
+  onProgress(1);
 
   const failureYears = failures.filter(Boolean);
   const depletedDistribution = buildDepletedDistribution(failureYears, scenario);
@@ -565,6 +646,12 @@ function buildSampledReturnPath(returnRows, pathLength, blockYears) {
   }
 
   return path;
+}
+
+function yieldToBrowser() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
 }
 
 function cashFlowForYear(flows, year) {

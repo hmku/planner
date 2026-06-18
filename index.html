@@ -15,7 +15,13 @@
               <h1>Financial Runway Planner</h1>
               <p>Monte Carlo depletion years from 5-year historical return blocks.</p>
             </div>
-            <button id="runSimulation" class="primary-action" type="button">Run</button>
+            <div class="run-controls">
+              <button id="runSimulation" class="primary-action" type="button" disabled>Run</button>
+              <div id="runProgress" class="run-progress" role="progressbar" aria-label="Simulation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                <div id="runProgressBar"></div>
+              </div>
+              <span id="runProgressLabel" class="run-progress-label"></span>
+            </div>
           </div>
 
           <form id="plannerForm">
