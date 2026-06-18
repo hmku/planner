@@ -481,7 +481,7 @@ function simulateScenario(scenario, returnRows) {
   simulationRows.forEach((row) => {
     row.endingPercentile = percentileRank(terminalWealthSorted, row.terminalWealth);
   });
-  const inspectionPaths = [...visualPaths].sort((a, b) => a.terminalWealth - b.terminalWealth);
+  const inspectionPaths = [...visualPaths].sort(compareInspectionPaths);
 
   return {
     scenario,
@@ -549,6 +549,16 @@ function buildDepletedDistribution(failureYears, scenario) {
   return range(scenario.currentYear, scenario.deathYear)
     .map((year) => ({ label: String(year), count: counts.get(String(year)) || 0 }))
     .filter((row) => row.count > 0);
+}
+
+function compareInspectionPaths(a, b) {
+  const wealthDifference = a.terminalWealth - b.terminalWealth;
+  if (wealthDifference !== 0) return wealthDifference;
+  return depletionSortYear(a) - depletionSortYear(b);
+}
+
+function depletionSortYear(path) {
+  return path.failureYear || Number.POSITIVE_INFINITY;
 }
 
 function renderResults(results) {
