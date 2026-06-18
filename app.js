@@ -62,7 +62,6 @@ function cacheElements() {
     showNotDepleted: document.querySelector("#showNotDepleted"),
     distributionCanvas: document.querySelector("#distributionCanvas"),
     pathsCanvas: document.querySelector("#pathsCanvas"),
-    distributionTable: document.querySelector("#distributionTable"),
     simulationSelect: document.querySelector("#simulationSelect"),
     simulationPathTable: document.querySelector("#simulationPathTable"),
     pageButtons: document.querySelectorAll("[data-page]"),
@@ -690,7 +689,6 @@ function renderResults(results) {
   updateScenarioSummary(results);
   els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${formatNumber(simulations)} simulations, with ${formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
 
-  renderDistributionTable(results);
   renderSimulationSelect(results);
   renderSimulationPathTable(results);
   renderCharts(results);
@@ -704,18 +702,6 @@ function updateScenarioSummary(results) {
     ? "The chart includes both depleted and not-depleted paths."
     : "The chart shows only depleted paths, while probabilities still use all simulations as the denominator.";
   els.scenarioSummary.textContent = `${depletedText} ${notDepletedText} ${chartText}`;
-}
-
-function renderDistributionTable(results) {
-  const depletedRows = [
-    `<tr><td>Any depletion</td><td>${formatNumber(results.failureYears.length)}</td><td>${formatPercent(results.risk)}</td></tr>`,
-    `<tr><td>Not depleted</td><td>${formatNumber(results.notDepletedCount)}</td><td>${formatPercent(results.notDepletedCount / results.scenario.simulationCount)}</td></tr>`
-  ];
-  results.depletedDistribution.forEach((row) => {
-    const share = row.count / results.scenario.simulationCount;
-    depletedRows.push(`<tr><td>Depleted in ${row.label}</td><td>${formatNumber(row.count)}</td><td>${formatPercent(share)}</td></tr>`);
-  });
-  els.distributionTable.innerHTML = depletedRows.join("");
 }
 
 function renderSimulationSelect(results) {

@@ -132,39 +132,16 @@
             <section class="table-section">
               <div class="section-header compact">
                 <div>
-                  <h2>Simulation Details</h2>
-                  <p>Cash flows are annual current dollars. The CSV download exports one row per simulation-year, matching the internal path representation.</p>
-                </div>
-                <button id="downloadCsv" class="secondary-action" type="button">Download CSV</button>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Outcome</th>
-                      <th>Simulations</th>
-                      <th>Share</th>
-                    </tr>
-                  </thead>
-                  <tbody id="distributionTable">
-                    <tr>
-                      <td colspan="3">No results yet.</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="table-section">
-              <div class="section-header compact">
-                <div>
                   <h2>Inspect Simulation</h2>
-                  <p>Select one downsampled path, sorted by ending net worth, to inspect sampled 5-year return blocks, annual returns, inflation, cash flows, and start/end wealth.</p>
+                  <p>Select one downsampled path, sorted by ending net worth, to inspect sampled 5-year return blocks, annual returns, inflation, cash flows, and start/end wealth. The CSV exports one row per simulation-year.</p>
                 </div>
-                <label class="simulation-picker">
-                  <span>Simulation</span>
-                  <select id="simulationSelect"></select>
-                </label>
+                <div class="details-actions">
+                  <label class="simulation-picker">
+                    <span>Simulation</span>
+                    <select id="simulationSelect"></select>
+                  </label>
+                  <button id="downloadCsv" class="secondary-action" type="button">Download CSV</button>
+                </div>
               </div>
               <div class="table-wrap">
                 <table>
@@ -203,7 +180,7 @@
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
-                  <p>The simulator samples contiguous 5-year historical blocks from 1928-2025. Within each block, annual S&amp;P 500 total returns, 3-month T-bill returns, and CPI inflation stay paired and in historical order.</p>
+                  <p>The simulator samples contiguous 5-year historical blocks from 1950-2025. Within each block, annual S&amp;P 500 total returns, 3-month T-bill returns, and CPI inflation stay paired and in historical order.</p>
                 </article>
                 <article>
                   <h3>Return Model</h3>
