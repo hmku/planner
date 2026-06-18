@@ -69,7 +69,7 @@ function setDefaults() {
   els.deathYear.value = currentYear + 44;
   els.netWorth.value = 1250000;
   els.spyBeta.value = 0.75;
-  els.simulationCount.value = 10000;
+  els.simulationCount.value = 100000;
 
   DEFAULT_INCOME.forEach((flow) => addFlowRow(els.incomeRows, flow));
   DEFAULT_EXPENSES.forEach((flow) => addFlowRow(els.expenseRows, flow));
