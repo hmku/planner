@@ -74,10 +74,6 @@
               <strong id="riskMetric">--</strong>
             </article>
             <article class="metric">
-              <span>Earliest run-out year</span>
-              <strong id="earliestFailureMetric">--</strong>
-            </article>
-            <article class="metric">
               <span>Median final wealth, current $</span>
               <strong id="medianWealthMetric">--</strong>
             </article>
@@ -133,11 +129,12 @@
           </div>
 
           <div id="detailsPage" class="page-panel" hidden>
-            <section class="table-section">
+            <section class="table-section inspection-section">
               <div class="section-header compact">
                 <div>
                   <h2>Inspect Simulation</h2>
-                  <p>Select one downsampled path, sorted by ending net worth, to inspect sampled 5-year return blocks, annual returns, inflation, cash flows, and start/end wealth. The CSV exports one row per simulation-year.</p>
+                  <p>Select one downsampled path, sorted by ending net worth. The selected simulation controls the chart and table below; the CSV exports one row per simulation-year.</p>
+                  <p id="selectedSimulationSummary">Run a simulation to inspect one path.</p>
                 </div>
                 <div class="details-actions">
                   <label class="simulation-picker">
@@ -146,6 +143,9 @@
                   </label>
                   <button id="downloadCsv" class="secondary-action" type="button">Download CSV</button>
                 </div>
+              </div>
+              <div class="canvas-wrap">
+                <canvas id="selectedSimulationCanvas" class="detail-chart-canvas" width="980" height="340" aria-label="Selected simulation current-dollar net worth over time"></canvas>
               </div>
               <div class="table-wrap">
                 <table>

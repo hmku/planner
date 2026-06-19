@@ -60,7 +60,6 @@ function cacheElements() {
     downloadCsv: document.querySelector("#downloadCsv"),
     template: document.querySelector("#flowRowTemplate"),
     riskMetric: document.querySelector("#riskMetric"),
-    earliestFailureMetric: document.querySelector("#earliestFailureMetric"),
     medianWealthMetric: document.querySelector("#medianWealthMetric"),
     worstSurvivorReturnMetric: document.querySelector("#worstSurvivorReturnMetric"),
     dataSpanMetric: document.querySelector("#dataSpanMetric"),
@@ -71,8 +70,10 @@ function cacheElements() {
     showNotDepleted: document.querySelector("#showNotDepleted"),
     distributionCanvas: document.querySelector("#distributionCanvas"),
     pathsCanvas: document.querySelector("#pathsCanvas"),
+    selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
     simulationSelect: document.querySelector("#simulationSelect"),
     simulationPathTable: document.querySelector("#simulationPathTable"),
+    selectedSimulationSummary: document.querySelector("#selectedSimulationSummary"),
     pageButtons: document.querySelectorAll("[data-page]"),
     overviewPage: document.querySelector("#overviewPage"),
     detailsPage: document.querySelector("#detailsPage"),
@@ -152,7 +153,9 @@ function bindEvents() {
     }
   });
   els.simulationSelect.addEventListener("change", () => {
-    if (state.results) renderSimulationPathTable(state.results);
+    if (!state.results) return;
+    renderSimulationPathTable(state.results);
+    renderSelectedSimulationChart(els.selectedSimulationCanvas, state.results);
   });
   window.addEventListener("resize", () => {
     if (state.results) renderCharts(state.results);
@@ -772,8 +775,8 @@ function renderResults(results) {
   els.simulationSelect.disabled = false;
   els.downloadCsv.disabled = false;
   els.riskMetric.textContent = formatPercent(results.risk);
-  els.earliestFailureMetric.textContent = results.earliestFailureYear ? String(results.earliestFailureYear) : "None";
-  els.medianWealthMetric.textContent = formatCurrency(results.medianTerminalWealth);
+  els.medianWealthMetric.textContent = formatCompactCurrency(results.medianTerminalWealth);
+  els.medianWealthMetric.title = formatCurrency(results.medianTerminalWealth);
   els.worstSurvivorReturnMetric.textContent = results.worstSurvivingPath
     ? formatPercent(results.worstSurvivingPath.averageNominalSpyReturn)
     : "None";
@@ -792,6 +795,7 @@ function resetDetailsControls() {
   els.simulationSelect.replaceChildren(option);
   els.simulationSelect.disabled = true;
   els.downloadCsv.disabled = true;
+  els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
 }
 
 function updateScenarioSummary(results) {
@@ -957,9 +961,14 @@ function switchPage(page) {
 }
 
 function renderCharts(results) {
-  if (state.activePage !== "overview") return;
-  renderDistributionChart(els.distributionCanvas, results);
-  renderNetWorthChart(els.pathsCanvas, results);
+  if (state.activePage === "overview") {
+    renderDistributionChart(els.distributionCanvas, results);
+    renderNetWorthChart(els.pathsCanvas, results);
+    return;
+  }
+  if (state.activePage === "details") {
+    renderSelectedSimulationChart(els.selectedSimulationCanvas, results);
+  }
 }
 
 function renderDistributionChart(canvas, results) {
@@ -1060,6 +1069,74 @@ function renderNetWorthChart(canvas, results) {
   ctx.restore();
   drawChartLegend(ctx, width, padding);
   if (state.hover) drawPathTooltip(ctx, state.hover, width, height);
+}
+
+function renderSelectedSimulationChart(canvas, results) {
+  const size = fitCanvas(canvas);
+  const ctx = canvas.getContext("2d");
+  const width = size.width;
+  const height = size.height;
+  clearCanvas(ctx, width, height);
+
+  const selectedSimulation = Number(els.simulationSelect.value) || 1;
+  const rows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
+  const summary = results.simulationRows.find((row) => row.simulation === selectedSimulation);
+  if (!rows.length) {
+    els.selectedSimulationSummary.textContent = "No rows for this simulation.";
+    drawEmptyState(ctx, width, height, "No rows for this simulation.");
+    return;
+  }
+
+  const padding = { top: 28, right: 24, bottom: 54, left: 82 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const minYear = results.scenario.currentYear;
+  const maxYear = results.scenario.deathYear;
+  const maxWealth = Math.max(
+    1,
+    ...rows.flatMap((row) => [row.startingWealth, row.endingWealth])
+  );
+  const points = rows.map((row) => ({
+    year: row.year,
+    wealth: row.endingWealth,
+    depletedThisYear: row.depletedThisYear
+  }));
+
+  const finalWealth = summary ? summary.terminalWealth : rows[rows.length - 1].endingWealth;
+  const status = summary && summary.failureYear ? `Depleted in ${summary.failureYear}` : "Not depleted";
+  els.selectedSimulationSummary.textContent = `Simulation ${formatNumber(selectedSimulation)} ended at ${formatCurrency(finalWealth)}. ${status}.`;
+
+  drawAxes(ctx, padding, width, height, "Current-dollar net worth");
+  drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);
+  drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+  ctx.clip();
+
+  ctx.beginPath();
+  ctx.strokeStyle = "#106b5f";
+  ctx.lineWidth = 3;
+  points.forEach((point, index) => {
+    const x = padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
+    const y = padding.top + chartHeight - (point.wealth / maxWealth) * chartHeight;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  const depletionPoint = points.find((point) => point.depletedThisYear);
+  if (depletionPoint) {
+    const x = padding.left + ((depletionPoint.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
+    const y = padding.top + chartHeight - (depletionPoint.wealth / maxWealth) * chartHeight;
+    ctx.fillStyle = "#a34426";
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 function drawExpectedPath(ctx, expectedPath, padding, chartWidth, chartHeight, minYear, maxYear, maxWealth) {
