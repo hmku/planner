@@ -30,7 +30,7 @@ The Details tab uses `renderSelectedSimulationChart()` and `renderSimulationPath
 ## Important Implementation Details
 
 - Default inputs are set in `setDefaults()`.
-- SPY beta currently defaults to `1.2`.
+- SPY beta currently defaults to `0.8`.
 - Simulation rows are stored in `simulationYearRowsBySimulation` so the Details tab can inspect one simulation without recomputing.
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
@@ -54,7 +54,7 @@ http://127.0.0.1:8000/
 Manual smoke test:
 
 - Page loads without console errors.
-- Default SPY beta is `1.2`.
+- Default SPY beta is `0.8`.
 - Click `Run`; progress appears and results render.
 - Top metric values stay inside their cards, including large median wealth values.
 - Overview charts render and resize correctly.

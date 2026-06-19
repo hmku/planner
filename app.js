@@ -86,7 +86,7 @@ function setDefaults() {
   els.currentYear.value = currentYear;
   els.deathYear.value = currentYear + 44;
   els.netWorth.value = 1250000;
-  els.spyBeta.value = 1.2;
+  els.spyBeta.value = 0.8;
   els.simulationCount.value = 50000;
 
   DEFAULT_INCOME.forEach((flow) => addFlowRow(els.incomeRows, flow));
@@ -1001,7 +1001,7 @@ function renderDistributionChart(canvas, results) {
     const x = padding.left + index * (chartWidth / rows.length);
     const barHeight = (probability / maxProbability) * chartHeight;
     const y = padding.top + chartHeight - barHeight;
-    ctx.fillStyle = row.isNotDepleted ? "#437145" : "#237b8f";
+    ctx.fillStyle = row.isNotDepleted ? "#4f46e5" : "#0ea5e9";
     ctx.fillRect(x, y, barWidth, barHeight);
 
     const shouldLabel = row.isNotDepleted || index === 0 || index === rows.length - 1 || index % Math.ceil(rows.length / 8) === 0;
@@ -1009,7 +1009,7 @@ function renderDistributionChart(canvas, results) {
       ctx.save();
       ctx.translate(x + barWidth / 2, height - 48);
       ctx.rotate(-Math.PI / 5);
-      ctx.fillStyle = "#66746f";
+      ctx.fillStyle = "#6b7280";
       ctx.font = "12px system-ui";
       ctx.textAlign = "right";
       ctx.fillText(row.label, 0, 0);
@@ -1056,7 +1056,7 @@ function renderNetWorthChart(canvas, results) {
 
     const highlighted = state.hover && state.hover.index === index;
     ctx.beginPath();
-    ctx.strokeStyle = highlighted ? "rgba(163, 68, 38, 0.95)" : "rgba(35, 123, 143, 0.15)";
+    ctx.strokeStyle = highlighted ? "rgba(225, 29, 72, 0.95)" : "rgba(14, 165, 233, 0.18)";
     ctx.lineWidth = highlighted ? 3 : 1;
     points.forEach((point, pointIndex) => {
       if (pointIndex === 0) ctx.moveTo(point.x, point.y);
@@ -1116,7 +1116,7 @@ function renderSelectedSimulationChart(canvas, results) {
   ctx.clip();
 
   ctx.beginPath();
-  ctx.strokeStyle = "#106b5f";
+  ctx.strokeStyle = "#4f46e5";
   ctx.lineWidth = 3;
   points.forEach((point, index) => {
     const x = padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
@@ -1130,7 +1130,7 @@ function renderSelectedSimulationChart(canvas, results) {
   if (depletionPoint) {
     const x = padding.left + ((depletionPoint.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
     const y = padding.top + chartHeight - (depletionPoint.wealth / maxWealth) * chartHeight;
-    ctx.fillStyle = "#a34426";
+    ctx.fillStyle = "#e11d48";
     ctx.beginPath();
     ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -1141,7 +1141,7 @@ function renderSelectedSimulationChart(canvas, results) {
 
 function drawExpectedPath(ctx, expectedPath, padding, chartWidth, chartHeight, minYear, maxYear, maxWealth) {
   ctx.beginPath();
-  ctx.strokeStyle = "#106b5f";
+  ctx.strokeStyle = "#4f46e5";
   ctx.lineWidth = 3;
   expectedPath.forEach((point, index) => {
     const x = padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
@@ -1173,9 +1173,9 @@ function updateNetWorthZoomLabel() {
 function drawChartLegend(ctx, width, padding) {
   ctx.font = "12px system-ui";
   ctx.textAlign = "right";
-  ctx.fillStyle = "#106b5f";
+  ctx.fillStyle = "#4f46e5";
   ctx.fillText("Expected net worth", width - padding.right, 18);
-  ctx.fillStyle = "#237b8f";
+  ctx.fillStyle = "#0ea5e9";
   ctx.fillText(`Downsampled paths (${MAX_VISUAL_PATHS} max)`, width - padding.right - 150, 18);
 }
 
@@ -1191,7 +1191,7 @@ function drawPathTooltip(ctx, hover, width, height) {
   const x = Math.min(width - boxWidth - 12, Math.max(12, hover.x + 14));
   const y = Math.min(height - boxHeight - 12, Math.max(12, hover.y - boxHeight - 12));
 
-  ctx.fillStyle = "rgba(23, 33, 29, 0.92)";
+  ctx.fillStyle = "rgba(26, 31, 46, 0.92)";
   ctx.fillRect(x, y, boxWidth, boxHeight);
   ctx.fillStyle = "#ffffff";
   ctx.font = "13px system-ui";
@@ -1245,7 +1245,7 @@ function distanceToSegment(x, y, a, b) {
 }
 
 function drawAxes(ctx, padding, width, height, yTitle) {
-  ctx.strokeStyle = "#d7dfd9";
+  ctx.strokeStyle = "#dfe3ee";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(padding.left, padding.top);
@@ -1253,21 +1253,21 @@ function drawAxes(ctx, padding, width, height, yTitle) {
   ctx.lineTo(width - padding.right, height - padding.bottom);
   ctx.stroke();
 
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui";
   ctx.textAlign = "left";
   ctx.fillText(yTitle, padding.left, 16);
 }
 
 function drawEmptyState(ctx, width, height, message) {
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "14px system-ui";
   ctx.textAlign = "center";
   ctx.fillText(message, width / 2, height / 2);
 }
 
 function drawYProbabilityLabels(ctx, padding, chartHeight, maxProbability) {
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui";
   ctx.textAlign = "right";
   for (let i = 0; i <= 4; i += 1) {
@@ -1278,7 +1278,7 @@ function drawYProbabilityLabels(ctx, padding, chartHeight, maxProbability) {
 }
 
 function drawYMoneyLabels(ctx, padding, chartHeight, maxWealth) {
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui";
   ctx.textAlign = "right";
   for (let i = 0; i <= 4; i += 1) {
@@ -1290,7 +1290,7 @@ function drawYMoneyLabels(ctx, padding, chartHeight, maxWealth) {
 
 function drawEndingPercentileLabels(ctx, results, padding, chartHeight, width, maxWealth) {
   const percentiles = [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui";
   ctx.textAlign = "left";
   ctx.fillText("Ending rank", width - padding.right + 10, 16);
@@ -1306,7 +1306,7 @@ function drawEndingPercentileLabels(ctx, results, padding, chartHeight, width, m
 }
 
 function drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear) {
-  ctx.fillStyle = "#66746f";
+  ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui";
   ctx.textAlign = "center";
   for (let i = 0; i <= 4; i += 1) {
@@ -1334,7 +1334,7 @@ function fitCanvas(canvas) {
 
 function clearCanvas(ctx, width, height) {
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#fbfcfa";
+  ctx.fillStyle = "#fcfdff";
   ctx.fillRect(0, 0, width, height);
 }
 
