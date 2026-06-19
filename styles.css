@@ -61,6 +61,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .inputs-pane {
@@ -80,6 +81,13 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
+}
+
+.brand-row > *,
+.group-title-row > *,
+.section-header > * {
+  min-width: 0;
 }
 
 h1,
@@ -127,6 +135,15 @@ p {
 
 .primary-action:hover {
   background: var(--accent-dark);
+}
+
+.primary-action.is-running {
+  background: var(--warn);
+  color: #fff;
+}
+
+.primary-action.is-running:hover {
+  background: #85371e;
 }
 
 .primary-action:disabled {
@@ -180,6 +197,17 @@ p {
 .secondary-action:hover,
 .page-button:hover {
   border-color: var(--accent);
+}
+
+.secondary-action:disabled {
+  background: #f2f5f1;
+  border-color: var(--line);
+  color: #86938d;
+  cursor: default;
+}
+
+.secondary-action:disabled:hover {
+  border-color: var(--line);
 }
 
 .page-button.active {
@@ -296,24 +324,34 @@ select:focus {
 .results-pane {
   display: grid;
   gap: 20px;
+  align-content: start;
+  align-items: start;
   min-width: 0;
 }
 
 .page-nav {
   display: flex;
+  align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.page-button {
+  flex: 0 0 auto;
 }
 
 .page-panel {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .metric {
@@ -325,6 +363,7 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .metric span {
@@ -406,7 +445,13 @@ select:focus {
 }
 
 .section-header.compact {
+  align-items: flex-start;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.section-header.compact > div:first-child {
+  flex: 1 1 480px;
 }
 
 .zoom-control {
@@ -425,8 +470,10 @@ select:focus {
 
 .simulation-picker {
   display: grid;
+  flex: 1 1 240px;
   gap: 5px;
-  min-width: 180px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .details-actions {
@@ -435,6 +482,19 @@ select:focus {
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  flex: 0 1 560px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.simulation-picker select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.details-actions .secondary-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .zoom-control input[type="range"] {

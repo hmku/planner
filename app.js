@@ -1,6 +1,12 @@
 const MAX_VISUAL_PATHS = 200;
 const RETURN_BLOCK_YEARS = 5;
-const SIMULATION_CHUNK_SIZE = 250;
+const SIMULATION_CHUNK_SIZE = 100;
+const MIN_PLAN_YEAR = 1900;
+const MAX_PLAN_YEAR = 2200;
+const MAX_PLAN_LENGTH_YEARS = 120;
+const MIN_SIMULATION_COUNT = 100;
+const MAX_SIMULATION_COUNT = 200000;
+const MAX_SIMULATION_YEAR_ROWS = 12000000;
 
 const state = {
   marketData: null,
@@ -10,6 +16,7 @@ const state = {
   pathHitAreas: [],
   isDirty: true,
   isRunning: false,
+  cancelRequested: false,
   inputVersion: 0
 };
 
@@ -28,6 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
   setDefaults();
   bindEvents();
+  resetDetailsControls();
   updateRunState();
   await loadMarketData();
   markDirty();
@@ -52,8 +60,9 @@ function cacheElements() {
     downloadCsv: document.querySelector("#downloadCsv"),
     template: document.querySelector("#flowRowTemplate"),
     riskMetric: document.querySelector("#riskMetric"),
-    medianFailureMetric: document.querySelector("#medianFailureMetric"),
+    earliestFailureMetric: document.querySelector("#earliestFailureMetric"),
     medianWealthMetric: document.querySelector("#medianWealthMetric"),
+    worstSurvivorReturnMetric: document.querySelector("#worstSurvivorReturnMetric"),
     dataSpanMetric: document.querySelector("#dataSpanMetric"),
     scenarioSummary: document.querySelector("#scenarioSummary"),
     netWorthSummary: document.querySelector("#netWorthSummary"),
@@ -76,8 +85,8 @@ function setDefaults() {
   els.currentYear.value = currentYear;
   els.deathYear.value = currentYear + 44;
   els.netWorth.value = 1250000;
-  els.spyBeta.value = 0.75;
-  els.simulationCount.value = 100000;
+  els.spyBeta.value = 1.2;
+  els.simulationCount.value = 50000;
 
   DEFAULT_INCOME.forEach((flow) => addFlowRow(els.incomeRows, flow));
   DEFAULT_EXPENSES.forEach((flow) => addFlowRow(els.expenseRows, flow));
@@ -168,8 +177,13 @@ function markDirty() {
 
 function updateRunState() {
   const canRun = Boolean(state.marketData) && state.isDirty && !state.isRunning;
-  els.runSimulation.disabled = !canRun;
-  els.runSimulation.textContent = state.isRunning ? "Running" : "Run";
+  els.runSimulation.disabled = state.isRunning ? state.cancelRequested : !canRun;
+  els.runSimulation.textContent = state.cancelRequested
+    ? "Stopping"
+    : state.isRunning
+      ? "Stop"
+      : "Run";
+  els.runSimulation.classList.toggle("is-running", state.isRunning);
 }
 
 function showProgress() {
@@ -188,6 +202,10 @@ function setProgress(value) {
   els.runProgressBar.style.width = `${percent}%`;
   els.runProgress.setAttribute("aria-valuenow", String(percent));
   els.runProgressLabel.textContent = state.isRunning ? `${percent}%` : "";
+}
+
+function setProgressLabel(text) {
+  els.runProgressLabel.textContent = text;
 }
 
 function syncRelativeFlowYears() {
@@ -228,15 +246,20 @@ function updateFlowYearInputs(row) {
 function readFlowRows(container, scenario) {
   return [...container.querySelectorAll(".flow-row")]
     .map((row) => {
+      const name = row.querySelector('[data-field="name"]').value.trim();
       const startMode = row.querySelector('[data-field="startMode"]').value;
       const endMode = row.querySelector('[data-field="endMode"]').value;
+      const startYear = resolveFlowYear(startMode, row.querySelector('[data-field="startYear"]'), scenario);
+      const endYear = resolveFlowYear(endMode, row.querySelector('[data-field="endYear"]'), scenario);
+      if (Number.isFinite(startYear)) validatePlanYear(startYear, `${name || "Cash flow"} start year`);
+      if (Number.isFinite(endYear)) validatePlanYear(endYear, `${name || "Cash flow"} end year`);
       return {
-        name: row.querySelector('[data-field="name"]').value.trim(),
+        name,
         amount: numberFromInput(row.querySelector('[data-field="amount"]')),
         startMode,
         endMode,
-        startYear: resolveFlowYear(startMode, row.querySelector('[data-field="startYear"]'), scenario),
-        endYear: resolveFlowYear(endMode, row.querySelector('[data-field="endYear"]'), scenario)
+        startYear,
+        endYear
       };
     })
     .filter((flow) => (
@@ -266,8 +289,14 @@ function readScenario() {
   if (!Number.isFinite(scenario.currentYear) || !Number.isFinite(scenario.deathYear)) {
     throw new Error("Enter valid plan years.");
   }
+  validatePlanYear(scenario.currentYear, "Current year");
+  validatePlanYear(scenario.deathYear, "Expected year of death");
   if (scenario.deathYear < scenario.currentYear) {
     throw new Error("Expected year of death must be after the current year.");
+  }
+  const planLength = scenario.deathYear - scenario.currentYear + 1;
+  if (planLength > MAX_PLAN_LENGTH_YEARS) {
+    throw new Error(`Plan length cannot exceed ${MAX_PLAN_LENGTH_YEARS} years.`);
   }
   if (!Number.isFinite(scenario.netWorth) || scenario.netWorth < 0) {
     throw new Error("Enter a non-negative current net worth.");
@@ -275,17 +304,27 @@ function readScenario() {
   if (!Number.isFinite(scenario.spyBeta)) {
     throw new Error("Enter a valid SPY beta.");
   }
-  if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < 100) {
-    throw new Error("Run at least 100 simulations.");
+  if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < MIN_SIMULATION_COUNT) {
+    throw new Error(`Run at least ${formatNumber(MIN_SIMULATION_COUNT)} simulations.`);
   }
   scenario.simulationCount = Math.round(scenario.simulationCount);
-  if (scenario.simulationCount > 100000) {
-    throw new Error("Run no more than 100,000 simulations.");
+  if (scenario.simulationCount > MAX_SIMULATION_COUNT) {
+    throw new Error(`Run no more than ${formatNumber(MAX_SIMULATION_COUNT)} simulations.`);
+  }
+  const simulationYearRows = scenario.simulationCount * planLength;
+  if (simulationYearRows > MAX_SIMULATION_YEAR_ROWS) {
+    throw new Error(`This run would create ${formatNumber(simulationYearRows)} detail rows. Reduce simulations or plan length below ${formatNumber(MAX_SIMULATION_YEAR_ROWS)} rows.`);
   }
 
   scenario.income = readFlowRows(els.incomeRows, scenario);
   scenario.expenses = readFlowRows(els.expenseRows, scenario);
   return scenario;
+}
+
+function validatePlanYear(year, label) {
+  if (!Number.isInteger(year) || year < MIN_PLAN_YEAR || year > MAX_PLAN_YEAR) {
+    throw new Error(`${label} must be between ${MIN_PLAN_YEAR} and ${MAX_PLAN_YEAR}.`);
+  }
 }
 
 function numberFromInput(input) {
@@ -390,7 +429,11 @@ function caretAfterDigitCount(value, digitCount) {
 }
 
 async function runSimulation() {
-  if (!state.marketData || state.isRunning || !state.isDirty) return;
+  if (state.isRunning) {
+    requestSimulationCancel();
+    return;
+  }
+  if (!state.marketData || !state.isDirty) return;
 
   const runVersion = state.inputVersion;
   let scenario;
@@ -404,27 +447,53 @@ async function runSimulation() {
   }
 
   state.isRunning = true;
+  state.cancelRequested = false;
   state.hover = null;
   showProgress();
   updateRunState();
   await yieldToBrowser();
 
   try {
-    const results = await simulateScenario(scenario, state.marketData.returns, setProgress);
+    const results = await simulateScenario(
+      scenario,
+      state.marketData.returns,
+      setProgress,
+      () => state.cancelRequested
+    );
     state.results = results;
     state.isDirty = state.inputVersion !== runVersion;
     renderResults(results);
   } catch (error) {
-    els.scenarioSummary.textContent = error.message;
+    els.scenarioSummary.textContent = isCancellationError(error)
+      ? "Simulation stopped. Fix the inputs and run again."
+      : error.message;
     state.isDirty = true;
   } finally {
     state.isRunning = false;
+    state.cancelRequested = false;
     hideProgress();
     updateRunState();
   }
 }
 
-async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
+function requestSimulationCancel() {
+  state.cancelRequested = true;
+  setProgressLabel("Stopping...");
+  updateRunState();
+}
+
+function isCancellationError(error) {
+  return error && error.name === "SimulationCanceledError";
+}
+
+function throwIfCanceled(shouldCancel) {
+  if (!shouldCancel()) return;
+  const error = new Error("Simulation canceled.");
+  error.name = "SimulationCanceledError";
+  throw error;
+}
+
+async function simulateScenario(scenario, returnRows, onProgress = () => {}, shouldCancel = () => false) {
   if (!returnRows.length) {
     throw new Error("No historical market data loaded.");
   }
@@ -440,14 +509,17 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
 
   onProgress(0);
   for (let i = 0; i < scenario.simulationCount; i += 1) {
+    throwIfCanceled(shouldCancel);
     if (i > 0 && i % SIMULATION_CHUNK_SIZE === 0) {
       onProgress(i / scenario.simulationCount);
       await yieldToBrowser();
+      throwIfCanceled(shouldCancel);
     }
 
     let wealth = scenario.netWorth;
     let failureYear = null;
     let sampledReturnCount = 0;
+    let sampledNominalReturnSum = 0;
     let sampledRealReturnSum = 0;
     const sampledReturnPath = buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS);
     const path = [];
@@ -474,6 +546,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
         const yearResult = applyContinuousYear(wealth, netCashFlow, realGrowthFactor);
 
         sampledReturnCount += 1;
+        sampledNominalReturnSum += nominalSpyReturn;
         sampledRealReturnSum += realSpyReturn;
         wealth = yearResult.endingWealth;
 
@@ -541,6 +614,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
       simulation: i + 1,
       points: path,
       terminalWealth: wealth,
+      averageNominalSpyReturn: sampledReturnCount ? sampledNominalReturnSum / sampledReturnCount : null,
       averageRealSpyReturn: sampledReturnCount ? sampledRealReturnSum / sampledReturnCount : null,
       failureYear
     };
@@ -551,6 +625,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
       simulation: i + 1,
       failureYear,
       terminalWealth: wealth,
+      averageNominalSpyReturn: pathResult.averageNominalSpyReturn,
       averageRealSpyReturn: pathResult.averageRealSpyReturn,
       sampledReturnYears: sampledReturnCount
     });
@@ -561,6 +636,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
   const failureYears = failures.filter(Boolean);
   const depletedDistribution = buildDepletedDistribution(failureYears, scenario);
   const notDepletedCount = failures.length - failureYears.length;
+  const worstSurvivingPath = getWorstSurvivingPath(simulationRows);
   const terminalWealthSorted = [...terminalWealth].sort((a, b) => a - b);
   const expectedPath = years.map((year, index) => ({
     year,
@@ -590,9 +666,19 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}) {
     depletedDistribution,
     notDepletedCount,
     risk: failureYears.length / failures.length,
-    medianFailureYear: percentile(failureYears, 0.5),
+    earliestFailureYear: failureYears.length ? Math.min(...failureYears) : null,
+    worstSurvivingPath,
     medianTerminalWealth: percentile(terminalWealth, 0.5)
   };
+}
+
+function getWorstSurvivingPath(simulationRows) {
+  return simulationRows
+    .filter((row) => !row.failureYear)
+    .reduce((worst, row) => {
+      if (!worst || row.terminalWealth < worst.terminalWealth) return row;
+      return worst;
+    }, null);
 }
 
 function applyContinuousYear(startingWealth, netCashFlow, realGrowthFactor) {
@@ -683,15 +769,29 @@ function depletionSortYear(path) {
 
 function renderResults(results) {
   const simulations = results.scenario.simulationCount;
+  els.simulationSelect.disabled = false;
+  els.downloadCsv.disabled = false;
   els.riskMetric.textContent = formatPercent(results.risk);
-  els.medianFailureMetric.textContent = results.medianFailureYear ? String(results.medianFailureYear) : "None";
+  els.earliestFailureMetric.textContent = results.earliestFailureYear ? String(results.earliestFailureYear) : "None";
   els.medianWealthMetric.textContent = formatCurrency(results.medianTerminalWealth);
+  els.worstSurvivorReturnMetric.textContent = results.worstSurvivingPath
+    ? formatPercent(results.worstSurvivingPath.averageNominalSpyReturn)
+    : "None";
   updateScenarioSummary(results);
   els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${formatNumber(simulations)} simulations, with ${formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
 
   renderSimulationSelect(results);
   renderSimulationPathTable(results);
   renderCharts(results);
+}
+
+function resetDetailsControls() {
+  const option = document.createElement("option");
+  option.value = "";
+  option.textContent = "Run simulation first";
+  els.simulationSelect.replaceChildren(option);
+  els.simulationSelect.disabled = true;
+  els.downloadCsv.disabled = true;
 }
 
 function updateScenarioSummary(results) {
