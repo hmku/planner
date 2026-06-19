@@ -14,6 +14,8 @@ const state = {
   activePage: "overview",
   hover: null,
   pathHitAreas: [],
+  detailHover: null,
+  detailHitPoints: [],
   isDirty: true,
   isRunning: false,
   cancelRequested: false,
@@ -142,6 +144,11 @@ function bindEvents() {
     state.hover = null;
     if (state.results) renderNetWorthChart(els.pathsCanvas, state.results);
   });
+  els.selectedSimulationCanvas.addEventListener("mousemove", handleDetailChartHover);
+  els.selectedSimulationCanvas.addEventListener("mouseleave", () => {
+    state.detailHover = null;
+    if (state.results) renderSelectedSimulationChart(els.selectedSimulationCanvas, state.results);
+  });
   els.netWorthZoom.addEventListener("input", () => {
     updateNetWorthZoomLabel();
     if (state.results) renderNetWorthChart(els.pathsCanvas, state.results);
@@ -154,6 +161,7 @@ function bindEvents() {
   });
   els.simulationSelect.addEventListener("change", () => {
     if (!state.results) return;
+    state.detailHover = null;
     renderSimulationPathTable(state.results);
     renderSelectedSimulationChart(els.selectedSimulationCanvas, state.results);
   });
@@ -452,6 +460,7 @@ async function runSimulation() {
   state.isRunning = true;
   state.cancelRequested = false;
   state.hover = null;
+  state.detailHover = null;
   showProgress();
   updateRunState();
   await yieldToBrowser();
@@ -778,7 +787,7 @@ function renderResults(results) {
   els.medianWealthMetric.textContent = formatCompactCurrency(results.medianTerminalWealth);
   els.medianWealthMetric.title = formatCurrency(results.medianTerminalWealth);
   els.worstSurvivorReturnMetric.textContent = results.worstSurvivingPath
-    ? formatPercent(results.worstSurvivingPath.averageNominalSpyReturn)
+    ? formatPercent(results.worstSurvivingPath.averageRealSpyReturn)
     : "None";
   updateScenarioSummary(results);
   els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${formatNumber(simulations)} simulations, with ${formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
@@ -951,6 +960,7 @@ function csvCell(value) {
 function switchPage(page) {
   state.activePage = page;
   state.hover = null;
+  state.detailHover = null;
   els.pageButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.page === page);
   });
@@ -1083,6 +1093,7 @@ function renderSelectedSimulationChart(canvas, results) {
   const summary = results.simulationRows.find((row) => row.simulation === selectedSimulation);
   if (!rows.length) {
     els.selectedSimulationSummary.textContent = "No rows for this simulation.";
+    state.detailHitPoints = [];
     drawEmptyState(ctx, width, height, "No rows for this simulation.");
     return;
   }
@@ -1100,6 +1111,12 @@ function renderSelectedSimulationChart(canvas, results) {
     year: row.year,
     wealth: row.endingWealth,
     depletedThisYear: row.depletedThisYear
+  }));
+  state.detailHitPoints = points.map((point) => ({
+    year: point.year,
+    wealth: point.wealth,
+    x: padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth,
+    y: padding.top + chartHeight - (point.wealth / maxWealth) * chartHeight
   }));
 
   const finalWealth = summary ? summary.terminalWealth : rows[rows.length - 1].endingWealth;
@@ -1137,6 +1154,10 @@ function renderSelectedSimulationChart(canvas, results) {
   }
 
   ctx.restore();
+
+  if (state.detailHover) {
+    drawDetailHover(ctx, state.detailHover, padding, width, height);
+  }
 }
 
 function drawExpectedPath(ctx, expectedPath, padding, chartWidth, chartHeight, minYear, maxYear, maxWealth) {
@@ -1201,6 +1222,48 @@ function drawPathTooltip(ctx, hover, width, height) {
   });
 }
 
+function drawDetailHover(ctx, hover, padding, width, height) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(79, 70, 229, 0.35)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(hover.point.x, padding.top);
+  ctx.lineTo(hover.point.x, height - padding.bottom);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = "#4f46e5";
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  drawDetailPointTooltip(ctx, hover, width, height);
+}
+
+function drawDetailPointTooltip(ctx, hover, width, height) {
+  const lines = [
+    `Year: ${hover.point.year}`,
+    `Net worth: ${formatCurrency(hover.point.wealth)}`
+  ];
+  const boxWidth = 196;
+  const boxHeight = 58;
+  const x = Math.min(width - boxWidth - 12, Math.max(12, hover.x + 14));
+  const y = Math.min(height - boxHeight - 12, Math.max(12, hover.y - boxHeight - 12));
+
+  ctx.fillStyle = "rgba(26, 31, 46, 0.92)";
+  ctx.fillRect(x, y, boxWidth, boxHeight);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "13px system-ui";
+  ctx.textAlign = "left";
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x + 12, y + 24 + index * 20);
+  });
+}
+
 function handlePathHover(event) {
   if (!state.results || state.activePage !== "overview") return;
 
@@ -1231,6 +1294,50 @@ function findNearestPath(x, y) {
     }
   }
   return nearestDistance <= 10 ? nearest : null;
+}
+
+function handleDetailChartHover(event) {
+  if (!state.results || state.activePage !== "details") return;
+
+  const rect = els.selectedSimulationCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const nearest = findNearestDetailPoint(x, y);
+  const nextHover = nearest ? { point: nearest, x, y } : null;
+  const currentYear = state.detailHover ? state.detailHover.point.year : null;
+  const nextYear = nextHover ? nextHover.point.year : null;
+
+  if (currentYear !== nextYear || nextHover) {
+    state.detailHover = nextHover;
+    renderSelectedSimulationChart(els.selectedSimulationCanvas, state.results);
+  }
+}
+
+function findNearestDetailPoint(x, y) {
+  const points = state.detailHitPoints;
+  if (!points.length) return null;
+
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const point of points) {
+    const distance = Math.hypot(x - point.x, y - point.y);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = point;
+    }
+  }
+
+  for (let i = 1; i < points.length; i += 1) {
+    const distance = distanceToSegment(x, y, points[i - 1], points[i]);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
+      const distB = Math.hypot(x - points[i].x, y - points[i].y);
+      nearest = distA <= distB ? points[i - 1] : points[i];
+    }
+  }
+
+  return nearestDistance <= 18 ? nearest : null;
 }
 
 function distanceToSegment(x, y, a, b) {
