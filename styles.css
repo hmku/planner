@@ -533,10 +533,6 @@ select:focus {
   min-width: 0;
 }
 
-.methodology-section > h2 {
-  margin-bottom: 6px;
-}
-
 .method-grid {
   display: block;
   width: 100%;
@@ -584,28 +580,11 @@ select:focus {
 .section-header p {
   margin-top: 5px;
   font-size: 13.5px;
-}
-
-.section-header.compact {
-  margin-bottom: 16px;
-}
-
-.inspection-header {
-  align-items: end;
-}
-
-.inspection-header-copy {
-  min-width: 0;
-}
-
-.inspection-summary {
-  margin-top: 5px;
-  font-size: 13.5px;
   line-height: 1.4;
 }
 
 .inspection-section .canvas-wrap {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .zoom-control {
@@ -632,9 +611,10 @@ select:focus {
 }
 
 .inspection-toolbar,
+.section-toolbar,
 .details-actions {
   display: flex;
-  align-items: end;
+  align-items: start;
   gap: 10px;
   flex-wrap: nowrap;
   justify-content: flex-end;
@@ -843,10 +823,7 @@ th {
     width: 100%;
   }
 
-  .inspection-header {
-    align-items: stretch;
-  }
-
+  .section-toolbar,
   .inspection-toolbar,
   .details-actions {
     justify-content: stretch;

@@ -114,10 +114,12 @@
                   <h2>Distribution of Depletion Years</h2>
                   <p id="scenarioSummary">Run a simulation to see the distribution.</p>
                 </div>
-                <label class="inline-toggle">
-                  <input id="showDepleted" type="checkbox" checked>
-                  <span>Show depleted</span>
-                </label>
+                <div class="section-toolbar">
+                  <label class="inline-toggle">
+                    <input id="showDepleted" type="checkbox" checked>
+                    <span>Show depleted</span>
+                  </label>
+                </div>
               </div>
               <div class="canvas-wrap">
                 <canvas id="distributionCanvas" width="980" height="420" aria-label="Probability distribution of years where money runs out"></canvas>
@@ -130,11 +132,13 @@
                   <h2>Current-Dollar Net Worth</h2>
                   <p id="netWorthSummary">Expected net worth and downsampled simulation paths.</p>
                 </div>
-                <label class="zoom-control">
-                  <span>Y-axis cap</span>
-                  <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
-                  <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
-                </label>
+                <div class="section-toolbar">
+                  <label class="zoom-control">
+                    <span>Y-axis cap</span>
+                    <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
+                    <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
+                  </label>
+                </div>
               </div>
               <div class="canvas-wrap">
                 <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
@@ -155,12 +159,12 @@
 
           <div id="policyPage" class="page-panel" hidden>
             <section id="dynamicPolicySection" class="table-section inspection-section" hidden>
-              <div class="section-header compact inspection-header">
-                <div class="inspection-header-copy">
+              <div class="section-header">
+                <div>
                   <h2>Inspect Beta Policy</h2>
-                  <p id="dynamicPolicySummary" class="inspection-summary">Run dynamic beta to inspect the policy.</p>
+                  <p id="dynamicPolicySummary">Run dynamic beta to inspect the policy.</p>
                 </div>
-                <div class="inspection-toolbar">
+                <div class="section-toolbar">
                   <label class="simulation-picker">
                     <span>Plan year</span>
                     <select id="policyYearSelect"></select>
@@ -196,12 +200,12 @@
 
           <div id="detailsPage" class="page-panel" hidden>
             <section class="table-section inspection-section">
-              <div class="section-header compact inspection-header">
-                <div class="inspection-header-copy">
+              <div class="section-header">
+                <div>
                   <h2>Inspect Simulation</h2>
-                  <p id="selectedSimulationSummary" class="inspection-summary">Run a simulation to inspect one path.</p>
+                  <p id="selectedSimulationSummary">Run a simulation to inspect one path.</p>
                 </div>
-                <div class="inspection-toolbar">
+                <div class="section-toolbar">
                   <label class="simulation-picker">
                     <span>Simulation</span>
                     <select id="simulationSelect"></select>
@@ -250,7 +254,12 @@
 
           <div id="methodologyPage" class="page-panel methodology-page" hidden>
             <section class="methodology-section">
-              <h2>Methodology</h2>
+              <div class="section-header">
+                <div>
+                  <h2>Methodology</h2>
+                  <p>How the simulator models returns, cash flows, and dynamic beta.</p>
+                </div>
+              </div>
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
