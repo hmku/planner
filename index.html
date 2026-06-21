@@ -108,49 +108,49 @@
           </nav>
 
           <div id="overviewPage" class="page-panel">
-            <section class="visual-section">
-              <div class="section-header">
-                <div>
-                  <h2>Distribution of Depletion Years</h2>
-                  <p id="scenarioSummary">Run a simulation to see the distribution.</p>
-                </div>
-                <div class="section-toolbar">
-                  <label class="inline-toggle">
-                    <input id="showDepleted" type="checkbox" checked>
-                    <span>Show depleted</span>
-                  </label>
-                </div>
+            <section
+              class="content-section"
+              data-section-header
+              data-title="Distribution of Depletion Years"
+              data-summary-id="scenarioSummary"
+              data-summary-text="Run a simulation to see the distribution."
+            >
+              <div data-section-toolbar>
+                <label class="inline-toggle">
+                  <input id="showDepleted" type="checkbox" checked>
+                  <span>Show depleted</span>
+                </label>
               </div>
               <div class="canvas-wrap">
                 <canvas id="distributionCanvas" width="980" height="420" aria-label="Probability distribution of years where money runs out"></canvas>
               </div>
             </section>
 
-            <section class="visual-section">
-              <div class="section-header">
-                <div>
-                  <h2>Current-Dollar Net Worth</h2>
-                  <p id="netWorthSummary">Expected net worth and downsampled simulation paths.</p>
-                </div>
-                <div class="section-toolbar">
-                  <label class="zoom-control">
-                    <span>Y-axis cap</span>
-                    <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
-                    <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
-                  </label>
-                </div>
+            <section
+              class="content-section"
+              data-section-header
+              data-title="Current-Dollar Net Worth"
+              data-summary-id="netWorthSummary"
+              data-summary-text="Expected net worth and downsampled simulation paths."
+            >
+              <div data-section-toolbar>
+                <label class="zoom-control">
+                  <span>Y-axis cap</span>
+                  <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
+                  <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
+                </label>
               </div>
               <div class="canvas-wrap">
                 <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
               </div>
             </section>
-            <section class="visual-section">
-              <div class="section-header">
-                <div>
-                  <h2>SPY Beta Over Time</h2>
-                  <p id="betaPathSummary">Average beta and downsampled simulation paths.</p>
-                </div>
-              </div>
+            <section
+              class="content-section"
+              data-section-header
+              data-title="SPY Beta Over Time"
+              data-summary-id="betaPathSummary"
+              data-summary-text="Average beta and downsampled simulation paths."
+            >
               <div class="canvas-wrap">
                 <canvas id="betaCanvas" width="980" height="360" aria-label="Simulated SPY beta paths over time"></canvas>
               </div>
@@ -158,24 +158,19 @@
           </div>
 
           <div id="policyPage" class="page-panel" hidden>
-            <section id="dynamicPolicySection" class="table-section inspection-section" hidden>
-              <div class="section-header">
-                <div>
-                  <h2>Inspect Beta Policy</h2>
-                  <p id="dynamicPolicySummary">Run dynamic beta to inspect the policy.</p>
-                </div>
-                <div class="section-toolbar">
-                  <label class="simulation-picker">
-                    <span>Plan year</span>
-                    <select id="policyYearSelect"></select>
-                  </label>
-                  <button id="downloadPolicyCsv" class="secondary-action icon-action" type="button" aria-label="Download policy CSV" title="Download policy CSV">
-                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                      <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+            <section
+              id="dynamicPolicySection"
+              class="content-section inspection-section"
+              hidden
+              data-section-header
+              data-title="Inspect Beta Policy"
+              data-summary-id="dynamicPolicySummary"
+              data-summary-text="Run dynamic beta to inspect the policy."
+              data-picker-label="Plan year"
+              data-picker-id="policyYearSelect"
+              data-download-id="downloadPolicyCsv"
+              data-download-label="Download policy CSV"
+            >
               <div class="table-wrap">
                 <table>
                   <thead>
@@ -199,24 +194,17 @@
           </div>
 
           <div id="detailsPage" class="page-panel" hidden>
-            <section class="table-section inspection-section">
-              <div class="section-header">
-                <div>
-                  <h2>Inspect Simulation</h2>
-                  <p id="selectedSimulationSummary">Run a simulation to inspect one path.</p>
-                </div>
-                <div class="section-toolbar">
-                  <label class="simulation-picker">
-                    <span>Simulation</span>
-                    <select id="simulationSelect"></select>
-                  </label>
-                  <button id="downloadCsv" class="secondary-action icon-action" type="button" aria-label="Download simulation CSV" title="Download simulation CSV">
-                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                      <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+            <section
+              class="content-section inspection-section"
+              data-section-header
+              data-title="Inspect Simulation"
+              data-summary-id="selectedSimulationSummary"
+              data-summary-text="Run a simulation to inspect one path."
+              data-picker-label="Simulation"
+              data-picker-id="simulationSelect"
+              data-download-id="downloadCsv"
+              data-download-label="Download simulation CSV"
+            >
               <div class="canvas-wrap">
                 <canvas id="selectedSimulationCanvas" class="detail-chart-canvas" width="980" height="340" aria-label="Selected simulation current-dollar net worth over time"></canvas>
               </div>
@@ -253,13 +241,12 @@
           </div>
 
           <div id="methodologyPage" class="page-panel methodology-page" hidden>
-            <section class="methodology-section">
-              <div class="section-header">
-                <div>
-                  <h2>Methodology</h2>
-                  <p>How the simulator models returns, cash flows, and dynamic beta.</p>
-                </div>
-              </div>
+            <section
+              class="content-section"
+              data-section-header
+              data-title="Methodology"
+              data-summary-text="How the simulator models returns, cash flows, and dynamic beta."
+            >
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
@@ -295,6 +282,31 @@
         </section>
       </section>
     </main>
+
+    <template id="sectionHeaderTemplate">
+      <div class="section-header">
+        <div class="section-header-copy">
+          <h2></h2>
+          <p></p>
+        </div>
+        <div class="section-toolbar"></div>
+      </div>
+    </template>
+
+    <template id="pickerControlTemplate">
+      <label class="simulation-picker">
+        <span></span>
+        <select></select>
+      </label>
+    </template>
+
+    <template id="downloadButtonTemplate">
+      <button class="secondary-action icon-action" type="button">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+    </template>
 
     <template id="flowRowTemplate">
       <div class="flow-row">

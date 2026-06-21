@@ -66,8 +66,7 @@ button {
 }
 
 .inputs-pane,
-.visual-section,
-.table-section {
+.content-section {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -120,6 +119,10 @@ button {
 .brand-row > *,
 .group-title-row > *,
 .section-header > * {
+  min-width: 0;
+}
+
+.section-header-copy {
   min-width: 0;
 }
 
@@ -512,20 +515,8 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 
-.visual-section,
-.table-section,
-.methodology-section {
+.content-section {
   padding: 24px;
-}
-
-.methodology-section {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  color: var(--ink);
-  width: 100%;
-  min-width: 0;
 }
 
 .methodology-page {
@@ -610,9 +601,7 @@ select:focus {
   max-width: 100%;
 }
 
-.inspection-toolbar,
-.section-toolbar,
-.details-actions {
+.section-toolbar {
   display: flex;
   align-items: start;
   gap: 10px;
@@ -786,9 +775,7 @@ th {
   }
 
   .inputs-pane,
-  .visual-section,
-  .table-section,
-  .methodology-section {
+  .content-section {
     padding: 16px;
   }
 
@@ -823,9 +810,7 @@ th {
     width: 100%;
   }
 
-  .section-toolbar,
-  .inspection-toolbar,
-  .details-actions {
+  .section-toolbar {
     justify-content: stretch;
     width: 100%;
   }

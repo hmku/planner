@@ -13,7 +13,7 @@ There is no package manager, build pipeline, framework, backend, or test runner 
 
 ## Main Runtime Flow
 
-On `DOMContentLoaded`, `app.js` caches DOM elements, sets default inputs, binds events, resets Details controls, loads market data, and marks the app dirty.
+On `DOMContentLoaded`, `app.js` mounts shared section headers, caches DOM elements, sets default inputs, binds events, resets Details controls, loads market data, and marks the app dirty.
 
 The simulation path is:
 
@@ -33,6 +33,7 @@ The Details tab uses `renderSelectedSimulationChart()` and `renderSimulationPath
 - SPY beta currently defaults to `0.8`.
 - Share links use the `p` query parameter to store compact current plan inputs plus a seeded simulation value; shared links restore inputs and auto-run after market data loads.
 - Simulation rows are stored in `simulationYearRowsBySimulation` so the Details tab can inspect one simulation without recomputing.
+- Result panels share one section shell: add `data-section-header` on a `.content-section`, optionally `data-summary-id`, `data-summary-text`, `data-picker-id`, `data-picker-label`, `data-download-id`, and `data-download-label`. Custom toolbar controls go in a `[data-section-toolbar]` slot. `mountSectionHeaders()` builds every header from `#sectionHeaderTemplate` on load.
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
 - The Details dropdown only lists downsampled inspection paths, not every simulation.
