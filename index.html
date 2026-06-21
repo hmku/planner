@@ -165,12 +165,13 @@
                       <th>Bucket wealth</th>
                       <th>Policy beta</th>
                       <th>Estimated depletion risk</th>
+                      <th>Expected terminal wealth</th>
                       <th>Selected path</th>
                     </tr>
                   </thead>
                   <tbody id="dynamicPolicyTable">
                     <tr>
-                      <td colspan="5">Run dynamic beta to inspect the policy.</td>
+                      <td colspan="6">Run dynamic beta to inspect the policy.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -243,7 +244,7 @@
                 </article>
                 <article>
                   <h3>Dynamic Beta</h3>
-                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It picks the beta with the lowest estimated depletion probability, or the highest beta when estimated depletion probability is zero.</p>
+                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>

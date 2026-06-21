@@ -11,7 +11,7 @@ The planner lets you enter plan years, current net worth, beta mode, SPY beta, s
 - a depletion-year distribution
 - simulated current-dollar net worth paths
 - a Details view for inspecting one selected simulation's net worth path and annual return/cash-flow rows
-- a dynamic-beta policy table and CSV export with wealth buckets, recommended beta, and estimated depletion probability
+- a dynamic-beta policy table and CSV export with wealth buckets, recommended beta, estimated depletion probability, and expected terminal wealth
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
 ## How It Works
@@ -26,7 +26,7 @@ T-bill return + SPY beta * (S&P 500 return - T-bill return)
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
-Dynamic beta builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, and chooses the highest beta when estimated depletion probability is zero. Details rows and CSV exports include the SPY beta used each year. Dynamic runs also show the policy grid in Details, including every wealth bucket's recommended beta and estimated depletion probability for the selected plan year.
+Dynamic beta builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Details rows and CSV exports include the SPY beta used each year. Dynamic runs also show the policy grid in Details, including every wealth bucket's recommended beta, estimated depletion probability, and expected terminal wealth for the selected plan year.
 
 ## Sharing Plans
 

@@ -1138,54 +1138,73 @@ function buildReturnMetrics(returnRow, spyBeta) {
 async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
   const wealthBuckets = buildDynamicWealthBuckets(scenario, years);
   const valueByYear = new Array(years.length + 1);
+  const expectedWealthByYear = new Array(years.length + 1);
   const policyByYear = new Array(years.length);
   let nextValues = new Array(wealthBuckets.length).fill(0);
+  let nextExpectedWealth = [...wealthBuckets];
   valueByYear[years.length] = nextValues;
+  expectedWealthByYear[years.length] = nextExpectedWealth;
 
   for (let yearIndex = years.length - 1; yearIndex >= 0; yearIndex -= 1) {
     throwIfCanceled(shouldCancel);
     const year = years[yearIndex];
     const netCashFlow = cashFlowForYear(scenario.income, year) - cashFlowForYear(scenario.expenses, year);
     const currentValues = new Array(wealthBuckets.length);
+    const currentExpectedWealth = new Array(wealthBuckets.length);
     const currentPolicy = new Array(wealthBuckets.length);
 
     for (let bucketIndex = 0; bucketIndex < wealthBuckets.length; bucketIndex += 1) {
       const startingWealth = wealthBuckets[bucketIndex];
       if (startingWealth <= 0) {
         currentValues[bucketIndex] = 1;
+        currentExpectedWealth[bucketIndex] = 0;
         currentPolicy[bucketIndex] = 0;
         continue;
       }
 
-      let bestValue = Number.POSITIVE_INFINITY;
+      let bestDepletionRisk = Number.POSITIVE_INFINITY;
+      let bestExpectedWealth = Number.NEGATIVE_INFINITY;
       let bestBeta = DYNAMIC_BETA_VALUES[0];
 
       DYNAMIC_BETA_VALUES.forEach((beta) => {
-        let totalValue = 0;
+        let totalDepletionRisk = 0;
+        let totalExpectedWealth = 0;
         returnRows.forEach((returnRow) => {
           const returnMetrics = buildReturnMetrics(returnRow, beta);
           const yearResult = applyContinuousYear(startingWealth, netCashFlow, returnMetrics.realGrowthFactor);
-          totalValue += yearResult.depleted
-            ? 1
-            : interpolateBucketValue(wealthBuckets, nextValues, yearResult.endingWealth);
+          if (yearResult.depleted) {
+            totalDepletionRisk += 1;
+            return;
+          }
+          totalDepletionRisk += interpolateBucketValue(wealthBuckets, nextValues, yearResult.endingWealth);
+          totalExpectedWealth += interpolateBucketValue(wealthBuckets, nextExpectedWealth, yearResult.endingWealth);
         });
-        const actionValue = totalValue / returnRows.length;
+        const actionDepletionRisk = totalDepletionRisk / returnRows.length;
+        const actionExpectedWealth = totalExpectedWealth / returnRows.length;
 
-        if (actionValue < bestValue - EPSILON) {
-          bestValue = actionValue;
+        if (actionDepletionRisk < bestDepletionRisk - EPSILON) {
+          bestDepletionRisk = actionDepletionRisk;
+          bestExpectedWealth = actionExpectedWealth;
           bestBeta = beta;
-        } else if (Math.abs(actionValue - bestValue) <= EPSILON && actionValue <= EPSILON && beta > bestBeta) {
+        } else if (
+          Math.abs(actionDepletionRisk - bestDepletionRisk) <= EPSILON &&
+          actionExpectedWealth > bestExpectedWealth + EPSILON
+        ) {
+          bestExpectedWealth = actionExpectedWealth;
           bestBeta = beta;
         }
       });
 
-      currentValues[bucketIndex] = bestValue;
+      currentValues[bucketIndex] = bestDepletionRisk;
+      currentExpectedWealth[bucketIndex] = bestExpectedWealth;
       currentPolicy[bucketIndex] = bestBeta;
     }
 
     valueByYear[yearIndex] = currentValues;
+    expectedWealthByYear[yearIndex] = currentExpectedWealth;
     policyByYear[yearIndex] = currentPolicy;
     nextValues = currentValues;
+    nextExpectedWealth = currentExpectedWealth;
     onProgress(((years.length - yearIndex) / years.length) * DYNAMIC_POLICY_PROGRESS_SHARE);
     if (yearIndex % 4 === 0) {
       await yieldToBrowser();
@@ -1196,6 +1215,7 @@ async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, s
     betaValues: DYNAMIC_BETA_VALUES,
     wealthBuckets,
     valueByYear,
+    expectedWealthByYear,
     policyByYear
   };
 }
@@ -1342,7 +1362,7 @@ function resetDetailsControls() {
   els.downloadPolicyCsv.disabled = true;
   els.dynamicPolicySection.hidden = true;
   els.policyYearSelect.replaceChildren();
-  els.dynamicPolicyTable.innerHTML = `<tr><td colspan="5">Run dynamic beta to inspect the policy.</td></tr>`;
+  els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">Run dynamic beta to inspect the policy.</td></tr>`;
   els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
   els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
 }
@@ -1452,7 +1472,7 @@ function renderDynamicPolicyTable(results) {
   const selectedYear = Number(els.policyYearSelect.value) || results.scenario.currentYear;
   const yearIndex = results.years.indexOf(selectedYear);
   if (yearIndex < 0) {
-    els.dynamicPolicyTable.innerHTML = `<tr><td colspan="5">No policy rows for this year.</td></tr>`;
+    els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">No policy rows for this year.</td></tr>`;
     return;
   }
 
@@ -1481,6 +1501,7 @@ function renderDynamicPolicyTable(results) {
       `<td>${formatCurrency(row.wealth)}</td>`,
       `<td>${formatBeta(row.beta)}</td>`,
       `<td>${formatPercent(row.estimatedDepletionRisk)}</td>`,
+      `<td>${formatCurrency(row.expectedTerminalWealth)}</td>`,
       `<td>${markers.join(", ") || "--"}</td>`,
       "</tr>"
     ].join("");
@@ -1491,12 +1512,14 @@ function getDynamicPolicyRows(results, yearIndex) {
   const policy = results.dynamicPolicy;
   const policyRow = policy.policyByYear[yearIndex] || [];
   const valueRow = policy.valueByYear[yearIndex] || [];
+  const expectedWealthRow = policy.expectedWealthByYear[yearIndex] || [];
   return policy.wealthBuckets.map((wealth, bucketIndex) => ({
     year: results.years[yearIndex],
     bucketIndex,
     wealth,
     beta: policyRow[bucketIndex],
-    estimatedDepletionRisk: valueRow[bucketIndex]
+    estimatedDepletionRisk: valueRow[bucketIndex],
+    expectedTerminalWealth: expectedWealthRow[bucketIndex]
   }));
 }
 
@@ -1584,7 +1607,8 @@ function downloadPolicyCsv() {
     "bucket_index",
     "bucket_wealth_current_dollars",
     "recommended_spy_beta",
-    "estimated_depletion_probability"
+    "estimated_depletion_probability",
+    "expected_terminal_wealth_current_dollars"
   ];
   const rows = state.results.years.flatMap((year, yearIndex) => (
     getDynamicPolicyRows(state.results, yearIndex).map((row) => [
@@ -1592,7 +1616,8 @@ function downloadPolicyCsv() {
       row.bucketIndex,
       row.wealth,
       row.beta,
-      row.estimatedDepletionRisk
+      row.estimatedDepletionRisk,
+      row.expectedTerminalWealth
     ])
   ));
   const csv = [headers, ...rows]
