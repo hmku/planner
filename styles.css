@@ -590,13 +590,22 @@ select:focus {
   margin-bottom: 16px;
 }
 
-.inspection-section .canvas-wrap {
-  margin-bottom: 16px;
+.inspection-header {
+  align-items: end;
 }
 
-#selectedSimulationSummary {
-  color: var(--ink);
-  font-weight: 700;
+.inspection-header-copy {
+  min-width: 0;
+}
+
+.inspection-summary {
+  margin-top: 5px;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.inspection-section .canvas-wrap {
+  margin-bottom: 16px;
 }
 
 .zoom-control {
@@ -616,21 +625,21 @@ select:focus {
 
 .simulation-picker {
   display: grid;
-  flex: 1 1 240px;
+  flex: 0 1 220px;
   gap: 6px;
-  min-width: 0;
+  min-width: 140px;
   max-width: 100%;
 }
 
+.inspection-toolbar,
 .details-actions {
   display: flex;
   align-items: end;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  flex: 0 1 560px;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: 100%;
 }
 
 .simulation-picker select {
@@ -638,9 +647,19 @@ select:focus {
   max-width: 100%;
 }
 
-.details-actions .secondary-action {
+.icon-action {
   flex: 0 0 auto;
-  white-space: nowrap;
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action svg {
+  width: 18px;
+  height: 18px;
 }
 
 .zoom-control input[type="range"] {
@@ -824,13 +843,19 @@ th {
     width: 100%;
   }
 
-  .details-actions {
-    justify-content: stretch;
+  .inspection-header {
+    align-items: stretch;
   }
 
-  .details-actions,
-  .simulation-picker {
+  .inspection-toolbar,
+  .details-actions {
+    justify-content: stretch;
     width: 100%;
+  }
+
+  .simulation-picker {
+    flex: 1 1 auto;
+    width: auto;
   }
 
   .flow-row {

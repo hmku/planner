@@ -1402,11 +1402,11 @@ function renderSimulationSelect(results) {
 
   results.inspectionPaths.forEach((path, index) => {
     const option = document.createElement("option");
-    const rankLabel = `${formatNumber(index + 1)} of ${formatNumber(results.inspectionPaths.length)}`;
+    const rankLabel = `#${formatNumber(index + 1)}`;
     option.value = String(path.simulation);
     option.textContent = path.failureYear
-      ? `${rankLabel} - ${formatCurrency(path.terminalWealth)} ending wealth - simulation ${formatNumber(path.simulation)} - depleted ${path.failureYear}`
-      : `${rankLabel} - ${formatCurrency(path.terminalWealth)} ending wealth - simulation ${formatNumber(path.simulation)}`;
+      ? `${rankLabel} · ${formatCurrency(path.terminalWealth)} · dep ${path.failureYear}`
+      : `${rankLabel} · ${formatCurrency(path.terminalWealth)}`;
     fragment.appendChild(option);
   });
 
@@ -1497,8 +1497,8 @@ function renderDynamicPolicyTable(results) {
   const rows = getDynamicPolicyRows(results, yearIndex);
 
   els.dynamicPolicySummary.textContent = selectedPathRow && selectedPathRow.startingWealth > 0
-    ? `Simulation ${formatNumber(selectedSimulation)} starts ${selectedYear} at ${formatCurrency(selectedPathRow.startingWealth)}; nearest bucket recommends beta ${formatBeta(selectedPathRow.spyBetaUsed)}.`
-    : `Policy for ${selectedYear}; select a simulation path above to mark its nearest wealth bucket.`;
+    ? `${selectedYear} · sim ${formatNumber(selectedSimulation)} · ${formatCurrency(selectedPathRow.startingWealth)} · beta ${formatBeta(selectedPathRow.spyBetaUsed)}`
+    : `${selectedYear} policy · pick a simulation in Inspect Simulation to mark its bucket`;
 
   els.dynamicPolicyTable.innerHTML = rows.map((row) => {
     const markers = [];
@@ -1872,7 +1872,7 @@ function renderSelectedSimulationChart(canvas, results) {
 
   const finalWealth = summary ? summary.terminalWealth : rows[rows.length - 1].endingWealth;
   const status = summary && summary.failureYear ? `Depleted in ${summary.failureYear}` : "Not depleted";
-  els.selectedSimulationSummary.textContent = `Simulation ${formatNumber(selectedSimulation)} ended at ${formatCurrency(finalWealth)}. ${status}.`;
+  els.selectedSimulationSummary.textContent = `Sim ${formatNumber(selectedSimulation)} · ${formatCurrency(finalWealth)} · ${status.toLowerCase()}`;
 
   drawAxes(ctx, padding, width, height, "Current-dollar net worth");
   drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);

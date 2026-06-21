@@ -155,17 +155,21 @@
 
           <div id="policyPage" class="page-panel" hidden>
             <section id="dynamicPolicySection" class="table-section inspection-section" hidden>
-              <div class="section-header compact">
-                <div>
-                  <h2>Dynamic Beta Policy</h2>
-                  <p id="dynamicPolicySummary">Run dynamic beta to inspect the policy.</p>
+              <div class="section-header compact inspection-header">
+                <div class="inspection-header-copy">
+                  <h2>Inspect Beta Policy</h2>
+                  <p id="dynamicPolicySummary" class="inspection-summary">Run dynamic beta to inspect the policy.</p>
                 </div>
-                <div class="details-actions">
+                <div class="inspection-toolbar">
                   <label class="simulation-picker">
                     <span>Plan year</span>
                     <select id="policyYearSelect"></select>
                   </label>
-                  <button id="downloadPolicyCsv" class="secondary-action" type="button">Download Policy CSV</button>
+                  <button id="downloadPolicyCsv" class="secondary-action icon-action" type="button" aria-label="Download policy CSV" title="Download policy CSV">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
               <div class="table-wrap">
@@ -192,18 +196,21 @@
 
           <div id="detailsPage" class="page-panel" hidden>
             <section class="table-section inspection-section">
-              <div class="section-header compact">
-                <div>
+              <div class="section-header compact inspection-header">
+                <div class="inspection-header-copy">
                   <h2>Inspect Simulation</h2>
-                  <p>Select one downsampled path, sorted by ending net worth. The selected simulation controls the chart and table below; the CSV exports one row per simulation-year.</p>
-                  <p id="selectedSimulationSummary">Run a simulation to inspect one path.</p>
+                  <p id="selectedSimulationSummary" class="inspection-summary">Run a simulation to inspect one path.</p>
                 </div>
-                <div class="details-actions">
+                <div class="inspection-toolbar">
                   <label class="simulation-picker">
                     <span>Simulation</span>
                     <select id="simulationSelect"></select>
                   </label>
-                  <button id="downloadCsv" class="secondary-action" type="button">Download CSV</button>
+                  <button id="downloadCsv" class="secondary-action icon-action" type="button" aria-label="Download simulation CSV" title="Download simulation CSV">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
               <div class="canvas-wrap">
