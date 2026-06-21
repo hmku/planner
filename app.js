@@ -11,7 +11,9 @@ const MAX_SHARED_FLOWS = 100;
 const BETA_MODE_FIXED = "fixed";
 const BETA_MODE_DYNAMIC = "dynamic";
 const DYNAMIC_BETA_VALUES = Array.from({ length: 16 }, (_, index) => Number((index * 0.1).toFixed(1)));
-const DYNAMIC_WEALTH_BUCKETS = 180;
+const DYNAMIC_WEALTH_BUCKETS = 120;
+const DYNAMIC_MIN_POSITIVE_WEALTH_BUCKET = 10000;
+const DYNAMIC_MAX_WEALTH_BUCKET = 1000000000;
 const DYNAMIC_POLICY_PROGRESS_SHARE = 0.25;
 const EPSILON = 0.000000001;
 
@@ -1136,7 +1138,7 @@ function buildReturnMetrics(returnRow, spyBeta) {
 }
 
 async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
-  const wealthBuckets = buildDynamicWealthBuckets(scenario, years);
+  const wealthBuckets = buildDynamicWealthBuckets(scenario);
   const valueByYear = new Array(years.length + 1);
   const expectedWealthByYear = new Array(years.length + 1);
   const policyByYear = new Array(years.length);
@@ -1220,29 +1222,10 @@ async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, s
   };
 }
 
-function buildDynamicWealthBuckets(scenario, years) {
-  let totalIncome = 0;
-  let totalExpenses = 0;
-  let maxAbsNetCashFlow = 0;
-
-  years.forEach((year) => {
-    const income = cashFlowForYear(scenario.income, year);
-    const expenses = cashFlowForYear(scenario.expenses, year);
-    totalIncome += income;
-    totalExpenses += expenses;
-    maxAbsNetCashFlow = Math.max(maxAbsNetCashFlow, Math.abs(income - expenses));
-  });
-
-  const baseCap = Math.max(
-    scenario.netWorth,
-    totalIncome,
-    totalExpenses,
-    maxAbsNetCashFlow * years.length,
-    100000
-  );
-  const wealthCap = baseCap * 8;
+function buildDynamicWealthBuckets(scenario) {
+  const wealthCap = Math.max(DYNAMIC_MAX_WEALTH_BUCKET, scenario.netWorth);
   const buckets = [0];
-  const minPositiveWealth = 1;
+  const minPositiveWealth = DYNAMIC_MIN_POSITIVE_WEALTH_BUCKET;
   const logMax = Math.log(wealthCap);
 
   for (let index = 0; index < DYNAMIC_WEALTH_BUCKETS; index += 1) {
