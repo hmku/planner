@@ -98,8 +98,7 @@ button {
 }
 
 .brand-row,
-.group-title-row,
-.section-header {
+.group-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -213,7 +212,18 @@ p {
   display: grid;
   gap: 7px;
   justify-items: end;
-  min-width: 92px;
+  min-width: 172px;
+}
+
+.run-button-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.share-action {
+  min-width: 78px;
 }
 
 .run-progress {
@@ -561,6 +571,11 @@ select:focus {
 }
 
 .section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
   margin-bottom: 18px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
@@ -572,13 +587,7 @@ select:focus {
 }
 
 .section-header.compact {
-  align-items: flex-start;
-  flex-wrap: wrap;
   margin-bottom: 16px;
-}
-
-.section-header.compact > div:first-child {
-  flex: 1 1 480px;
 }
 
 .inspection-section .canvas-wrap {
@@ -663,6 +672,8 @@ select:focus {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
+  flex-shrink: 0;
+  min-width: max-content;
 }
 
 .inline-toggle input {
@@ -782,18 +793,30 @@ th {
     padding: 16px;
   }
 
-  .brand-row,
-  .section-header {
+  .brand-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .section-header {
+    grid-template-columns: 1fr;
   }
 
   .primary-action {
     width: 100%;
   }
 
-  .run-controls {
+  .run-button-row .primary-action,
+  .run-button-row .secondary-action {
+    flex: 1 1 0;
+  }
+
+  .run-controls,
+  .run-button-row {
     width: 100%;
+  }
+
+  .run-controls {
     justify-items: stretch;
   }
 

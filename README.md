@@ -10,6 +10,7 @@ The planner lets you enter plan years, current net worth, SPY beta, simulation c
 - a depletion-year distribution
 - simulated current-dollar net worth paths
 - a Details view for inspecting one selected simulation's net worth path and annual return/cash-flow rows
+- shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
 ## How It Works
 
@@ -22,6 +23,10 @@ T-bill return + SPY beta * (S&P 500 return - T-bill return)
 ```
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
+
+## Sharing Plans
+
+Click `Share` to copy a URL containing the current plan inputs and a simulation seed in the `p` query parameter. Opening that link restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
 
 ## Run Locally
 
@@ -55,5 +60,4 @@ https://hmku.github.io/planner/
 - Add spending guardrail logic: when projected wealth is running low, automatically reduce flexible expenditures and preserve only crucial expenditures.
 - Add optimization logic that searches over SPY beta choices and selects the beta that minimizes probability of depletion for the entered income and expenditure plan.
 - Add richer tax/account modeling, including taxable, tax-deferred, and Roth accounts.
-- Add import/export of scenarios so users can save and compare plans.
 - Add automated browser smoke tests for default load, running a simulation, switching tabs, changing inspected simulation, and downloading CSV.

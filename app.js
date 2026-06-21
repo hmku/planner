@@ -7,6 +7,7 @@ const MAX_PLAN_LENGTH_YEARS = 120;
 const MIN_SIMULATION_COUNT = 100;
 const MAX_SIMULATION_COUNT = 200000;
 const MAX_SIMULATION_YEAR_ROWS = 12000000;
+const MAX_SHARED_FLOWS = 100;
 
 const state = {
   marketData: null,
@@ -19,7 +20,9 @@ const state = {
   isDirty: true,
   isRunning: false,
   cancelRequested: false,
-  inputVersion: 0
+  inputVersion: 0,
+  nextSimulationSeed: null,
+  shareStatusTimer: null
 };
 
 const DEFAULT_INCOME = [
@@ -36,10 +39,28 @@ const els = {};
 document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
   setDefaults();
+  const sharedPlan = applySharedPlanFromUrl();
   bindEvents();
   resetDetailsControls();
   updateRunState();
   await loadMarketData();
+  if (sharedPlan && sharedPlan.error) {
+    els.scenarioSummary.textContent = sharedPlan.error;
+    markDirty();
+    return;
+  }
+  if (sharedPlan) {
+    state.nextSimulationSeed = sharedPlan.seed;
+    state.isDirty = true;
+    updateRunState();
+    els.scenarioSummary.textContent = sharedPlan.autorun
+      ? "Shared plan loaded. Running simulation..."
+      : "Shared plan loaded. Click Run to simulate.";
+    if (sharedPlan.autorun) {
+      await runSimulation();
+    }
+    return;
+  }
   markDirty();
 });
 
@@ -59,6 +80,7 @@ function cacheElements() {
     expenseRows: document.querySelector("#expenseRows"),
     addIncome: document.querySelector("#addIncome"),
     addExpense: document.querySelector("#addExpense"),
+    sharePlan: document.querySelector("#sharePlan"),
     downloadCsv: document.querySelector("#downloadCsv"),
     template: document.querySelector("#flowRowTemplate"),
     riskMetric: document.querySelector("#riskMetric"),
@@ -69,7 +91,7 @@ function cacheElements() {
     netWorthSummary: document.querySelector("#netWorthSummary"),
     netWorthZoom: document.querySelector("#netWorthZoom"),
     netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
-    showNotDepleted: document.querySelector("#showNotDepleted"),
+    showDepleted: document.querySelector("#showDepleted"),
     distributionCanvas: document.querySelector("#distributionCanvas"),
     pathsCanvas: document.querySelector("#pathsCanvas"),
     selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
@@ -99,6 +121,7 @@ function setDefaults() {
 
 function bindEvents() {
   els.runSimulation.addEventListener("click", runSimulation);
+  els.sharePlan.addEventListener("click", sharePlan);
   els.form.addEventListener("submit", (event) => {
     event.preventDefault();
     runSimulation();
@@ -153,7 +176,7 @@ function bindEvents() {
     updateNetWorthZoomLabel();
     if (state.results) renderNetWorthChart(els.pathsCanvas, state.results);
   });
-  els.showNotDepleted.addEventListener("change", () => {
+  els.showDepleted.addEventListener("change", () => {
     if (state.results) {
       updateScenarioSummary(state.results);
       renderDistributionChart(els.distributionCanvas, state.results);
@@ -179,6 +202,9 @@ async function loadMarketData() {
 }
 
 function markDirty() {
+  if (!state.isRunning) {
+    state.nextSimulationSeed = null;
+  }
   if (!state.isDirty || state.isRunning) {
     state.inputVersion += 1;
   }
@@ -189,6 +215,7 @@ function markDirty() {
 function updateRunState() {
   const canRun = Boolean(state.marketData) && state.isDirty && !state.isRunning;
   els.runSimulation.disabled = state.isRunning ? state.cancelRequested : !canRun;
+  els.sharePlan.disabled = state.isRunning;
   els.runSimulation.textContent = state.cancelRequested
     ? "Stopping"
     : state.isRunning
@@ -332,6 +359,273 @@ function readScenario() {
   return scenario;
 }
 
+function applySharedPlanFromUrl() {
+  const encodedPlan = getRawQueryParam("p");
+  if (!encodedPlan) return null;
+
+  try {
+    const payload = decodeSharePayload(encodedPlan);
+    return {
+      seed: normalizeSeed(payload.seed),
+      autorun: true
+    };
+  } catch (error) {
+    return {
+      error: `Could not load the shared plan. ${error.message}`
+    };
+  }
+}
+
+function applySharedScenario(scenario) {
+  const sharedScenario = normalizeSharedScenario(scenario);
+
+  els.currentYear.value = sharedScenario.currentYear;
+  els.deathYear.value = sharedScenario.deathYear;
+  els.netWorth.value = sharedScenario.netWorth;
+  els.spyBeta.value = sharedScenario.spyBeta;
+  els.simulationCount.value = sharedScenario.simulationCount;
+
+  els.incomeRows.replaceChildren();
+  els.expenseRows.replaceChildren();
+  sharedScenario.income.forEach((flow) => addFlowRow(els.incomeRows, flow));
+  sharedScenario.expenses.forEach((flow) => addFlowRow(els.expenseRows, flow));
+  formatAllFormattedInputs(document);
+}
+
+function normalizeSharedScenario(scenario) {
+  if (!scenario || typeof scenario !== "object") {
+    throw new Error("The shared scenario is missing.");
+  }
+  const currentYear = normalizeRequiredNumber(scenario.currentYear, "current year");
+  const deathYear = normalizeRequiredNumber(scenario.deathYear, "death year");
+  return {
+    currentYear,
+    deathYear,
+    netWorth: normalizeRequiredNumber(scenario.netWorth, "current net worth"),
+    spyBeta: normalizeRequiredNumber(scenario.spyBeta, "SPY beta"),
+    simulationCount: normalizeRequiredNumber(scenario.simulationCount, "simulation count"),
+    income: normalizeSharedFlows(scenario.income, "income"),
+    expenses: normalizeSharedFlows(scenario.expenses, "expense")
+  };
+}
+
+function normalizeSharedFlows(flows, type) {
+  if (!Array.isArray(flows)) {
+    throw new Error(`The shared ${type} rows are missing.`);
+  }
+  return flows.slice(0, MAX_SHARED_FLOWS).map((flow) => normalizeSharedFlow(flow, type));
+}
+
+function normalizeSharedFlow(flow, type) {
+  if (!flow || typeof flow !== "object") {
+    throw new Error(`A shared ${type} row is invalid.`);
+  }
+  const nameFallback = type === "income" ? "Income" : "Expense";
+  return {
+    name: typeof flow.name === "string" ? flow.name.slice(0, 80) : nameFallback,
+    amount: normalizeRequiredNumber(flow.amount, `${type} amount`),
+    startMode: normalizeSharedMode(flow.startMode, "current"),
+    startYear: normalizeRequiredNumber(flow.startYear, `${type} start year`),
+    endMode: normalizeSharedMode(flow.endMode, "death"),
+    endYear: normalizeRequiredNumber(flow.endYear, `${type} end year`)
+  };
+}
+
+function normalizeSharedMode(mode, fallback) {
+  return ["current", "death", "fixed"].includes(mode) ? mode : fallback;
+}
+
+function normalizeRequiredNumber(value, label) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`The shared ${label} is invalid.`);
+  }
+  return number;
+}
+
+async function sharePlan() {
+  let seed;
+  let url;
+  try {
+    const scenario = readScenario();
+    seed = state.results && !state.isDirty && Number.isInteger(state.results.seed)
+      ? state.results.seed
+      : generateSimulationSeed();
+    url = buildShareUrl(scenario, seed);
+  } catch (error) {
+    els.scenarioSummary.textContent = `Fix inputs before sharing. ${error.message}`;
+    setShareStatus("Fix inputs");
+    return;
+  }
+
+  try {
+    await copyText(url);
+    if (state.isDirty) {
+      state.nextSimulationSeed = seed;
+    }
+    setShareStatus("Copied");
+  } catch (error) {
+    els.scenarioSummary.textContent = `Could not copy the share link. ${error.message}`;
+    setShareStatus("Copy failed");
+  }
+}
+
+function buildShareUrl(scenario, seed) {
+  const url = new URL(window.location.href);
+  return `${url.origin}${url.pathname}?p=${encodeSharePayload(scenario, seed)}`;
+}
+
+function encodeSharePayload(scenario, seed) {
+  return [
+    formatShareNumber(seed),
+    [
+      scenario.currentYear,
+      scenario.deathYear,
+      scenario.netWorth,
+      scenario.spyBeta,
+      scenario.simulationCount
+    ].map(formatShareNumber).join(","),
+    scenario.income.map(encodeSharedFlow).join(";"),
+    scenario.expenses.map(encodeSharedFlow).join(";")
+  ].join("~");
+}
+
+function decodeSharePayload(payload) {
+  const parts = payload.split("~");
+  if (parts.length !== 4) {
+    throw new Error("The link format is not supported.");
+  }
+  const plan = parts[1].split(",");
+  if (plan.length !== 5) {
+    throw new Error("The shared scenario is missing.");
+  }
+  const scenario = {
+    currentYear: parseSharedNumber(plan[0], "current year"),
+    deathYear: parseSharedNumber(plan[1], "death year"),
+    netWorth: parseSharedNumber(plan[2], "current net worth"),
+    spyBeta: parseSharedNumber(plan[3], "SPY beta"),
+    simulationCount: parseSharedNumber(plan[4], "simulation count")
+  };
+  scenario.income = decodeSharedFlows(parts[2], "income", scenario);
+  scenario.expenses = decodeSharedFlows(parts[3], "expense", scenario);
+  applySharedScenario(scenario);
+  return {
+    seed: parseSharedNumber(parts[0], "simulation seed")
+  };
+}
+
+function encodeSharedFlow(flow) {
+  return [
+    encodeShareText(flow.name),
+    formatShareNumber(flow.amount),
+    encodeFlowMode(flow.startMode),
+    flow.startMode === "fixed" ? formatShareNumber(flow.startYear) : "",
+    encodeFlowMode(flow.endMode),
+    flow.endMode === "fixed" ? formatShareNumber(flow.endYear) : ""
+  ].join(",");
+}
+
+function decodeSharedFlows(value, type, scenario) {
+  if (value === "") return [];
+  return value.split(";").slice(0, MAX_SHARED_FLOWS).map((flow) => decodeSharedFlow(flow, type, scenario));
+}
+
+function decodeSharedFlow(value, type, scenario) {
+  const flow = value.split(",");
+  if (flow.length !== 6) {
+    throw new Error("A shared cash flow row is invalid.");
+  }
+  const startMode = decodeFlowMode(flow[2]);
+  const endMode = decodeFlowMode(flow[4]);
+  return {
+    name: decodeShareText(flow[0]),
+    amount: parseSharedNumber(flow[1], `${type} amount`),
+    startMode,
+    startYear: startMode === "fixed" ? parseSharedNumber(flow[3], `${type} start year`) : scenario.currentYear,
+    endMode,
+    endYear: endMode === "fixed" ? parseSharedNumber(flow[5], `${type} end year`) : scenario.deathYear
+  };
+}
+
+function encodeFlowMode(mode) {
+  if (mode === "current") return "c";
+  if (mode === "death") return "d";
+  return "f";
+}
+
+function decodeFlowMode(mode) {
+  if (mode === "c") return "current";
+  if (mode === "d") return "death";
+  if (mode === "f") return "fixed";
+  throw new Error("A shared cash flow mode is invalid.");
+}
+
+function formatShareNumber(value) {
+  const text = String(Number(value));
+  return text.startsWith("0.") ? text.slice(1) : text;
+}
+
+function parseSharedNumber(value, label) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`The shared ${label} is invalid.`);
+  }
+  return number;
+}
+
+function encodeShareText(text) {
+  return encodeURIComponent(text).replace(/%20/g, "+").replace(/~/g, "%7E");
+}
+
+function decodeShareText(encoded) {
+  return decodeURIComponent(encoded.replace(/\+/g, "%20"));
+}
+
+function getRawQueryParam(name) {
+  const query = window.location.search.startsWith("?")
+    ? window.location.search.slice(1)
+    : window.location.search;
+  for (const pair of query.split("&")) {
+    const separatorIndex = pair.indexOf("=");
+    const rawKey = separatorIndex === -1 ? pair : pair.slice(0, separatorIndex);
+    if (decodeURIComponent(rawKey) === name) {
+      return separatorIndex === -1 ? "" : pair.slice(separatorIndex + 1);
+    }
+  }
+  return null;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  fallbackCopyText(text);
+}
+
+function fallbackCopyText(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Copy failed.");
+  }
+}
+
+function setShareStatus(text) {
+  window.clearTimeout(state.shareStatusTimer);
+  els.sharePlan.textContent = text;
+  state.shareStatusTimer = window.setTimeout(() => {
+    els.sharePlan.textContent = "Share";
+  }, 1800);
+}
+
 function validatePlanYear(year, label) {
   if (!Number.isInteger(year) || year < MIN_PLAN_YEAR || year > MAX_PLAN_YEAR) {
     throw new Error(`${label} must be between ${MIN_PLAN_YEAR} and ${MAX_PLAN_YEAR}.`);
@@ -457,6 +751,12 @@ async function runSimulation() {
     return;
   }
 
+  const seed = Number.isInteger(state.nextSimulationSeed)
+    ? state.nextSimulationSeed
+    : generateSimulationSeed();
+  state.nextSimulationSeed = null;
+  const random = createSeededRandom(seed);
+
   state.isRunning = true;
   state.cancelRequested = false;
   state.hover = null;
@@ -469,9 +769,11 @@ async function runSimulation() {
     const results = await simulateScenario(
       scenario,
       state.marketData.returns,
+      random,
       setProgress,
       () => state.cancelRequested
     );
+    results.seed = seed;
     state.results = results;
     state.isDirty = state.inputVersion !== runVersion;
     renderResults(results);
@@ -505,7 +807,7 @@ function throwIfCanceled(shouldCancel) {
   throw error;
 }
 
-async function simulateScenario(scenario, returnRows, onProgress = () => {}, shouldCancel = () => false) {
+async function simulateScenario(scenario, returnRows, random = Math.random, onProgress = () => {}, shouldCancel = () => false) {
   if (!returnRows.length) {
     throw new Error("No historical market data loaded.");
   }
@@ -533,7 +835,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}, sho
     let sampledReturnCount = 0;
     let sampledNominalReturnSum = 0;
     let sampledRealReturnSum = 0;
-    const sampledReturnPath = buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS);
+    const sampledReturnPath = buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS, random);
     const path = [];
     const pathYearRows = [];
 
@@ -630,7 +932,7 @@ async function simulateScenario(scenario, returnRows, onProgress = () => {}, sho
       averageRealSpyReturn: sampledReturnCount ? sampledRealReturnSum / sampledReturnCount : null,
       failureYear
     };
-    addReservoirSample(visualPaths, pathResult, i, MAX_VISUAL_PATHS);
+    addReservoirSample(visualPaths, pathResult, i, MAX_VISUAL_PATHS, random);
     failures.push(failureYear);
     terminalWealth.push(wealth);
     simulationRows.push({
@@ -711,24 +1013,24 @@ function wealthAtTime(startingWealth, netCashFlow, logReturn, yearsElapsed) {
   return startingWealth * growth + netCashFlow * ((growth - 1) / logReturn);
 }
 
-function addReservoirSample(samples, item, seenIndex, maxSamples) {
+function addReservoirSample(samples, item, seenIndex, maxSamples, random = Math.random) {
   if (samples.length < maxSamples) {
     samples.push(item);
     return;
   }
-  const replacementIndex = randomIndex(seenIndex + 1);
+  const replacementIndex = randomIndex(seenIndex + 1, random);
   if (replacementIndex < maxSamples) {
     samples[replacementIndex] = item;
   }
 }
 
-function buildSampledReturnPath(returnRows, pathLength, blockYears) {
+function buildSampledReturnPath(returnRows, pathLength, blockYears, random = Math.random) {
   const path = [];
   const blockLength = Math.min(blockYears, returnRows.length);
   const maxStartIndex = returnRows.length - blockLength;
 
   while (path.length < pathLength) {
-    const startIndex = randomIndex(maxStartIndex + 1);
+    const startIndex = randomIndex(maxStartIndex + 1, random);
     const endIndex = startIndex + blockLength - 1;
     const blockStartYear = returnRows[startIndex].year;
     const blockEndYear = returnRows[endIndex].year;
@@ -811,9 +1113,9 @@ function updateScenarioSummary(results) {
   const simulations = results.scenario.simulationCount;
   const depletedText = `${formatNumber(results.failureYears.length)} of ${formatNumber(simulations)} paths depleted (${formatPercent(results.risk)}).`;
   const notDepletedText = `${formatNumber(results.notDepletedCount)} paths did not deplete (${formatPercent(1 - results.risk)}).`;
-  const chartText = els.showNotDepleted.checked
-    ? "The chart includes both depleted and not-depleted paths."
-    : "The chart shows only depleted paths, while probabilities still use all simulations as the denominator.";
+  const chartText = els.showDepleted.checked
+    ? "The chart shows only depleted paths, while probabilities still use all simulations as the denominator."
+    : "The chart includes both depleted and not-depleted paths.";
   els.scenarioSummary.textContent = `${depletedText} ${notDepletedText} ${chartText}`;
 }
 
@@ -991,10 +1293,10 @@ function renderDistributionChart(canvas, results) {
   const padding = { top: 28, right: 24, bottom: 72, left: 70 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const showNotDepleted = els.showNotDepleted.checked;
-  const rows = showNotDepleted
-    ? [...results.depletedDistribution, { label: "Not depleted", count: results.notDepletedCount, isNotDepleted: true }]
-    : results.depletedDistribution;
+  const showDepleted = els.showDepleted.checked;
+  const rows = showDepleted
+    ? results.depletedDistribution
+    : [...results.depletedDistribution, { label: "Not depleted", count: results.notDepletedCount, isNotDepleted: true }];
 
   drawAxes(ctx, padding, width, height, "Probability");
   if (!rows.length) {
@@ -1449,8 +1751,36 @@ function range(start, end) {
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
-function randomIndex(length) {
-  return Math.floor(Math.random() * length);
+function randomIndex(length, random = Math.random) {
+  return Math.floor(random() * length);
+}
+
+function generateSimulationSeed() {
+  if (window.crypto && window.crypto.getRandomValues) {
+    const values = new Uint32Array(1);
+    window.crypto.getRandomValues(values);
+    return values[0];
+  }
+  return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+}
+
+function normalizeSeed(seed) {
+  const value = Number(seed);
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffffffff) {
+    throw new Error("The simulation seed is invalid.");
+  }
+  return value >>> 0;
+}
+
+function createSeededRandom(seed) {
+  let value = normalizeSeed(seed);
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let next = value;
+    next = Math.imul(next ^ (next >>> 15), next | 1);
+    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function percentile(values, p) {

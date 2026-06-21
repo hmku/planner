@@ -19,7 +19,10 @@
               <p>Monte Carlo depletion years from 5-year historical return blocks.</p>
             </div>
             <div class="run-controls">
-              <button id="runSimulation" class="primary-action" type="button" disabled>Run</button>
+              <div class="run-button-row">
+                <button id="runSimulation" class="primary-action" type="button" disabled>Run</button>
+                <button id="sharePlan" class="secondary-action share-action" type="button">Share</button>
+              </div>
               <div id="runProgress" class="run-progress" role="progressbar" aria-label="Simulation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
                 <div id="runProgressBar"></div>
               </div>
@@ -104,8 +107,8 @@
                   <p id="scenarioSummary">Run a simulation to see the distribution.</p>
                 </div>
                 <label class="inline-toggle">
-                  <input id="showNotDepleted" type="checkbox" checked>
-                  <span>Show not depleted</span>
+                  <input id="showDepleted" type="checkbox" checked>
+                  <span>Show depleted</span>
                 </label>
               </div>
               <div class="canvas-wrap">

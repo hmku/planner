@@ -31,11 +31,13 @@ The Details tab uses `renderSelectedSimulationChart()` and `renderSimulationPath
 
 - Default inputs are set in `setDefaults()`.
 - SPY beta currently defaults to `0.8`.
+- Share links use the `p` query parameter to store compact current plan inputs plus a seeded simulation value; shared links restore inputs and auto-run after market data loads.
 - Simulation rows are stored in `simulationYearRowsBySimulation` so the Details tab can inspect one simulation without recomputing.
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
 - The Details dropdown only lists downsampled inspection paths, not every simulation.
 - Keep edits scoped; this repo often has user changes in progress.
+- After making changes, update `README.md` when behavior or workflows change, then commit and push the completed work unless the user says not to.
 
 ## Testing Checklist
 
@@ -58,6 +60,7 @@ Manual smoke test:
 - Click `Run`; progress appears and results render.
 - Top metric values stay inside their cards, including large median wealth values.
 - Overview charts render and resize correctly.
+- Click `Share`; the copied URL restores the same inputs and reruns with the seeded paths.
 - Switch to Details.
 - The simulation dropdown, CSV button, selected simulation chart, and annual rows table are in one visual section.
 - Changing the selected simulation updates both the chart and table.
