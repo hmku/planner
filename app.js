@@ -367,7 +367,7 @@
       ? Planner.state.nextSimulationSeed
       : Planner.generateSimulationSeed();
     Planner.state.nextSimulationSeed = null;
-    const random = createSeededRandom(seed);
+    const random = Planner.createSeededRandom(seed);
 
     Planner.state.isRunning = true;
     Planner.state.cancelRequested = false;
@@ -375,7 +375,7 @@
     Planner.state.detailHover = null;
     showProgress();
     updateRunState();
-    await yieldToBrowser();
+    await Planner.yieldToBrowser();
 
     try {
       const results = await Planner.simulateScenario(
@@ -439,6 +439,7 @@
     Planner.resetDetailsControls();
     Planner.updateRunState();
     await Planner.loadMarketData();
+    Planner.updateRunState();
     if (sharedPlan && sharedPlan.error) {
       Planner.els.scenarioSummary.textContent = sharedPlan.error;
       Planner.markDirty();

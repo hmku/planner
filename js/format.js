@@ -20,7 +20,7 @@
   }
 
   function formatInputValue(input, options = {}) {
-    const value = numberFromInput(input);
+    const value = Planner.numberFromInput(input);
     if (input.value.trim() === "") return;
 
     if (options.editing) {
@@ -138,6 +138,11 @@
       minimumFractionDigits: 0,
       maximumFractionDigits: 2
     }).format(value);
+  }
+
+  function formatShareNumber(value) {
+    const text = String(Number(value));
+    return text.startsWith("0.") ? text.slice(1) : text;
   }
 
   function formatNumber(value) {
