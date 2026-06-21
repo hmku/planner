@@ -93,7 +93,7 @@ function cacheElements() {
     template: document.querySelector("#flowRowTemplate"),
     riskMetric: document.querySelector("#riskMetric"),
     medianWealthMetric: document.querySelector("#medianWealthMetric"),
-    worstSurvivorReturnMetric: document.querySelector("#worstSurvivorReturnMetric"),
+    currentBetaMetricLabel: document.querySelector("#currentBetaMetricLabel"),
     currentBetaMetric: document.querySelector("#currentBetaMetric"),
     dataSpanMetric: document.querySelector("#dataSpanMetric"),
     scenarioSummary: document.querySelector("#scenarioSummary"),
@@ -1339,9 +1339,9 @@ function renderResults(results) {
   els.riskMetric.textContent = formatPercent(results.risk);
   els.medianWealthMetric.textContent = formatCompactCurrency(results.medianTerminalWealth);
   els.medianWealthMetric.title = formatCurrency(results.medianTerminalWealth);
-  els.worstSurvivorReturnMetric.textContent = results.worstSurvivingPath
-    ? formatPercent(results.worstSurvivingPath.averageRealSpyReturn)
-    : "None";
+  els.currentBetaMetricLabel.textContent = results.scenario.betaMode === BETA_MODE_DYNAMIC
+    ? "Current recommended SPY beta"
+    : "Current SPY beta";
   els.currentBetaMetric.textContent = formatBeta(getCurrentBeta(results));
   updateScenarioSummary(results);
   els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${formatNumber(simulations)} simulations, with ${formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
