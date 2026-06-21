@@ -126,6 +126,20 @@ button {
   min-width: 0;
 }
 
+.section-header-copy-with-action {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+}
+
+.section-header-text {
+  min-width: 0;
+}
+
+.section-header-copy-with-action .icon-action {
+  margin-top: 2px;
+}
+
 .brand-row {
   padding-bottom: 18px;
   border-bottom: 1px solid var(--line-soft);

@@ -64,7 +64,15 @@
         toolbar.appendChild(buildPickerControl(section.dataset.pickerLabel || "", section.dataset.pickerId));
       }
       if (section.dataset.downloadId) {
-        toolbar.appendChild(buildDownloadButton(section.dataset.downloadId, section.dataset.downloadLabel || "Download CSV"));
+        const copy = header.querySelector(".section-header-copy");
+        const text = document.createElement("div");
+        text.className = "section-header-text";
+        text.append(copy.querySelector("h2"), copy.querySelector("p"));
+        copy.classList.add("section-header-copy-with-action");
+        copy.append(
+          buildDownloadButton(section.dataset.downloadId, section.dataset.downloadLabel || "Download CSV"),
+          text
+        );
       }
       if (!toolbar.childElementCount) {
         toolbar.remove();
