@@ -6,10 +6,25 @@ This is a dependency-free static web app:
 
 - `index.html` contains the full DOM structure.
 - `styles.css` contains all layout and visual styling.
-- `app.js` contains all state, input handling, simulation logic, chart drawing, CSV export, and formatting.
+- `js/` contains shared runtime modules attached to the global `Planner` namespace.
+- `app.js` bootstraps the app: state, DOM wiring, inputs, and run orchestration.
 - `data/spy-annual-returns.json` is fetched at runtime and must be served over HTTP.
 
 There is no package manager, build pipeline, framework, backend, or test runner in the repo.
+
+### JavaScript modules (load order matters)
+
+1. `js/constants.js` — limits, defaults, beta-mode constants
+2. `js/util.js` — CSV export, select/table helpers, math, canvas sizing, chart geometry
+3. `js/format.js` — display formatting and money/integer inputs
+4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
+5. `js/simulation.js` — Monte Carlo engine and dynamic-beta policy
+6. `js/charts.js` — canvas charts and hover handling
+7. `js/results.js` — metrics, inspection tables, CSV downloads, tab switching
+8. `js/share.js` — share-link encode/decode
+9. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
+
+Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, `drawDownsampledPaths`, etc.) instead of copying UI or chart logic into a single file.
 
 ## Main Runtime Flow
 
@@ -65,14 +80,15 @@ Manual smoke test:
 - Switch to Details.
 - The simulation dropdown, CSV button, selected simulation chart, and annual rows table are in one visual section.
 - Changing the selected simulation updates both the chart and table.
-- `Download CSV` creates a CSV with simulation-year rows.
+- CSV download creates simulation-year rows.
 - Switch to Methodology and back to verify tab state still renders.
 
 Command-line checks available in the current environment:
 
 ```bash
 curl -I http://127.0.0.1:8000/
+for f in js/*.js app.js; do node --check "$f"; done
 git diff --stat
 ```
 
-At the time this file was written, the environment did not have `node`, `deno`, `bun`, or a headless Chrome binary installed, so JavaScript syntax and browser smoke tests had to be manual.
+At the time this file was written, the environment did not have a headless Chrome binary installed, so browser smoke tests had to be manual.

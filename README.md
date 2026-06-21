@@ -17,7 +17,7 @@ The planner lets you enter plan years, current net worth, beta mode, SPY beta, s
 
 ## How It Works
 
-The app is entirely client-side. `index.html` loads `styles.css`, `app.js`, and `data/spy-annual-returns.json`. There is no build step, package manager, server API, or database.
+The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spy-annual-returns.json`. There is no build step, package manager, server API, or database.
 
 Fixed-beta simulations sample contiguous 5-year historical return blocks with replacement. Dynamic-beta simulations sample one historical year at a time so the beta decision for a simulation year cannot inspect future sampled returns. Portfolio nominal return is modeled as:
 
