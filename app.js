@@ -23,6 +23,7 @@ const state = {
   activePage: "overview",
   hover: null,
   pathHitAreas: [],
+  betaPathHitAreas: [],
   detailHover: null,
   detailHitPoints: [],
   isDirty: true,
@@ -100,11 +101,13 @@ function cacheElements() {
     dataSpanMetric: document.querySelector("#dataSpanMetric"),
     scenarioSummary: document.querySelector("#scenarioSummary"),
     netWorthSummary: document.querySelector("#netWorthSummary"),
+    betaPathSummary: document.querySelector("#betaPathSummary"),
     netWorthZoom: document.querySelector("#netWorthZoom"),
     netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
     showDepleted: document.querySelector("#showDepleted"),
     distributionCanvas: document.querySelector("#distributionCanvas"),
     pathsCanvas: document.querySelector("#pathsCanvas"),
+    betaCanvas: document.querySelector("#betaCanvas"),
     selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
     simulationSelect: document.querySelector("#simulationSelect"),
     simulationPathTable: document.querySelector("#simulationPathTable"),
@@ -117,6 +120,7 @@ function cacheElements() {
     pageButtons: document.querySelectorAll("[data-page]"),
     overviewPage: document.querySelector("#overviewPage"),
     detailsPage: document.querySelector("#detailsPage"),
+    policyPage: document.querySelector("#policyPage"),
     methodologyPage: document.querySelector("#methodologyPage")
   });
 }
@@ -126,7 +130,7 @@ function setDefaults() {
   els.currentYear.value = currentYear;
   els.deathYear.value = currentYear + 44;
   els.netWorth.value = 1250000;
-  els.betaMode.value = BETA_MODE_FIXED;
+  els.betaMode.value = BETA_MODE_DYNAMIC;
   els.spyBeta.value = 0.8;
   els.simulationCount.value = 50000;
 
@@ -186,6 +190,11 @@ function bindEvents() {
   els.pathsCanvas.addEventListener("mouseleave", () => {
     state.hover = null;
     if (state.results) renderNetWorthChart(els.pathsCanvas, state.results);
+  });
+  els.betaCanvas.addEventListener("mousemove", handleBetaPathHover);
+  els.betaCanvas.addEventListener("mouseleave", () => {
+    state.hover = null;
+    if (state.results) renderBetaChart(els.betaCanvas, state.results);
   });
   els.selectedSimulationCanvas.addEventListener("mousemove", handleDetailChartHover);
   els.selectedSimulationCanvas.addEventListener("mouseleave", () => {
@@ -875,6 +884,8 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
   const simulationYearRowsBySimulation = new Map();
   const visualPaths = [];
   const wealthSums = new Array(years.length).fill(0);
+  const betaSums = new Array(years.length).fill(0);
+  const betaCounts = new Array(years.length).fill(0);
 
   onProgress(isDynamicBeta ? DYNAMIC_POLICY_PROGRESS_SHARE : 0);
   for (let i = 0; i < scenario.simulationCount; i += 1) {
@@ -897,6 +908,7 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
       ? null
       : buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS, random);
     const path = [];
+    const betaPath = [];
     const pathYearRows = [];
 
     for (let yearIndex = 0; yearIndex < years.length; yearIndex += 1) {
@@ -980,11 +992,20 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
 
       wealthSums[yearIndex] += wealth;
       path.push({ year, wealth });
+      const betaForPath = pathYearRows[pathYearRows.length - 1]?.spyBetaUsed;
+      if (Number.isFinite(betaForPath)) {
+        betaSums[yearIndex] += betaForPath;
+        betaCounts[yearIndex] += 1;
+        betaPath.push({ year, beta: betaForPath });
+      } else {
+        betaPath.push({ year, beta: null });
+      }
     }
 
     const pathResult = {
       simulation: i + 1,
       points: path,
+      betaPoints: betaPath,
       terminalWealth: wealth,
       averageNominalSpyReturn: sampledReturnCount ? sampledNominalReturnSum / sampledReturnCount : null,
       averageRealSpyReturn: sampledReturnCount ? sampledRealReturnSum / sampledReturnCount : null,
@@ -1014,6 +1035,10 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
     year,
     wealth: wealthSums[index] / scenario.simulationCount
   }));
+  const expectedBetaPath = years.map((year, index) => ({
+    year,
+    beta: betaCounts[index] ? betaSums[index] / betaCounts[index] : null
+  }));
   visualPaths.forEach((path) => {
     path.endingPercentile = percentileRank(terminalWealthSorted, path.terminalWealth);
   });
@@ -1036,6 +1061,7 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
     visualPaths,
     inspectionPaths,
     expectedPath,
+    expectedBetaPath,
     depletedDistribution,
     notDepletedCount,
     risk: failureYears.length / failures.length,
@@ -1634,6 +1660,7 @@ function switchPage(page) {
   });
   els.overviewPage.hidden = page !== "overview";
   els.detailsPage.hidden = page !== "details";
+  els.policyPage.hidden = page !== "policy";
   els.methodologyPage.hidden = page !== "methodology";
   if (state.results) renderCharts(state.results);
 }
@@ -1642,6 +1669,7 @@ function renderCharts(results) {
   if (state.activePage === "overview") {
     renderDistributionChart(els.distributionCanvas, results);
     renderNetWorthChart(els.pathsCanvas, results);
+    renderBetaChart(els.betaCanvas, results);
     return;
   }
   if (state.activePage === "details") {
@@ -1749,6 +1777,61 @@ function renderNetWorthChart(canvas, results) {
   if (state.hover) drawPathTooltip(ctx, state.hover, width, height);
 }
 
+function renderBetaChart(canvas, results) {
+  const size = fitCanvas(canvas);
+  const ctx = canvas.getContext("2d");
+  const width = size.width;
+  const height = size.height;
+  clearCanvas(ctx, width, height);
+  state.betaPathHitAreas = [];
+
+  const padding = { top: 28, right: 36, bottom: 54, left: 70 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const minYear = results.scenario.currentYear;
+  const maxYear = results.scenario.deathYear;
+  const maxBeta = Math.max(1.5, results.scenario.spyBeta || 0, ...DYNAMIC_BETA_VALUES);
+
+  els.betaPathSummary.textContent = results.scenario.betaMode === BETA_MODE_DYNAMIC
+    ? "Average recommended beta and downsampled simulation beta paths."
+    : `Fixed beta ${formatBeta(results.scenario.spyBeta)} across every active path.`;
+
+  drawAxes(ctx, padding, width, height, "SPY beta");
+  drawYBetaLabels(ctx, padding, chartHeight, maxBeta);
+  drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+  ctx.clip();
+
+  results.visualPaths.forEach((path, index) => {
+    const points = (path.betaPoints || []).filter((point) => Number.isFinite(point.beta)).map((point) => ({
+      x: padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth,
+      y: padding.top + chartHeight - (point.beta / Math.max(1, maxBeta)) * chartHeight,
+      year: point.year,
+      beta: point.beta
+    }));
+    if (points.length < 2) return;
+    state.betaPathHitAreas.push({ path, index, points });
+
+    const highlighted = state.hover && state.hover.index === index;
+    ctx.beginPath();
+    ctx.strokeStyle = highlighted ? "rgba(225, 29, 72, 0.95)" : "rgba(14, 165, 233, 0.18)";
+    ctx.lineWidth = highlighted ? 3 : 1;
+    points.forEach((point, pointIndex) => {
+      if (pointIndex === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+  });
+
+  drawExpectedBetaPath(ctx, results.expectedBetaPath, padding, chartWidth, chartHeight, minYear, maxYear, maxBeta);
+  ctx.restore();
+  drawBetaChartLegend(ctx, width, padding);
+  if (state.hover) drawBetaPathTooltip(ctx, state.hover, width, height);
+}
+
 function renderSelectedSimulationChart(canvas, results) {
   const size = fitCanvas(canvas);
   const ctx = canvas.getContext("2d");
@@ -1828,6 +1911,20 @@ function renderSelectedSimulationChart(canvas, results) {
   }
 }
 
+function drawExpectedBetaPath(ctx, expectedBetaPath, padding, chartWidth, chartHeight, minYear, maxYear, maxBeta) {
+  ctx.beginPath();
+  ctx.strokeStyle = "#4f46e5";
+  ctx.lineWidth = 3;
+  expectedBetaPath.forEach((point, index) => {
+    if (!Number.isFinite(point.beta)) return;
+    const x = padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
+    const y = padding.top + chartHeight - (point.beta / Math.max(1, maxBeta)) * chartHeight;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
 function drawExpectedPath(ctx, expectedPath, padding, chartWidth, chartHeight, minYear, maxYear, maxWealth) {
   ctx.beginPath();
   ctx.strokeStyle = "#4f46e5";
@@ -1868,6 +1965,15 @@ function drawChartLegend(ctx, width, padding) {
   ctx.fillText(`Downsampled paths (${MAX_VISUAL_PATHS} max)`, width - padding.right - 150, 18);
 }
 
+function drawBetaChartLegend(ctx, width, padding) {
+  ctx.font = "12px system-ui";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#4f46e5";
+  ctx.fillText("Average beta", width - padding.right, 18);
+  ctx.fillStyle = "#0ea5e9";
+  ctx.fillText(`Downsampled paths (${MAX_VISUAL_PATHS} max)`, width - padding.right - 118, 18);
+}
+
 function drawPathTooltip(ctx, hover, width, height) {
   const lines = [
     `Ending: ${formatCurrency(hover.path.terminalWealth)}`,
@@ -1877,6 +1983,27 @@ function drawPathTooltip(ctx, hover, width, height) {
   ];
   const boxWidth = 218;
   const boxHeight = 102;
+  const x = Math.min(width - boxWidth - 12, Math.max(12, hover.x + 14));
+  const y = Math.min(height - boxHeight - 12, Math.max(12, hover.y - boxHeight - 12));
+
+  ctx.fillStyle = "rgba(26, 31, 46, 0.92)";
+  ctx.fillRect(x, y, boxWidth, boxHeight);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "13px system-ui";
+  ctx.textAlign = "left";
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x + 12, y + 24 + index * 20);
+  });
+}
+
+function drawBetaPathTooltip(ctx, hover, width, height) {
+  const lines = [
+    `Simulation: ${formatNumber(hover.path.simulation)}`,
+    `Ending: ${formatCurrency(hover.path.terminalWealth)}`,
+    hover.path.failureYear ? `Depleted: ${hover.path.failureYear}` : "Not depleted"
+  ];
+  const boxWidth = 218;
+  const boxHeight = 78;
   const x = Math.min(width - boxWidth - 12, Math.max(12, hover.x + 14));
   const y = Math.min(height - boxHeight - 12, Math.max(12, hover.y - boxHeight - 12));
 
@@ -1949,10 +2076,42 @@ function handlePathHover(event) {
   }
 }
 
+function handleBetaPathHover(event) {
+  if (!state.results || state.activePage !== "overview") return;
+
+  const rect = els.betaCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const nearest = findNearestBetaPath(x, y);
+  const nextHover = nearest ? { ...nearest, x, y } : null;
+  const currentIndex = state.hover ? state.hover.index : null;
+  const nextIndex = nextHover ? nextHover.index : null;
+
+  if (currentIndex !== nextIndex || nextHover) {
+    state.hover = nextHover;
+    renderBetaChart(els.betaCanvas, state.results);
+  }
+}
+
 function findNearestPath(x, y) {
   let nearest = null;
   let nearestDistance = Infinity;
   for (const area of state.pathHitAreas) {
+    for (let i = 1; i < area.points.length; i += 1) {
+      const distance = distanceToSegment(x, y, area.points[i - 1], area.points[i]);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = area;
+      }
+    }
+  }
+  return nearestDistance <= 10 ? nearest : null;
+}
+
+function findNearestBetaPath(x, y) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const area of state.betaPathHitAreas) {
     for (let i = 1; i < area.points.length; i += 1) {
       const distance = distanceToSegment(x, y, area.points[i - 1], area.points[i]);
       if (distance < nearestDistance) {
@@ -2060,6 +2219,17 @@ function drawYMoneyLabels(ctx, padding, chartHeight, maxWealth) {
     const value = (maxWealth / 4) * i;
     const y = padding.top + chartHeight - (chartHeight / 4) * i;
     ctx.fillText(formatCompactCurrency(value), padding.left - 10, y + 4);
+  }
+}
+
+function drawYBetaLabels(ctx, padding, chartHeight, maxBeta) {
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "12px system-ui";
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 3; i += 1) {
+    const value = (maxBeta / 3) * i;
+    const y = padding.top + chartHeight - (chartHeight / 3) * i;
+    ctx.fillText(formatBeta(value), padding.left - 10, y + 4);
   }
 }
 

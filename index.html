@@ -102,7 +102,8 @@
 
           <nav class="page-nav" aria-label="Results views">
             <button class="page-button active" type="button" data-page="overview">Overview</button>
-            <button class="page-button" type="button" data-page="details">Details</button>
+            <button class="page-button" type="button" data-page="details">Inspect Simulation</button>
+            <button class="page-button" type="button" data-page="policy">Inspect Beta Policy</button>
             <button class="page-button" type="button" data-page="methodology">Methodology</button>
           </nav>
 
@@ -139,6 +140,20 @@
                 <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
               </div>
             </section>
+            <section class="visual-section">
+              <div class="section-header">
+                <div>
+                  <h2>SPY Beta Over Time</h2>
+                  <p id="betaPathSummary">Average beta and downsampled simulation paths.</p>
+                </div>
+              </div>
+              <div class="canvas-wrap">
+                <canvas id="betaCanvas" width="980" height="360" aria-label="Simulated SPY beta paths over time"></canvas>
+              </div>
+            </section>
+          </div>
+
+          <div id="policyPage" class="page-panel" hidden>
             <section id="dynamicPolicySection" class="table-section inspection-section" hidden>
               <div class="section-header compact">
                 <div>
@@ -252,7 +267,7 @@
                 </article>
                 <article>
                   <h3>Charts</h3>
-                  <p>The depletion-year chart shows probability across all simulations. The net-worth chart shows expected current-dollar wealth across all paths plus a downsampled set of individual paths for hover inspection. Dynamic-beta runs also expose the policy's wealth buckets and recommended beta by year in Details.</p>
+                  <p>The depletion-year chart shows probability across all simulations. The overview charts show expected current-dollar wealth, average SPY beta, and downsampled paths for hover inspection. Dynamic-beta runs expose the policy's wealth buckets and recommended beta by year in Inspect Beta Policy.</p>
                 </article>
                 <article>
                   <h3>Limits</h3>
