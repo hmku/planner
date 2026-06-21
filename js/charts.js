@@ -28,9 +28,9 @@
   }
 
 
-  function drawDownsampledPaths(ctx, hitAreas, paths, padding, chartWidth, chartHeight, minYear, maxYear, maxValue, getPointValue, hoverIndex) {
+  function drawDownsampledPaths(ctx, hitAreas, paths, padding, chartWidth, chartHeight, minYear, maxYear, maxValue, getPathPoints, getPointValue, hoverIndex) {
     paths.forEach((path, index) => {
-      const points = (path.points || path.betaPoints || [])
+      const points = (getPathPoints(path) || [])
         .map((point) => {
           const value = getPointValue(point);
           if (!Number.isFinite(value)) return null;
@@ -172,6 +172,7 @@
       minYear,
       maxYear,
       maxWealth,
+      (path) => path.points,
       (point) => point.wealth,
       hoverIndex
     );
@@ -227,6 +228,7 @@
       minYear,
       maxYear,
       maxBeta,
+      (path) => path.betaPoints,
       (point) => point.beta,
       hoverIndex
     );
