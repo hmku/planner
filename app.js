@@ -81,6 +81,7 @@ function cacheElements() {
     deathYear: document.querySelector("#deathYear"),
     netWorth: document.querySelector("#netWorth"),
     betaMode: document.querySelector("#betaMode"),
+    fixedBetaControl: document.querySelector("#fixedBetaControl"),
     spyBeta: document.querySelector("#spyBeta"),
     simulationCount: document.querySelector("#simulationCount"),
     incomeRows: document.querySelector("#incomeRows"),
@@ -93,6 +94,7 @@ function cacheElements() {
     riskMetric: document.querySelector("#riskMetric"),
     medianWealthMetric: document.querySelector("#medianWealthMetric"),
     worstSurvivorReturnMetric: document.querySelector("#worstSurvivorReturnMetric"),
+    currentBetaMetric: document.querySelector("#currentBetaMetric"),
     dataSpanMetric: document.querySelector("#dataSpanMetric"),
     scenarioSummary: document.querySelector("#scenarioSummary"),
     netWorthSummary: document.querySelector("#netWorthSummary"),
@@ -105,6 +107,11 @@ function cacheElements() {
     simulationSelect: document.querySelector("#simulationSelect"),
     simulationPathTable: document.querySelector("#simulationPathTable"),
     selectedSimulationSummary: document.querySelector("#selectedSimulationSummary"),
+    dynamicPolicySection: document.querySelector("#dynamicPolicySection"),
+    dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
+    policyYearSelect: document.querySelector("#policyYearSelect"),
+    dynamicPolicyTable: document.querySelector("#dynamicPolicyTable"),
+    downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
     pageButtons: document.querySelectorAll("[data-page]"),
     overviewPage: document.querySelector("#overviewPage"),
     detailsPage: document.querySelector("#detailsPage"),
@@ -125,6 +132,7 @@ function setDefaults() {
   DEFAULT_EXPENSES.forEach((flow) => addFlowRow(els.expenseRows, flow));
   bindFormattedInputs(document);
   formatAllFormattedInputs(document);
+  updateBetaModeControls();
 }
 
 function bindEvents() {
@@ -141,6 +149,7 @@ function bindEvents() {
   });
   els.form.addEventListener("input", markDirty);
   els.form.addEventListener("change", markDirty);
+  els.betaMode.addEventListener("change", updateBetaModeControls);
   [els.currentYear, els.deathYear].forEach((input) => {
     input.addEventListener("change", syncRelativeFlowYears);
   });
@@ -167,6 +176,7 @@ function bindEvents() {
     markDirty();
   });
   els.downloadCsv.addEventListener("click", downloadSimulationCsv);
+  els.downloadPolicyCsv.addEventListener("click", downloadPolicyCsv);
   els.pageButtons.forEach((button) => {
     button.addEventListener("click", () => switchPage(button.dataset.page));
   });
@@ -194,7 +204,11 @@ function bindEvents() {
     if (!state.results) return;
     state.detailHover = null;
     renderSimulationPathTable(state.results);
+    renderDynamicPolicyTable(state.results);
     renderSelectedSimulationChart(els.selectedSimulationCanvas, state.results);
+  });
+  els.policyYearSelect.addEventListener("change", () => {
+    if (state.results) renderDynamicPolicyTable(state.results);
   });
   window.addEventListener("resize", () => {
     if (state.results) renderCharts(state.results);
@@ -230,6 +244,13 @@ function updateRunState() {
       ? "Stop"
       : "Run";
   els.runSimulation.classList.toggle("is-running", state.isRunning);
+}
+
+function updateBetaModeControls() {
+  const isDynamicBeta = normalizeBetaMode(els.betaMode.value) === BETA_MODE_DYNAMIC;
+  els.fixedBetaControl.hidden = isDynamicBeta;
+  els.spyBeta.disabled = isDynamicBeta;
+  els.spyBeta.required = !isDynamicBeta;
 }
 
 function showProgress() {
@@ -348,7 +369,7 @@ function readScenario() {
   if (!Number.isFinite(scenario.netWorth) || scenario.netWorth < 0) {
     throw new Error("Enter a non-negative current net worth.");
   }
-  if (!Number.isFinite(scenario.spyBeta)) {
+  if (scenario.betaMode === BETA_MODE_FIXED && !Number.isFinite(scenario.spyBeta)) {
     throw new Error("Enter a valid SPY beta.");
   }
   if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < MIN_SIMULATION_COUNT) {
@@ -394,6 +415,7 @@ function applySharedScenario(scenario) {
   els.betaMode.value = sharedScenario.betaMode;
   els.spyBeta.value = sharedScenario.spyBeta;
   els.simulationCount.value = sharedScenario.simulationCount;
+  updateBetaModeControls();
 
   els.incomeRows.replaceChildren();
   els.expenseRows.replaceChildren();
@@ -1300,11 +1322,13 @@ function renderResults(results) {
   els.worstSurvivorReturnMetric.textContent = results.worstSurvivingPath
     ? formatPercent(results.worstSurvivingPath.averageRealSpyReturn)
     : "None";
+  els.currentBetaMetric.textContent = formatBeta(getCurrentBeta(results));
   updateScenarioSummary(results);
   els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${formatNumber(simulations)} simulations, with ${formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
 
   renderSimulationSelect(results);
   renderSimulationPathTable(results);
+  renderDynamicPolicyControls(results);
   renderCharts(results);
 }
 
@@ -1315,7 +1339,19 @@ function resetDetailsControls() {
   els.simulationSelect.replaceChildren(option);
   els.simulationSelect.disabled = true;
   els.downloadCsv.disabled = true;
+  els.downloadPolicyCsv.disabled = true;
+  els.dynamicPolicySection.hidden = true;
+  els.policyYearSelect.replaceChildren();
+  els.dynamicPolicyTable.innerHTML = `<tr><td colspan="5">Run dynamic beta to inspect the policy.</td></tr>`;
+  els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
   els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
+}
+
+function getCurrentBeta(results) {
+  if (results.scenario.betaMode !== BETA_MODE_DYNAMIC || !results.dynamicPolicy) {
+    return results.scenario.spyBeta;
+  }
+  return selectDynamicBeta(results.dynamicPolicy, 0, results.scenario.netWorth);
 }
 
 function updateScenarioSummary(results) {
@@ -1389,6 +1425,81 @@ function renderSimulationPathTable(results) {
   }).join("");
 }
 
+function renderDynamicPolicyControls(results) {
+  const hasDynamicPolicy = results.scenario.betaMode === BETA_MODE_DYNAMIC && results.dynamicPolicy;
+  els.dynamicPolicySection.hidden = !hasDynamicPolicy;
+  els.downloadPolicyCsv.disabled = !hasDynamicPolicy;
+  if (!hasDynamicPolicy) return;
+
+  const previousYear = Number(els.policyYearSelect.value) || results.scenario.currentYear;
+  const fragment = document.createDocumentFragment();
+  results.years.forEach((year) => {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    fragment.appendChild(option);
+  });
+  els.policyYearSelect.replaceChildren(fragment);
+  els.policyYearSelect.value = results.years.includes(previousYear)
+    ? String(previousYear)
+    : String(results.scenario.currentYear);
+  renderDynamicPolicyTable(results);
+}
+
+function renderDynamicPolicyTable(results) {
+  if (results.scenario.betaMode !== BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
+
+  const selectedYear = Number(els.policyYearSelect.value) || results.scenario.currentYear;
+  const yearIndex = results.years.indexOf(selectedYear);
+  if (yearIndex < 0) {
+    els.dynamicPolicyTable.innerHTML = `<tr><td colspan="5">No policy rows for this year.</td></tr>`;
+    return;
+  }
+
+  const selectedSimulation = Number(els.simulationSelect.value) || 1;
+  const selectedRows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
+  const selectedPathRow = selectedRows.find((row) => row.year === selectedYear);
+  const selectedBucketIndex = selectedPathRow && selectedPathRow.startingWealth > 0
+    ? nearestBucketIndex(results.dynamicPolicy.wealthBuckets, selectedPathRow.startingWealth)
+    : null;
+  const currentBucketIndex = selectedYear === results.scenario.currentYear
+    ? nearestBucketIndex(results.dynamicPolicy.wealthBuckets, results.scenario.netWorth)
+    : null;
+  const rows = getDynamicPolicyRows(results, yearIndex);
+
+  els.dynamicPolicySummary.textContent = selectedPathRow && selectedPathRow.startingWealth > 0
+    ? `Simulation ${formatNumber(selectedSimulation)} starts ${selectedYear} at ${formatCurrency(selectedPathRow.startingWealth)}; nearest bucket recommends beta ${formatBeta(selectedPathRow.spyBetaUsed)}.`
+    : `Policy for ${selectedYear}; select a simulation path above to mark its nearest wealth bucket.`;
+
+  els.dynamicPolicyTable.innerHTML = rows.map((row) => {
+    const markers = [];
+    if (row.bucketIndex === selectedBucketIndex) markers.push("Selected path");
+    if (row.bucketIndex === currentBucketIndex) markers.push("Current wealth");
+    return [
+      "<tr>",
+      `<td>${formatNumber(row.bucketIndex)}</td>`,
+      `<td>${formatCurrency(row.wealth)}</td>`,
+      `<td>${formatBeta(row.beta)}</td>`,
+      `<td>${formatPercent(row.estimatedDepletionRisk)}</td>`,
+      `<td>${markers.join(", ") || "--"}</td>`,
+      "</tr>"
+    ].join("");
+  }).join("");
+}
+
+function getDynamicPolicyRows(results, yearIndex) {
+  const policy = results.dynamicPolicy;
+  const policyRow = policy.policyByYear[yearIndex] || [];
+  const valueRow = policy.valueByYear[yearIndex] || [];
+  return policy.wealthBuckets.map((wealth, bucketIndex) => ({
+    year: results.years[yearIndex],
+    bucketIndex,
+    wealth,
+    beta: policyRow[bucketIndex],
+    estimatedDepletionRisk: valueRow[bucketIndex]
+  }));
+}
+
 function formatHistoricalBlock(row) {
   if (!row.historicalBlockStartYear || !row.historicalBlockEndYear) return "--";
   return `${row.historicalBlockStartYear}-${row.historicalBlockEndYear}`;
@@ -1460,6 +1571,38 @@ function downloadSimulationCsv() {
   const link = document.createElement("a");
   link.href = url;
   link.download = `financial-planner-simulations-${Date.now()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPolicyCsv() {
+  if (!state.results || state.results.scenario.betaMode !== BETA_MODE_DYNAMIC || !state.results.dynamicPolicy) return;
+  const headers = [
+    "year",
+    "bucket_index",
+    "bucket_wealth_current_dollars",
+    "recommended_spy_beta",
+    "estimated_depletion_probability"
+  ];
+  const rows = state.results.years.flatMap((year, yearIndex) => (
+    getDynamicPolicyRows(state.results, yearIndex).map((row) => [
+      year,
+      row.bucketIndex,
+      row.wealth,
+      row.beta,
+      row.estimatedDepletionRisk
+    ])
+  ));
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `financial-planner-dynamic-beta-policy-${Date.now()}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -16,7 +16,7 @@
           <div class="brand-row">
             <div>
               <h1>Financial Runway Planner</h1>
-              <p>Monte Carlo depletion years from 5-year historical return blocks.</p>
+              <p>Monte Carlo depletion years from historical returns.</p>
             </div>
             <div class="run-controls">
               <div class="run-button-row">
@@ -52,7 +52,7 @@
                   <option value="dynamic">Dynamic beta</option>
                 </select>
               </label>
-              <label>
+              <label id="fixedBetaControl">
                 <span>SPY beta</span>
                 <input id="spyBeta" name="spyBeta" type="number" min="-3" max="3" step="0.05" required>
               </label>
@@ -93,6 +93,10 @@
             <article class="metric">
               <span>Worst survivor avg real SPY return</span>
               <strong id="worstSurvivorReturnMetric">--</strong>
+            </article>
+            <article class="metric">
+              <span>Current SPY beta</span>
+              <strong id="currentBetaMetric">--</strong>
             </article>
             <article class="metric">
               <span>Historical return span</span>
@@ -137,6 +141,39 @@
               </div>
               <div class="canvas-wrap">
                 <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
+              </div>
+            </section>
+            <section id="dynamicPolicySection" class="table-section inspection-section" hidden>
+              <div class="section-header compact">
+                <div>
+                  <h2>Dynamic Beta Policy</h2>
+                  <p id="dynamicPolicySummary">Run dynamic beta to inspect the policy.</p>
+                </div>
+                <div class="details-actions">
+                  <label class="simulation-picker">
+                    <span>Plan year</span>
+                    <select id="policyYearSelect"></select>
+                  </label>
+                  <button id="downloadPolicyCsv" class="secondary-action" type="button">Download Policy CSV</button>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Bucket</th>
+                      <th>Bucket wealth</th>
+                      <th>Policy beta</th>
+                      <th>Estimated depletion risk</th>
+                      <th>Selected path</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dynamicPolicyTable">
+                    <tr>
+                      <td colspan="5">Run dynamic beta to inspect the policy.</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </section>
           </div>
@@ -218,7 +255,7 @@
                 </article>
                 <article>
                   <h3>Charts</h3>
-                  <p>The depletion-year chart shows probability across all simulations. The net-worth chart shows expected current-dollar wealth across all paths plus a downsampled set of individual paths for hover inspection.</p>
+                  <p>The depletion-year chart shows probability across all simulations. The net-worth chart shows expected current-dollar wealth across all paths plus a downsampled set of individual paths for hover inspection. Dynamic-beta runs also expose the policy's wealth buckets and recommended beta by year in Details.</p>
                 </article>
                 <article>
                   <h3>Limits</h3>
