@@ -1,8 +1,8 @@
 # Financial Runway Planner
 
-A static browser-based financial planning simulator. The app estimates portfolio depletion risk by running Monte Carlo simulations built from historical 5-year blocks of S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
+A static browser-based financial planning simulator. The app estimates portfolio depletion risk by running Monte Carlo simulations from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
 
-The planner lets you enter plan years, current net worth, SPY beta, simulation count, annual income, and annual expenditures. It then shows:
+The planner lets you enter plan years, current net worth, beta mode, SPY beta, simulation count, annual income, and annual expenditures. It then shows:
 
 - probability of running out of money before the expected year of death
 - median final wealth in current dollars
@@ -16,7 +16,7 @@ The planner lets you enter plan years, current net worth, SPY beta, simulation c
 
 The app is entirely client-side. `index.html` loads `styles.css`, `app.js`, and `data/spy-annual-returns.json`. There is no build step, package manager, server API, or database.
 
-Each simulation samples contiguous 5-year historical return blocks with replacement. Portfolio nominal return is modeled as:
+Fixed-beta simulations sample contiguous 5-year historical return blocks with replacement. Dynamic-beta simulations sample one historical year at a time so the beta decision for a simulation year cannot inspect future sampled returns. Portfolio nominal return is modeled as:
 
 ```text
 T-bill return + SPY beta * (S&P 500 return - T-bill return)
@@ -24,9 +24,11 @@ T-bill return + SPY beta * (S&P 500 return - T-bill return)
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
+Dynamic beta builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, and chooses the highest beta when estimated depletion probability is zero. Details rows and CSV exports include the SPY beta used each year.
+
 ## Sharing Plans
 
-Click `Share` to copy a URL containing the current plan inputs and a simulation seed in the `p` query parameter. Opening that link restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
+Click `Share` to copy a URL containing the current plan inputs, beta mode, and a simulation seed in the `p` query parameter. Opening that link restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
 
 ## Run Locally
 
@@ -58,6 +60,5 @@ https://hmku.github.io/planner/
 
 - Support flexible versus crucial expenditures.
 - Add spending guardrail logic: when projected wealth is running low, automatically reduce flexible expenditures and preserve only crucial expenditures.
-- Add optimization logic that searches over SPY beta choices and selects the beta that minimizes probability of depletion for the entered income and expenditure plan.
 - Add richer tax/account modeling, including taxable, tax-deferred, and Roth accounts.
 - Add automated browser smoke tests for default load, running a simulation, switching tabs, changing inspected simulation, and downloading CSV.

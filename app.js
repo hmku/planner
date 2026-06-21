@@ -8,6 +8,12 @@ const MIN_SIMULATION_COUNT = 100;
 const MAX_SIMULATION_COUNT = 200000;
 const MAX_SIMULATION_YEAR_ROWS = 12000000;
 const MAX_SHARED_FLOWS = 100;
+const BETA_MODE_FIXED = "fixed";
+const BETA_MODE_DYNAMIC = "dynamic";
+const DYNAMIC_BETA_VALUES = Array.from({ length: 16 }, (_, index) => Number((index * 0.1).toFixed(1)));
+const DYNAMIC_WEALTH_BUCKETS = 180;
+const DYNAMIC_POLICY_PROGRESS_SHARE = 0.25;
+const EPSILON = 0.000000001;
 
 const state = {
   marketData: null,
@@ -74,6 +80,7 @@ function cacheElements() {
     currentYear: document.querySelector("#currentYear"),
     deathYear: document.querySelector("#deathYear"),
     netWorth: document.querySelector("#netWorth"),
+    betaMode: document.querySelector("#betaMode"),
     spyBeta: document.querySelector("#spyBeta"),
     simulationCount: document.querySelector("#simulationCount"),
     incomeRows: document.querySelector("#incomeRows"),
@@ -110,6 +117,7 @@ function setDefaults() {
   els.currentYear.value = currentYear;
   els.deathYear.value = currentYear + 44;
   els.netWorth.value = 1250000;
+  els.betaMode.value = BETA_MODE_FIXED;
   els.spyBeta.value = 0.8;
   els.simulationCount.value = 50000;
 
@@ -320,6 +328,7 @@ function readScenario() {
     currentYear: numberFromInput(els.currentYear),
     deathYear: numberFromInput(els.deathYear),
     netWorth: numberFromInput(els.netWorth),
+    betaMode: normalizeBetaMode(els.betaMode.value),
     spyBeta: numberFromInput(els.spyBeta),
     simulationCount: numberFromInput(els.simulationCount)
   };
@@ -382,6 +391,7 @@ function applySharedScenario(scenario) {
   els.currentYear.value = sharedScenario.currentYear;
   els.deathYear.value = sharedScenario.deathYear;
   els.netWorth.value = sharedScenario.netWorth;
+  els.betaMode.value = sharedScenario.betaMode;
   els.spyBeta.value = sharedScenario.spyBeta;
   els.simulationCount.value = sharedScenario.simulationCount;
 
@@ -402,6 +412,7 @@ function normalizeSharedScenario(scenario) {
     currentYear,
     deathYear,
     netWorth: normalizeRequiredNumber(scenario.netWorth, "current net worth"),
+    betaMode: normalizeBetaMode(scenario.betaMode),
     spyBeta: normalizeRequiredNumber(scenario.spyBeta, "SPY beta"),
     simulationCount: normalizeRequiredNumber(scenario.simulationCount, "simulation count"),
     income: normalizeSharedFlows(scenario.income, "income"),
@@ -433,6 +444,10 @@ function normalizeSharedFlow(flow, type) {
 
 function normalizeSharedMode(mode, fallback) {
   return ["current", "death", "fixed"].includes(mode) ? mode : fallback;
+}
+
+function normalizeBetaMode(mode) {
+  return mode === BETA_MODE_DYNAMIC ? BETA_MODE_DYNAMIC : BETA_MODE_FIXED;
 }
 
 function normalizeRequiredNumber(value, label) {
@@ -476,15 +491,18 @@ function buildShareUrl(scenario, seed) {
 }
 
 function encodeSharePayload(scenario, seed) {
+  const plan = [
+    scenario.currentYear,
+    scenario.deathYear,
+    scenario.netWorth,
+    scenario.spyBeta,
+    scenario.simulationCount
+  ].map(formatShareNumber);
+  plan.push(encodeBetaMode(scenario.betaMode));
+
   return [
     formatShareNumber(seed),
-    [
-      scenario.currentYear,
-      scenario.deathYear,
-      scenario.netWorth,
-      scenario.spyBeta,
-      scenario.simulationCount
-    ].map(formatShareNumber).join(","),
+    plan.join(","),
     scenario.income.map(encodeSharedFlow).join(";"),
     scenario.expenses.map(encodeSharedFlow).join(";")
   ].join("~");
@@ -496,7 +514,7 @@ function decodeSharePayload(payload) {
     throw new Error("The link format is not supported.");
   }
   const plan = parts[1].split(",");
-  if (plan.length !== 5) {
+  if (plan.length !== 5 && plan.length !== 6) {
     throw new Error("The shared scenario is missing.");
   }
   const scenario = {
@@ -504,7 +522,8 @@ function decodeSharePayload(payload) {
     deathYear: parseSharedNumber(plan[1], "death year"),
     netWorth: parseSharedNumber(plan[2], "current net worth"),
     spyBeta: parseSharedNumber(plan[3], "SPY beta"),
-    simulationCount: parseSharedNumber(plan[4], "simulation count")
+    simulationCount: parseSharedNumber(plan[4], "simulation count"),
+    betaMode: plan.length === 6 ? decodeBetaMode(plan[5]) : BETA_MODE_FIXED
   };
   scenario.income = decodeSharedFlows(parts[2], "income", scenario);
   scenario.expenses = decodeSharedFlows(parts[3], "expense", scenario);
@@ -512,6 +531,14 @@ function decodeSharePayload(payload) {
   return {
     seed: parseSharedNumber(parts[0], "simulation seed")
   };
+}
+
+function encodeBetaMode(mode) {
+  return normalizeBetaMode(mode) === BETA_MODE_DYNAMIC ? "d" : "f";
+}
+
+function decodeBetaMode(value) {
+  return value === "d" ? BETA_MODE_DYNAMIC : BETA_MODE_FIXED;
 }
 
 function encodeSharedFlow(flow) {
@@ -813,6 +840,10 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
   }
 
   const years = range(scenario.currentYear, scenario.deathYear);
+  const isDynamicBeta = scenario.betaMode === BETA_MODE_DYNAMIC;
+  const dynamicPolicy = isDynamicBeta
+    ? await buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel)
+    : null;
   const failures = [];
   const terminalWealth = [];
   const simulationRows = [];
@@ -821,11 +852,14 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
   const visualPaths = [];
   const wealthSums = new Array(years.length).fill(0);
 
-  onProgress(0);
+  onProgress(isDynamicBeta ? DYNAMIC_POLICY_PROGRESS_SHARE : 0);
   for (let i = 0; i < scenario.simulationCount; i += 1) {
     throwIfCanceled(shouldCancel);
     if (i > 0 && i % SIMULATION_CHUNK_SIZE === 0) {
-      onProgress(i / scenario.simulationCount);
+      const simulationProgress = i / scenario.simulationCount;
+      onProgress(isDynamicBeta
+        ? DYNAMIC_POLICY_PROGRESS_SHARE + simulationProgress * (1 - DYNAMIC_POLICY_PROGRESS_SHARE)
+        : simulationProgress);
       await yieldToBrowser();
       throwIfCanceled(shouldCancel);
     }
@@ -835,7 +869,9 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
     let sampledReturnCount = 0;
     let sampledNominalReturnSum = 0;
     let sampledRealReturnSum = 0;
-    const sampledReturnPath = buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS, random);
+    const sampledReturnPath = isDynamicBeta
+      ? null
+      : buildSampledReturnPath(returnRows, years.length, RETURN_BLOCK_YEARS, random);
     const path = [];
     const pathYearRows = [];
 
@@ -846,22 +882,18 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
         const income = cashFlowForYear(scenario.income, year);
         const expenses = cashFlowForYear(scenario.expenses, year);
         const netCashFlow = income - expenses;
-        const sampledReturn = sampledReturnPath[yearIndex];
-        const returnRow = sampledReturn.row;
-        const nominalSpyReturn = returnRow.nominalReturn ?? returnRow.return;
-        const nominalRiskFreeReturn = returnRow.riskFreeReturn ?? 0;
-        const nominalSpyExcessReturn = nominalSpyReturn - nominalRiskFreeReturn;
-        const inflation = returnRow.inflation ?? 0;
-        const realSpyReturn = ((1 + nominalSpyReturn) / Math.max(0.000001, 1 + inflation)) - 1;
-        const realRiskFreeReturn = ((1 + nominalRiskFreeReturn) / Math.max(0.000001, 1 + inflation)) - 1;
-        const nominalPortfolioReturn = nominalRiskFreeReturn + scenario.spyBeta * nominalSpyExcessReturn;
-        const nominalGrowthFactor = Math.max(0.000001, 1 + nominalPortfolioReturn);
-        const realGrowthFactor = nominalGrowthFactor / Math.max(0.000001, 1 + inflation);
-        const yearResult = applyContinuousYear(wealth, netCashFlow, realGrowthFactor);
+        const sampledReturn = isDynamicBeta
+          ? buildAnnualSampledReturn(returnRows, random)
+          : sampledReturnPath[yearIndex];
+        const spyBetaUsed = isDynamicBeta
+          ? selectDynamicBeta(dynamicPolicy, yearIndex, wealth)
+          : scenario.spyBeta;
+        const returnMetrics = buildReturnMetrics(sampledReturn.row, spyBetaUsed);
+        const yearResult = applyContinuousYear(wealth, netCashFlow, returnMetrics.realGrowthFactor);
 
         sampledReturnCount += 1;
-        sampledNominalReturnSum += nominalSpyReturn;
-        sampledRealReturnSum += realSpyReturn;
+        sampledNominalReturnSum += returnMetrics.nominalSpyReturn;
+        sampledRealReturnSum += returnMetrics.realSpyReturn;
         wealth = yearResult.endingWealth;
 
         if (yearResult.depleted) {
@@ -872,21 +904,22 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
         const simulationYearRow = {
           simulation: i + 1,
           year,
-          historicalReturnYear: returnRow.year,
+          historicalReturnYear: sampledReturn.row.year,
           historicalBlockStartYear: sampledReturn.blockStartYear,
           historicalBlockEndYear: sampledReturn.blockEndYear,
           startingWealth: yearResult.startingWealth,
           income,
           expenses,
           netCashFlow,
-          nominalSpyReturn,
-          nominalRiskFreeReturn,
-          nominalSpyExcessReturn,
-          nominalPortfolioReturn,
-          inflation,
-          realSpyReturn,
-          realRiskFreeReturn,
-          portfolioRealReturn: realGrowthFactor - 1,
+          nominalSpyReturn: returnMetrics.nominalSpyReturn,
+          nominalRiskFreeReturn: returnMetrics.nominalRiskFreeReturn,
+          nominalSpyExcessReturn: returnMetrics.nominalSpyExcessReturn,
+          spyBetaUsed,
+          nominalPortfolioReturn: returnMetrics.nominalPortfolioReturn,
+          inflation: returnMetrics.inflation,
+          realSpyReturn: returnMetrics.realSpyReturn,
+          realRiskFreeReturn: returnMetrics.realRiskFreeReturn,
+          portfolioRealReturn: returnMetrics.realGrowthFactor - 1,
           endingWealth: wealth,
           depletedThisYear: yearResult.depleted,
           depletionYear: yearResult.depleted ? year : ""
@@ -907,6 +940,7 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
           nominalSpyReturn: "",
           nominalRiskFreeReturn: "",
           nominalSpyExcessReturn: "",
+          spyBetaUsed: "",
           nominalPortfolioReturn: "",
           inflation: "",
           realSpyReturn: "",
@@ -966,6 +1000,7 @@ async function simulateScenario(scenario, returnRows, random = Math.random, onPr
 
   return {
     scenario,
+    dynamicPolicy,
     years,
     failures,
     failureYears,
@@ -1047,6 +1082,180 @@ function buildSampledReturnPath(returnRows, pathLength, blockYears, random = Mat
   return path;
 }
 
+function buildAnnualSampledReturn(returnRows, random = Math.random) {
+  return {
+    row: returnRows[randomIndex(returnRows.length, random)],
+    blockStartYear: "",
+    blockEndYear: ""
+  };
+}
+
+function buildReturnMetrics(returnRow, spyBeta) {
+  const nominalSpyReturn = returnRow.nominalReturn ?? returnRow.return;
+  const nominalRiskFreeReturn = returnRow.riskFreeReturn ?? 0;
+  const nominalSpyExcessReturn = nominalSpyReturn - nominalRiskFreeReturn;
+  const inflation = returnRow.inflation ?? 0;
+  const realSpyReturn = ((1 + nominalSpyReturn) / Math.max(0.000001, 1 + inflation)) - 1;
+  const realRiskFreeReturn = ((1 + nominalRiskFreeReturn) / Math.max(0.000001, 1 + inflation)) - 1;
+  const nominalPortfolioReturn = nominalRiskFreeReturn + spyBeta * nominalSpyExcessReturn;
+  const nominalGrowthFactor = Math.max(0.000001, 1 + nominalPortfolioReturn);
+  const realGrowthFactor = nominalGrowthFactor / Math.max(0.000001, 1 + inflation);
+  return {
+    nominalSpyReturn,
+    nominalRiskFreeReturn,
+    nominalSpyExcessReturn,
+    spyBeta,
+    nominalPortfolioReturn,
+    inflation,
+    realSpyReturn,
+    realRiskFreeReturn,
+    realGrowthFactor
+  };
+}
+
+async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
+  const wealthBuckets = buildDynamicWealthBuckets(scenario, years);
+  const valueByYear = new Array(years.length + 1);
+  const policyByYear = new Array(years.length);
+  let nextValues = new Array(wealthBuckets.length).fill(0);
+  valueByYear[years.length] = nextValues;
+
+  for (let yearIndex = years.length - 1; yearIndex >= 0; yearIndex -= 1) {
+    throwIfCanceled(shouldCancel);
+    const year = years[yearIndex];
+    const netCashFlow = cashFlowForYear(scenario.income, year) - cashFlowForYear(scenario.expenses, year);
+    const currentValues = new Array(wealthBuckets.length);
+    const currentPolicy = new Array(wealthBuckets.length);
+
+    for (let bucketIndex = 0; bucketIndex < wealthBuckets.length; bucketIndex += 1) {
+      const startingWealth = wealthBuckets[bucketIndex];
+      if (startingWealth <= 0) {
+        currentValues[bucketIndex] = 1;
+        currentPolicy[bucketIndex] = 0;
+        continue;
+      }
+
+      let bestValue = Number.POSITIVE_INFINITY;
+      let bestBeta = DYNAMIC_BETA_VALUES[0];
+
+      DYNAMIC_BETA_VALUES.forEach((beta) => {
+        let totalValue = 0;
+        returnRows.forEach((returnRow) => {
+          const returnMetrics = buildReturnMetrics(returnRow, beta);
+          const yearResult = applyContinuousYear(startingWealth, netCashFlow, returnMetrics.realGrowthFactor);
+          totalValue += yearResult.depleted
+            ? 1
+            : interpolateBucketValue(wealthBuckets, nextValues, yearResult.endingWealth);
+        });
+        const actionValue = totalValue / returnRows.length;
+
+        if (actionValue < bestValue - EPSILON) {
+          bestValue = actionValue;
+          bestBeta = beta;
+        } else if (Math.abs(actionValue - bestValue) <= EPSILON && actionValue <= EPSILON && beta > bestBeta) {
+          bestBeta = beta;
+        }
+      });
+
+      currentValues[bucketIndex] = bestValue;
+      currentPolicy[bucketIndex] = bestBeta;
+    }
+
+    valueByYear[yearIndex] = currentValues;
+    policyByYear[yearIndex] = currentPolicy;
+    nextValues = currentValues;
+    onProgress(((years.length - yearIndex) / years.length) * DYNAMIC_POLICY_PROGRESS_SHARE);
+    if (yearIndex % 4 === 0) {
+      await yieldToBrowser();
+    }
+  }
+
+  return {
+    betaValues: DYNAMIC_BETA_VALUES,
+    wealthBuckets,
+    valueByYear,
+    policyByYear
+  };
+}
+
+function buildDynamicWealthBuckets(scenario, years) {
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  let maxAbsNetCashFlow = 0;
+
+  years.forEach((year) => {
+    const income = cashFlowForYear(scenario.income, year);
+    const expenses = cashFlowForYear(scenario.expenses, year);
+    totalIncome += income;
+    totalExpenses += expenses;
+    maxAbsNetCashFlow = Math.max(maxAbsNetCashFlow, Math.abs(income - expenses));
+  });
+
+  const baseCap = Math.max(
+    scenario.netWorth,
+    totalIncome,
+    totalExpenses,
+    maxAbsNetCashFlow * years.length,
+    100000
+  );
+  const wealthCap = baseCap * 8;
+  const buckets = [0];
+  const minPositiveWealth = 1;
+  const logMax = Math.log(wealthCap);
+
+  for (let index = 0; index < DYNAMIC_WEALTH_BUCKETS; index += 1) {
+    const t = index / Math.max(1, DYNAMIC_WEALTH_BUCKETS - 1);
+    buckets.push(minPositiveWealth * Math.exp(t * (logMax - Math.log(minPositiveWealth))));
+  }
+
+  return buckets;
+}
+
+function selectDynamicBeta(policy, yearIndex, wealth) {
+  const policyRow = policy.policyByYear[yearIndex];
+  if (!policyRow) return DYNAMIC_BETA_VALUES[0];
+  return policyRow[nearestBucketIndex(policy.wealthBuckets, wealth)] ?? DYNAMIC_BETA_VALUES[0];
+}
+
+function interpolateBucketValue(buckets, values, wealth) {
+  if (wealth <= 0) return 1;
+  if (wealth >= buckets[buckets.length - 1]) return values[values.length - 1];
+
+  const upperIndex = upperBucketIndex(buckets, wealth);
+  const lowerIndex = Math.max(0, upperIndex - 1);
+  const lowerWealth = buckets[lowerIndex];
+  const upperWealth = buckets[upperIndex];
+  if (upperWealth <= lowerWealth) return values[lowerIndex];
+
+  const t = (wealth - lowerWealth) / (upperWealth - lowerWealth);
+  return values[lowerIndex] + (values[upperIndex] - values[lowerIndex]) * t;
+}
+
+function nearestBucketIndex(buckets, wealth) {
+  if (wealth <= buckets[0]) return 0;
+  if (wealth < buckets[1]) return 1;
+  if (wealth >= buckets[buckets.length - 1]) return buckets.length - 1;
+
+  const upperIndex = upperBucketIndex(buckets, wealth);
+  const lowerIndex = Math.max(0, upperIndex - 1);
+  return wealth - buckets[lowerIndex] <= buckets[upperIndex] - wealth
+    ? lowerIndex
+    : upperIndex;
+}
+
+function upperBucketIndex(buckets, wealth) {
+  let low = 0;
+  let high = buckets.length - 1;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (buckets[mid] < wealth) low = mid + 1;
+    else high = mid;
+  }
+
+  return low;
+}
+
 function yieldToBrowser() {
   return new Promise((resolve) => {
     window.setTimeout(resolve, 0);
@@ -1111,12 +1320,15 @@ function resetDetailsControls() {
 
 function updateScenarioSummary(results) {
   const simulations = results.scenario.simulationCount;
+  const modeText = results.scenario.betaMode === BETA_MODE_DYNAMIC
+    ? "Dynamic beta used a causal annual bootstrap and year/wealth policy."
+    : `Fixed beta ${formatBeta(results.scenario.spyBeta)} used 5-year historical return blocks.`;
   const depletedText = `${formatNumber(results.failureYears.length)} of ${formatNumber(simulations)} paths depleted (${formatPercent(results.risk)}).`;
   const notDepletedText = `${formatNumber(results.notDepletedCount)} paths did not deplete (${formatPercent(1 - results.risk)}).`;
   const chartText = els.showDepleted.checked
     ? "The chart shows only depleted paths, while probabilities still use all simulations as the denominator."
     : "The chart includes both depleted and not-depleted paths.";
-  els.scenarioSummary.textContent = `${depletedText} ${notDepletedText} ${chartText}`;
+  els.scenarioSummary.textContent = `${modeText} ${depletedText} ${notDepletedText} ${chartText}`;
 }
 
 function renderSimulationSelect(results) {
@@ -1144,7 +1356,7 @@ function renderSimulationPathTable(results) {
   const selectedSimulation = Number(els.simulationSelect.value) || 1;
   const rows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
   if (!rows.length) {
-    els.simulationPathTable.innerHTML = `<tr><td colspan="15">No rows for this simulation.</td></tr>`;
+    els.simulationPathTable.innerHTML = `<tr><td colspan="16">No rows for this simulation.</td></tr>`;
     return;
   }
 
@@ -1165,6 +1377,7 @@ function renderSimulationPathTable(results) {
       `<td>${formatPercent(row.nominalSpyReturn)}</td>`,
       `<td>${formatPercent(row.nominalRiskFreeReturn)}</td>`,
       `<td>${formatPercent(row.nominalSpyExcessReturn)}</td>`,
+      `<td>${formatBeta(row.spyBetaUsed)}</td>`,
       `<td>${formatPercent(row.inflation)}</td>`,
       `<td>${formatPercent(row.realSpyReturn)}</td>`,
       `<td>${formatPercent(row.nominalPortfolioReturn)}</td>`,
@@ -1196,6 +1409,7 @@ function downloadSimulationCsv() {
     "nominal_spy_return",
     "risk_free_return",
     "spy_excess_return",
+    "spy_beta_used",
     "portfolio_nominal_return",
     "inflation",
     "real_spy_return",
@@ -1225,6 +1439,7 @@ function downloadSimulationCsv() {
       row.nominalSpyReturn,
       row.nominalRiskFreeReturn,
       row.nominalSpyExcessReturn,
+      row.spyBetaUsed,
       row.nominalPortfolioReturn,
       row.inflation,
       row.realSpyReturn,
@@ -1839,6 +2054,14 @@ function formatPercent(value) {
   return new Intl.NumberFormat("en-US", {
     style: "percent",
     maximumFractionDigits: 1
+  }).format(value);
+}
+
+function formatBeta(value) {
+  if (value === null || !Number.isFinite(value)) return "--";
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   }).format(value);
 }
 

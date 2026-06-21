@@ -46,6 +46,13 @@
                 <input id="netWorth" name="netWorth" type="text" inputmode="decimal" data-format="money" autocomplete="off" required>
               </label>
               <label>
+                <span>Beta mode</span>
+                <select id="betaMode" name="betaMode">
+                  <option value="fixed">Fixed beta</option>
+                  <option value="dynamic">Dynamic beta</option>
+                </select>
+              </label>
+              <label>
                 <span>SPY beta</span>
                 <input id="spyBeta" name="spyBeta" type="number" min="-3" max="3" step="0.05" required>
               </label>
@@ -166,6 +173,7 @@
                       <th>SPY return</th>
                       <th>Risk-free</th>
                       <th>SPY excess</th>
+                      <th>SPY beta used</th>
                       <th>Inflation</th>
                       <th>SPY real return</th>
                       <th>Portfolio nominal return</th>
@@ -176,7 +184,7 @@
                   </thead>
                   <tbody id="simulationPathTable">
                     <tr>
-                      <td colspan="15">No results yet.</td>
+                      <td colspan="16">No results yet.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -190,11 +198,15 @@
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
-                  <p>The simulator samples contiguous 5-year historical blocks from 1950-2025. Within each block, annual S&amp;P 500 total returns, 3-month T-bill returns, and CPI inflation stay paired and in historical order.</p>
+                  <p>Fixed-beta simulations sample contiguous 5-year historical blocks from 1950-2025. Dynamic-beta simulations sample one historical year at a time so each beta choice uses only information available before that year's return is drawn.</p>
                 </article>
                 <article>
                   <h3>Return Model</h3>
-                  <p>Each simulation path is built by sampling 5-year historical blocks with replacement, truncating the final block if needed. Portfolio nominal return is the sampled T-bill return plus SPY beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor.</p>
+                  <p>Portfolio nominal return is the sampled T-bill return plus SPY beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor. Dynamic beta chooses from 0.0 to 1.5 in 0.1 steps.</p>
+                </article>
+                <article>
+                  <h3>Dynamic Beta</h3>
+                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It picks the beta with the lowest estimated depletion probability, or the highest beta when estimated depletion probability is zero.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>
