@@ -633,6 +633,10 @@ select:focus {
   flex-basis: 320px;
 }
 
+.policy-metric-picker {
+  flex-basis: 260px;
+}
+
 .policy-path-controls {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -648,6 +652,11 @@ select:focus {
 .policy-path-canvas {
   height: min(44vh, 400px);
   min-height: 320px;
+}
+
+.policy-bucket-canvas {
+  height: min(40vh, 360px);
+  min-height: 300px;
 }
 
 .zoom-control {

@@ -36,7 +36,6 @@
     Planner.els.policyPathTable.innerHTML = `<tr><td colspan="9">Run dynamic beta to inspect a policy path.</td></tr>`;
     Planner.els.policyPathSummary.textContent = "Run dynamic beta to inspect a policy path.";
     Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">Run dynamic beta to inspect beta alternatives.</td></tr>`;
-    Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">Run dynamic beta to inspect the policy.</td></tr>`;
     Planner.els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
     Planner.els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
   }
@@ -137,15 +136,6 @@
 
 
 
-  const POLICY_TABLE_COLUMNS = [
-    { render: (row) => Planner.formatNumber(row.bucketIndex) },
-    { render: (row) => Planner.formatCurrency(row.wealth) },
-    { render: (row) => Planner.formatBeta(row.beta) },
-    { render: (row) => Planner.formatPercent(row.estimatedDepletionRisk) },
-    { render: (row) => Planner.formatCurrency(row.expectedTerminalWealth) },
-    { render: (row) => row.markers.join(", ") || "--" }
-  ];
-
   function renderDynamicPolicyTable(results) {
     if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
 
@@ -153,7 +143,7 @@
     const yearIndex = results.years.indexOf(selectedYear);
     if (yearIndex < 0) {
       Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">No beta alternatives for this year.</td></tr>`;
-      Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">No policy rows for this year.</td></tr>`;
+      Planner.renderPolicyBucketPlot(Planner.els.dynamicPolicyCanvas, results, [], "beta", null);
       return;
     }
 
@@ -165,15 +155,16 @@
       if (row.bucketIndex === currentBucketIndex) markers.push("Current wealth");
       return { ...row, markers };
     });
-    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · showing wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
+    const metricLabel = getPolicyMetricLabel(Planner.els.policyMetricSelect.value);
+    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
     renderPolicyBucketSelect(rows, currentBucketIndex);
     renderDynamicPolicyActionTable(results, yearIndex);
-
-    Planner.renderTableBody(
-      Planner.els.dynamicPolicyTable,
-      POLICY_TABLE_COLUMNS,
+    Planner.renderPolicyBucketPlot(
+      Planner.els.dynamicPolicyCanvas,
+      results,
       rows,
-      "No policy rows for this year."
+      Planner.els.policyMetricSelect.value,
+      currentBucketIndex
     );
   }
 
@@ -185,6 +176,14 @@
       getValue: (row) => row.bucketIndex,
       getLabel: (row) => `#${Planner.formatNumber(row.bucketIndex)} · ${Planner.formatCurrency(row.wealth)}`
     });
+  }
+
+
+
+  function getPolicyMetricLabel(metric) {
+    if (metric === "risk") return "Estimated depletion risk";
+    if (metric === "terminalWealth") return "Expected terminal wealth";
+    return "Policy beta";
   }
 
 

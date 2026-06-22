@@ -171,6 +171,48 @@
               data-download-id="downloadPolicyCsv"
               data-download-label="Download policy CSV"
             >
+              <div class="policy-subsection">
+                <div class="policy-subsection-header">
+                  <h3>Beta alternatives</h3>
+                  <label class="simulation-picker policy-bucket-picker">
+                    <span>Wealth bucket</span>
+                    <select id="policyBucketSelect"></select>
+                  </label>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Policy beta</th>
+                        <th>Estimated depletion risk</th>
+                        <th>Expected terminal wealth</th>
+                        <th>Policy choice</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dynamicPolicyActionTable">
+                      <tr>
+                        <td colspan="4">Run dynamic beta to inspect beta alternatives.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="policy-subsection">
+                <div class="policy-subsection-header">
+                  <h3>Visible wealth buckets</h3>
+                  <label class="simulation-picker policy-metric-picker">
+                    <span>Plot y-axis</span>
+                    <select id="policyMetricSelect">
+                      <option value="beta">Policy beta</option>
+                      <option value="risk">Estimated depletion risk</option>
+                      <option value="terminalWealth">Expected terminal wealth</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="canvas-wrap">
+                  <canvas id="dynamicPolicyCanvas" class="policy-bucket-canvas" width="980" height="360" aria-label="Visible wealth bucket policy plot"></canvas>
+                </div>
+              </div>
               <div class="policy-subsection policy-path-explorer">
                 <div class="policy-subsection-header">
                   <h3>Policy path explorer</h3>
@@ -223,54 +265,6 @@
                     <tbody id="policyPathTable">
                       <tr>
                         <td colspan="9">Run dynamic beta to inspect a policy path.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="policy-subsection">
-                <div class="policy-subsection-header">
-                  <h3>Beta alternatives</h3>
-                  <label class="simulation-picker policy-bucket-picker">
-                    <span>Wealth bucket</span>
-                    <select id="policyBucketSelect"></select>
-                  </label>
-                </div>
-                <div class="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Policy beta</th>
-                        <th>Estimated depletion risk</th>
-                        <th>Expected terminal wealth</th>
-                        <th>Policy choice</th>
-                      </tr>
-                    </thead>
-                    <tbody id="dynamicPolicyActionTable">
-                      <tr>
-                        <td colspan="4">Run dynamic beta to inspect beta alternatives.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="policy-subsection">
-                <h3>Visible wealth buckets</h3>
-                <div class="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Bucket</th>
-                        <th>Bucket wealth</th>
-                        <th>Policy beta</th>
-                        <th>Estimated depletion risk</th>
-                        <th>Expected terminal wealth</th>
-                        <th>Marker</th>
-                      </tr>
-                    </thead>
-                    <tbody id="dynamicPolicyTable">
-                      <tr>
-                        <td colspan="6">Run dynamic beta to inspect the policy.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -343,7 +337,7 @@
                 </article>
                 <article>
                   <h3>Dynamic Beta</h3>
-                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Beta Policy shows a forced-beta path explorer and the user-facing grid through $1 billion.</p>
+                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Beta Policy shows per-beta alternatives, a visible wealth bucket plot through $1 billion, and a forced-beta path explorer.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>

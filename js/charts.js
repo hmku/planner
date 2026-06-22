@@ -87,6 +87,7 @@
       renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, results);
     }
     if (Planner.state.activePage === "policy") {
+      if (Planner.renderDynamicPolicyTable) Planner.renderDynamicPolicyTable(results);
       renderPolicyPathChart(Planner.els.policyPathCanvas, results, results.policyPathExplorer);
     }
   }
@@ -384,6 +385,165 @@
     drawPolicyPathOverlay(ctx, explorer, results, padding, chartWidth, chartHeight, minWealth, maxWealth, cellWidth);
     ctx.restore();
     drawPolicyLegend(ctx, width, padding);
+  }
+
+
+
+  function renderPolicyBucketPlot(canvas, results, rows, metric, currentBucketIndex) {
+    const { ctx, width, height } = beginChart(canvas);
+    if (!rows.length) {
+      drawEmptyState(ctx, width, height, "No visible wealth buckets for this year.");
+      return;
+    }
+
+    const padding = { top: 34, right: 34, bottom: 62, left: 86 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const minWealth = rows[0].wealth;
+    const maxWealth = rows[rows.length - 1].wealth;
+    const yMax = getPolicyMetricMax(rows, metric);
+
+    drawAxes(ctx, padding, width, height, getPolicyMetricLabel(metric));
+    drawPolicyBucketXLabels(ctx, padding, chartWidth, height, minWealth, maxWealth);
+    drawPolicyMetricYLabels(ctx, padding, chartHeight, yMax, metric);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+    ctx.clip();
+
+    const points = rows.map((row) => ({
+      row,
+      x: policyWealthToX(row.wealth, padding, chartWidth, minWealth, maxWealth),
+      y: policyMetricToY(getPolicyMetricValue(row, metric), padding, chartHeight, yMax)
+    }));
+
+    ctx.strokeStyle = "#4f46e5";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+
+    points.forEach((point) => {
+      ctx.fillStyle = "#4f46e5";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth);
+    ctx.restore();
+  }
+
+
+
+  function drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth) {
+    const currentWealth = results.scenario.netWorth;
+    if (currentWealth < minWealth || currentWealth > maxWealth) return;
+
+    const x = policyWealthToX(currentWealth, padding, chartWidth, minWealth, maxWealth);
+    ctx.save();
+    ctx.strokeStyle = "rgba(249, 115, 22, 0.9)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, padding.top + chartHeight);
+    ctx.stroke();
+    ctx.restore();
+
+    if (Number.isFinite(currentBucketIndex)) {
+      const markerPoint = points.find((point) => point.row.bucketIndex === currentBucketIndex);
+      if (markerPoint) {
+        ctx.fillStyle = "#f97316";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(markerPoint.x, markerPoint.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    ctx.fillStyle = "#f97316";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = x > padding.left + chartWidth - 96 ? "right" : "left";
+    ctx.fillText("Current wealth", x + (ctx.textAlign === "right" ? -8 : 8), padding.top + 16);
+  }
+
+
+
+  function policyWealthToX(wealth, padding, chartWidth, minWealth, maxWealth) {
+    const t = (Math.log(wealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
+    return padding.left + t * chartWidth;
+  }
+
+
+
+  function policyMetricToY(value, padding, chartHeight, yMax) {
+    return padding.top + chartHeight - (value / Math.max(0.000001, yMax)) * chartHeight;
+  }
+
+
+
+  function getPolicyMetricValue(row, metric) {
+    if (metric === "risk") return row.estimatedDepletionRisk;
+    if (metric === "terminalWealth") return row.expectedTerminalWealth;
+    return row.beta;
+  }
+
+
+
+  function getPolicyMetricMax(rows, metric) {
+    if (metric === "beta") return Math.max(1.5, ...rows.map((row) => row.beta || 0));
+    const maxValue = Math.max(...rows.map((row) => getPolicyMetricValue(row, metric) || 0));
+    if (metric === "risk") return Math.max(0.01, maxValue);
+    return Math.max(1, maxValue);
+  }
+
+
+
+  function getPolicyMetricLabel(metric) {
+    if (metric === "risk") return "Estimated depletion risk";
+    if (metric === "terminalWealth") return "Expected terminal wealth";
+    return "Policy beta";
+  }
+
+
+
+  function formatPolicyMetricValue(value, metric) {
+    if (metric === "risk") return Planner.formatPolicyRiskPercent(value);
+    if (metric === "terminalWealth") return Planner.formatCompactCurrency(value);
+    return Planner.formatBeta(value);
+  }
+
+
+
+  function drawPolicyBucketXLabels(ctx, padding, chartWidth, height, minWealth, maxWealth) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    [minWealth, 100000, 1000000, 10000000, 100000000, maxWealth].forEach((wealth) => {
+      if (wealth < minWealth || wealth > maxWealth) return;
+      const x = policyWealthToX(wealth, padding, chartWidth, minWealth, maxWealth);
+      ctx.fillText(Planner.formatCompactCurrency(wealth), x, height - 24);
+    });
+  }
+
+
+
+  function drawPolicyMetricYLabels(ctx, padding, chartHeight, yMax, metric) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 4; i += 1) {
+      const value = (yMax / 4) * i;
+      const y = padding.top + chartHeight - (chartHeight / 4) * i;
+      ctx.fillText(formatPolicyMetricValue(value, metric), padding.left - 10, y + 4);
+    }
   }
 
 
@@ -748,6 +908,7 @@
     renderNetWorthChart,
     renderBetaChart,
     renderSelectedSimulationChart,
+    renderPolicyBucketPlot,
     renderPolicyPathChart,
     getNetWorthYAxisMax,
     updateNetWorthZoomLabel,

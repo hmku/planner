@@ -61,6 +61,8 @@
       dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
       policyYearSelect: document.querySelector("#policyYearSelect"),
       policyBucketSelect: document.querySelector("#policyBucketSelect"),
+      policyMetricSelect: document.querySelector("#policyMetricSelect"),
+      dynamicPolicyCanvas: document.querySelector("#dynamicPolicyCanvas"),
       policyPathSummary: document.querySelector("#policyPathSummary"),
       policyPathBeta: document.querySelector("#policyPathBeta"),
       policyPathYears: document.querySelector("#policyPathYears"),
@@ -69,7 +71,6 @@
       policyPathCanvas: document.querySelector("#policyPathCanvas"),
       policyPathTable: document.querySelector("#policyPathTable"),
       dynamicPolicyActionTable: document.querySelector("#dynamicPolicyActionTable"),
-      dynamicPolicyTable: document.querySelector("#dynamicPolicyTable"),
       downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
       pageButtons: document.querySelectorAll("[data-page]"),
       overviewPage: document.querySelector("#overviewPage"),
@@ -175,6 +176,9 @@
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
     Planner.els.policyBucketSelect.addEventListener("change", () => {
+      if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
+    });
+    Planner.els.policyMetricSelect.addEventListener("change", () => {
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
     [
