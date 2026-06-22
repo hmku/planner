@@ -388,6 +388,7 @@
       results.seed = seed;
       Planner.state.results = results;
       Planner.state.isDirty = Planner.state.inputVersion !== runVersion;
+      Planner.updateShareUrl(scenario, seed);
       Planner.renderResults(results);
     } catch (error) {
       Planner.els.scenarioSummary.textContent = Planner.isCancellationError(error)

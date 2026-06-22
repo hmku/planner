@@ -31,7 +31,7 @@ Dynamic beta is the default mode. It builds a backward dynamic-programming polic
 
 ## Sharing Plans
 
-Click `Share` to copy a URL containing the current plan inputs, beta mode, and a simulation seed in the `p` query parameter. Opening that link restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
+Each successful run updates the browser address bar to a share URL containing the current plan inputs, beta mode, and the run's simulation seed in the `p` query parameter. Click `Share` to copy that URL. Opening it restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
 
 ## Run Locally
 

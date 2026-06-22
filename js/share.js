@@ -142,6 +142,13 @@
 
 
 
+  function updateShareUrl(scenario, seed) {
+    if (!window.history || typeof window.history.replaceState !== "function") return;
+    window.history.replaceState(null, "", buildShareUrl(scenario, seed));
+  }
+
+
+
   function encodeSharePayload(scenario, seed) {
     const plan = [
       scenario.currentYear,
@@ -342,6 +349,7 @@
     normalizeRequiredNumber,
     sharePlan,
     buildShareUrl,
+    updateShareUrl,
     encodeSharePayload,
     decodeSharePayload,
     encodeBetaMode,
