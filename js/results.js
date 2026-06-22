@@ -184,7 +184,7 @@
 
   const POLICY_ACTION_TABLE_COLUMNS = [
     { render: (row) => Planner.formatBeta(row.beta) },
-    { render: (row) => Planner.formatPercent(row.estimatedDepletionRisk) },
+    { render: (row) => Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk) },
     { render: (row) => Planner.formatCurrency(row.expectedTerminalWealth) },
     { render: (row) => row.isRecommended ? "Recommended" : "--" }
   ];

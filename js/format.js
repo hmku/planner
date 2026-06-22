@@ -132,6 +132,18 @@
     }).format(value);
   }
 
+  function formatPolicyRiskPercent(value) {
+    if (value === null || !Number.isFinite(value)) return "--";
+    const percent = value * 100;
+    const absolutePercent = Math.abs(percent);
+    const fractionDigits = absolutePercent > 0 && absolutePercent < 10
+      ? 2
+      : absolutePercent < 100
+        ? 1
+        : 0;
+    return `${percent.toFixed(fractionDigits)}%`;
+  }
+
   function formatBeta(value) {
     if (value === null || !Number.isFinite(value)) return "--";
     return new Intl.NumberFormat("en-US", {
@@ -164,6 +176,7 @@
     formatInputCurrency,
     formatCompactCurrency,
     formatPercent,
+    formatPolicyRiskPercent,
     formatBeta,
     formatNumber
   });
