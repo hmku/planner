@@ -620,8 +620,34 @@ select:focus {
   min-width: 0;
 }
 
+.policy-subsection-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;
+  max-width: 720px;
+}
+
 .policy-bucket-picker {
   flex-basis: 320px;
+}
+
+.policy-path-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.policy-path-controls .simulation-picker {
+  flex-basis: auto;
+  min-width: 0;
+}
+
+.policy-path-canvas {
+  height: min(44vh, 400px);
+  min-height: 320px;
 }
 
 .zoom-control {
@@ -859,6 +885,20 @@ th {
   .section-toolbar {
     justify-content: stretch;
     width: 100%;
+  }
+
+  .policy-subsection-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .policy-subsection-header p {
+    max-width: none;
+    text-align: left;
+  }
+
+  .policy-path-controls {
+    grid-template-columns: 1fr;
   }
 
   .simulation-picker {

@@ -30,6 +30,11 @@
     Planner.els.dynamicPolicySection.hidden = true;
     Planner.els.policyYearSelect.replaceChildren();
     Planner.els.policyBucketSelect.replaceChildren();
+    Planner.els.policyPathBeta.replaceChildren();
+    Planner.els.policyPathReturnYear.replaceChildren();
+    Planner.els.policyPathReturnYear.disabled = true;
+    Planner.els.policyPathTable.innerHTML = `<tr><td colspan="9">Run dynamic beta to inspect a policy path.</td></tr>`;
+    Planner.els.policyPathSummary.textContent = "Run dynamic beta to inspect a policy path.";
     Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">Run dynamic beta to inspect beta alternatives.</td></tr>`;
     Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">Run dynamic beta to inspect the policy.</td></tr>`;
     Planner.els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
@@ -125,6 +130,8 @@
       getValue: (year) => year,
       getLabel: (year) => String(year)
     });
+    renderPolicyPathControls(results);
+    renderPolicyPathExplorer(results);
     renderDynamicPolicyTable(results);
   }
 
@@ -178,6 +185,212 @@
       getValue: (row) => row.bucketIndex,
       getLabel: (row) => `#${Planner.formatNumber(row.bucketIndex)} · ${Planner.formatCurrency(row.wealth)}`
     });
+  }
+
+
+
+  function renderPolicyPathControls(results) {
+    const currentBeta = Planner.selectDynamicBeta(results.dynamicPolicy, 0, results.scenario.netWorth);
+    const selectedBeta = Number(Planner.els.policyPathBeta.value);
+    Planner.populateSelect(Planner.els.policyPathBeta, results.dynamicPolicy.betaValues, {
+      previousValue: Number.isFinite(selectedBeta) ? selectedBeta : currentBeta,
+      getValue: (beta) => beta,
+      getLabel: (beta) => Planner.formatBeta(beta)
+    });
+
+    const returnRows = getMarketReturnRows();
+    Planner.populateSelect(Planner.els.policyPathReturnYear, returnRows, {
+      previousValue: Number(Planner.els.policyPathReturnYear.value) || returnRows[returnRows.length - 1]?.year,
+      getValue: (row) => row.year,
+      getLabel: (row) => `${row.year} · ${Planner.formatPercent(row.nominalReturn ?? row.return)}`
+    });
+    Planner.els.policyPathReturnYear.disabled = Planner.els.policyPathReturnMode.value !== "specific";
+  }
+
+
+
+  function renderPolicyPathExplorer(results) {
+    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
+
+    const explorer = buildPolicyPathExplorer(results);
+    results.policyPathExplorer = explorer;
+    Planner.els.policyPathReturnYear.disabled = explorer.returnMode !== "specific";
+    Planner.els.policyPathSummary.textContent = buildPolicyPathSummary(explorer);
+    Planner.renderPolicyPathChart(Planner.els.policyPathCanvas, results, explorer);
+    Planner.renderTableBody(
+      Planner.els.policyPathTable,
+      POLICY_PATH_TABLE_COLUMNS,
+      explorer.rows,
+      "No path rows for this scenario."
+    );
+  }
+
+
+
+  const POLICY_PATH_TABLE_COLUMNS = [
+    { render: (row) => row.year },
+    { render: (row) => Planner.formatCurrency(row.startingWealth) },
+    { render: (row) => Planner.formatBeta(row.beta) },
+    { render: (row) => row.returnLabel },
+    { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
+    { render: (row) => Planner.formatPercent(row.inflation) },
+    { render: (row) => Planner.formatCurrency(row.endingWealth) },
+    { render: (row) => Planner.formatBeta(row.nextPolicyBeta) },
+    { render: (row) => Planner.formatPolicyRiskPercent(row.nodeRisk) }
+  ];
+
+
+
+  function buildPolicyPathExplorer(results) {
+    const overrideBeta = Number(Planner.els.policyPathBeta.value);
+    const rawYears = Math.round(Number(Planner.els.policyPathYears.value));
+    const overrideYears = Math.max(1, Math.min(10, Number.isFinite(rawYears) ? rawYears : 5, results.years.length));
+    Planner.els.policyPathYears.value = overrideYears;
+
+    const returnMode = Planner.els.policyPathReturnMode.value;
+    const returnRow = getPolicyPathReturnRow(returnMode);
+    const returnLabel = getPolicyPathReturnLabel(returnMode, returnRow);
+    const rows = [];
+    const points = [{ year: results.scenario.currentYear, wealth: results.scenario.netWorth }];
+    let wealth = results.scenario.netWorth;
+    let depleted = false;
+
+    for (let yearIndex = 0; yearIndex < overrideYears; yearIndex += 1) {
+      const year = results.years[yearIndex];
+      const income = Planner.cashFlowForYear(results.scenario.income, year);
+      const expenses = Planner.cashFlowForYear(results.scenario.expenses, year);
+      const netCashFlow = income - expenses;
+      const returnMetrics = Planner.buildReturnMetrics(returnRow, overrideBeta);
+      const yearResult = depleted
+        ? { startingWealth: 0, endingWealth: 0, depleted: true }
+        : Planner.applyContinuousYear(wealth, netCashFlow, returnMetrics.realGrowthFactor);
+      wealth = yearResult.depleted ? 0 : yearResult.endingWealth;
+      depleted = depleted || yearResult.depleted;
+      const nextYearIndex = yearIndex + 1;
+      const nodeMetrics = getPolicyNodeMetrics(results, nextYearIndex, wealth, depleted);
+
+      rows.push({
+        year,
+        startingWealth: yearResult.startingWealth,
+        beta: overrideBeta,
+        returnLabel,
+        nominalSpxReturn: returnMetrics.nominalSpxReturn,
+        inflation: returnMetrics.inflation,
+        endingWealth: wealth,
+        nextPolicyBeta: nodeMetrics.nextPolicyBeta,
+        nodeRisk: nodeMetrics.risk
+      });
+      points.push({ year: results.years[nextYearIndex] || year, wealth });
+    }
+
+    const finalMetrics = getPolicyNodeMetrics(results, overrideYears, wealth, depleted);
+    return {
+      overrideBeta,
+      overrideYears,
+      returnMode,
+      returnRow,
+      returnLabel,
+      rows,
+      points,
+      finalYear: results.years[overrideYears] || results.years[results.years.length - 1],
+      finalWealth: wealth,
+      finalRisk: finalMetrics.risk,
+      finalExpectedTerminalWealth: finalMetrics.expectedTerminalWealth,
+      finalPolicyBeta: finalMetrics.nextPolicyBeta,
+      depleted
+    };
+  }
+
+
+
+  function getPolicyNodeMetrics(results, yearIndex, wealth, depleted) {
+    if (depleted) {
+      return {
+        risk: 1,
+        expectedTerminalWealth: 0,
+        nextPolicyBeta: null
+      };
+    }
+    if (yearIndex >= results.years.length) {
+      return {
+        risk: 0,
+        expectedTerminalWealth: wealth,
+        nextPolicyBeta: null
+      };
+    }
+    const policy = results.dynamicPolicy;
+    return {
+      risk: Planner.interpolateBucketValue(policy.wealthBuckets, policy.valueByYear[yearIndex], wealth),
+      expectedTerminalWealth: Planner.interpolateBucketValue(policy.wealthBuckets, policy.expectedWealthByYear[yearIndex], wealth),
+      nextPolicyBeta: Planner.selectDynamicBeta(policy, yearIndex, wealth)
+    };
+  }
+
+
+
+  function getPolicyPathReturnRow(mode) {
+    const returnRows = getMarketReturnRows();
+    if (mode === "expected") {
+      return {
+        year: "Expected",
+        nominalReturn: averageReturnField(returnRows, "nominalReturn", "return"),
+        riskFreeReturn: averageReturnField(returnRows, "riskFreeReturn"),
+        inflation: averageReturnField(returnRows, "inflation")
+      };
+    }
+    if (mode === "specific") {
+      const selectedYear = Number(Planner.els.policyPathReturnYear.value);
+      return returnRows.find((row) => row.year === selectedYear) || returnRows[returnRows.length - 1];
+    }
+
+    const sortedRows = [...returnRows].sort((a, b) => (a.nominalReturn ?? a.return) - (b.nominalReturn ?? b.return));
+    const indexByMode = {
+      worst: 0,
+      p10: Math.round((sortedRows.length - 1) * 0.1),
+      median: Math.round((sortedRows.length - 1) * 0.5),
+      p90: Math.round((sortedRows.length - 1) * 0.9),
+      best: sortedRows.length - 1
+    };
+    return sortedRows[indexByMode[mode] ?? indexByMode.median];
+  }
+
+
+
+  function averageReturnField(rows, primaryField, fallbackField) {
+    const values = rows
+      .map((row) => row[primaryField] ?? (fallbackField ? row[fallbackField] : null))
+      .filter(Number.isFinite);
+    return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+  }
+
+
+
+  function getPolicyPathReturnLabel(mode, returnRow) {
+    if (mode === "expected") return "Expected";
+    const labels = {
+      p10: "Bad",
+      median: "Median",
+      p90: "Good",
+      best: "Best",
+      worst: "Worst",
+      specific: "Specific"
+    };
+    return `${labels[mode] || "Selected"} ${returnRow.year}`;
+  }
+
+
+
+  function getMarketReturnRows() {
+    return Planner.state.marketData?.returns || [];
+  }
+
+
+
+  function buildPolicyPathSummary(explorer) {
+    const finalBeta = Number.isFinite(explorer.finalPolicyBeta)
+      ? `policy resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
+      : "the plan horizon is reached";
+    return `Force beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years using ${explorer.returnLabel.toLowerCase()} returns; ${finalBeta}. Final node: ${Planner.formatCurrency(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} depletion risk, ${Planner.formatCurrency(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
   }
 
 
@@ -360,6 +573,9 @@
     renderSimulationPathTable,
     renderDynamicPolicyControls,
     renderDynamicPolicyTable,
+    renderPolicyPathControls,
+    renderPolicyPathExplorer,
+    buildPolicyPathExplorer,
     getDynamicPolicyRows,
     getDynamicPolicyActionRows,
     getVisibleDynamicPolicyRows,

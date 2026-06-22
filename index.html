@@ -171,6 +171,63 @@
               data-download-id="downloadPolicyCsv"
               data-download-label="Download policy CSV"
             >
+              <div class="policy-subsection policy-path-explorer">
+                <div class="policy-subsection-header">
+                  <h3>Policy path explorer</h3>
+                  <p id="policyPathSummary">Run dynamic beta to inspect a policy path.</p>
+                </div>
+                <div class="policy-path-controls">
+                  <label class="simulation-picker">
+                    <span>Override beta</span>
+                    <select id="policyPathBeta"></select>
+                  </label>
+                  <label class="simulation-picker">
+                    <span>Override years</span>
+                    <input id="policyPathYears" type="number" min="1" max="10" step="1" value="5">
+                  </label>
+                  <label class="simulation-picker">
+                    <span>Return assumption</span>
+                    <select id="policyPathReturnMode">
+                      <option value="expected">Expected year</option>
+                      <option value="p10">Bad year</option>
+                      <option value="median">Median year</option>
+                      <option value="p90">Good year</option>
+                      <option value="best">Best year</option>
+                      <option value="worst">Worst year</option>
+                      <option value="specific">Specific year</option>
+                    </select>
+                  </label>
+                  <label class="simulation-picker">
+                    <span>Historical year</span>
+                    <select id="policyPathReturnYear"></select>
+                  </label>
+                </div>
+                <div class="canvas-wrap">
+                  <canvas id="policyPathCanvas" class="policy-path-canvas" width="980" height="400" aria-label="Policy beta heatmap with explored path"></canvas>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Plan year</th>
+                        <th>Start wealth</th>
+                        <th>Forced beta</th>
+                        <th>Sampled year</th>
+                        <th>SPX return</th>
+                        <th>Inflation</th>
+                        <th>End wealth</th>
+                        <th>Policy beta next</th>
+                        <th>Risk from node</th>
+                      </tr>
+                    </thead>
+                    <tbody id="policyPathTable">
+                      <tr>
+                        <td colspan="9">Run dynamic beta to inspect a policy path.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
               <div class="policy-subsection">
                 <div class="policy-subsection-header">
                   <h3>Beta alternatives</h3>
@@ -286,7 +343,7 @@
                 </article>
                 <article>
                   <h3>Dynamic Beta</h3>
-                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Beta Policy shows the user-facing grid through $1 billion.</p>
+                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Beta Policy shows a forced-beta path explorer and the user-facing grid through $1 billion.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>

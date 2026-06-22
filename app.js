@@ -61,6 +61,13 @@
       dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
       policyYearSelect: document.querySelector("#policyYearSelect"),
       policyBucketSelect: document.querySelector("#policyBucketSelect"),
+      policyPathSummary: document.querySelector("#policyPathSummary"),
+      policyPathBeta: document.querySelector("#policyPathBeta"),
+      policyPathYears: document.querySelector("#policyPathYears"),
+      policyPathReturnMode: document.querySelector("#policyPathReturnMode"),
+      policyPathReturnYear: document.querySelector("#policyPathReturnYear"),
+      policyPathCanvas: document.querySelector("#policyPathCanvas"),
+      policyPathTable: document.querySelector("#policyPathTable"),
       dynamicPolicyActionTable: document.querySelector("#dynamicPolicyActionTable"),
       dynamicPolicyTable: document.querySelector("#dynamicPolicyTable"),
       downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
@@ -169,6 +176,19 @@
     });
     Planner.els.policyBucketSelect.addEventListener("change", () => {
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
+    });
+    [
+      Planner.els.policyPathBeta,
+      Planner.els.policyPathYears,
+      Planner.els.policyPathReturnMode,
+      Planner.els.policyPathReturnYear
+    ].forEach((input) => {
+      input.addEventListener("input", () => {
+        if (Planner.state.results) Planner.renderPolicyPathExplorer(Planner.state.results);
+      });
+      input.addEventListener("change", () => {
+        if (Planner.state.results) Planner.renderPolicyPathExplorer(Planner.state.results);
+      });
     });
     window.addEventListener("resize", () => {
       if (Planner.state.results) Planner.renderCharts(Planner.state.results);

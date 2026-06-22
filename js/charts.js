@@ -86,6 +86,9 @@
     if (Planner.state.activePage === "details") {
       renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, results);
     }
+    if (Planner.state.activePage === "policy") {
+      renderPolicyPathChart(Planner.els.policyPathCanvas, results, results.policyPathExplorer);
+    }
   }
 
 
@@ -327,6 +330,148 @@
     if (Planner.state.detailHover) {
       drawDetailHover(ctx, Planner.state.detailHover, padding, width, height);
     }
+  }
+
+
+
+  function renderPolicyPathChart(canvas, results, explorer) {
+    const { ctx, width, height } = beginChart(canvas);
+    if (!results.dynamicPolicy || !explorer) {
+      drawEmptyState(ctx, width, height, "Run dynamic beta to inspect a policy path.");
+      return;
+    }
+
+    const policy = results.dynamicPolicy;
+    const visibleBuckets = policy.wealthBuckets
+      .map((wealth, bucketIndex) => ({ wealth, bucketIndex }))
+      .filter((bucket) => (
+        bucket.wealth > 0 && bucket.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET
+      ));
+    if (!visibleBuckets.length) {
+      drawEmptyState(ctx, width, height, "No visible wealth buckets for this policy.");
+      return;
+    }
+
+    const padding = { top: 34, right: 118, bottom: 58, left: 88 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const yearCount = results.years.length;
+    const cellWidth = chartWidth / Math.max(1, yearCount);
+    const cellHeight = chartHeight / visibleBuckets.length;
+    const minWealth = visibleBuckets[0].wealth;
+    const maxWealth = visibleBuckets[visibleBuckets.length - 1].wealth;
+
+    drawAxes(ctx, padding, width, height, "Wealth bucket");
+    drawXYearLabels(ctx, padding, chartWidth, height, results.scenario.currentYear, results.scenario.deathYear);
+    drawPolicyWealthLabels(ctx, padding, chartHeight, minWealth, maxWealth);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+    ctx.clip();
+
+    results.years.forEach((year, yearIndex) => {
+      const policyRow = policy.policyByYear[yearIndex] || [];
+      visibleBuckets.forEach((bucket, visibleIndex) => {
+        const beta = policyRow[bucket.bucketIndex] ?? 0;
+        const x = padding.left + yearIndex * cellWidth;
+        const y = padding.top + chartHeight - (visibleIndex + 1) * cellHeight;
+        ctx.fillStyle = policyBetaColor(beta);
+        ctx.fillRect(x, y, Math.ceil(cellWidth) + 0.5, Math.ceil(cellHeight) + 0.5);
+      });
+    });
+
+    drawPolicyPathOverlay(ctx, explorer, results, padding, chartWidth, chartHeight, minWealth, maxWealth, cellWidth);
+    ctx.restore();
+    drawPolicyLegend(ctx, width, padding);
+  }
+
+
+
+  function drawPolicyPathOverlay(ctx, explorer, results, padding, chartWidth, chartHeight, minWealth, maxWealth, cellWidth) {
+    const points = explorer.points.map((point) => {
+      const yearIndex = Math.max(0, Math.min(results.years.length - 1, point.year - results.scenario.currentYear));
+      return {
+        x: padding.left + yearIndex * cellWidth + cellWidth / 2,
+        y: policyWealthToY(point.wealth, padding, chartHeight, minWealth, maxWealth),
+        year: point.year,
+        wealth: point.wealth
+      };
+    });
+    if (!points.length) return;
+
+    ctx.lineWidth = 4;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "#f97316";
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+
+    points.forEach((point, index) => {
+      ctx.fillStyle = index === 0 ? "#1a1f2e" : "#f97316";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, index === points.length - 1 ? 5 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+
+
+
+  function policyWealthToY(wealth, padding, chartHeight, minWealth, maxWealth) {
+    if (wealth <= 0) return padding.top + chartHeight;
+    const clampedWealth = Math.max(minWealth, Math.min(maxWealth, wealth));
+    const t = (Math.log(clampedWealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
+    return padding.top + chartHeight - t * chartHeight;
+  }
+
+
+
+  function policyBetaColor(beta) {
+    const t = Math.max(0, Math.min(1, beta / 1.5));
+    const hue = 205 - t * 175;
+    const saturation = 68 + t * 8;
+    const lightness = 86 - t * 28;
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  }
+
+
+
+  function drawPolicyWealthLabels(ctx, padding, chartHeight, minWealth, maxWealth) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "right";
+    [minWealth, 100000, 1000000, 10000000, 100000000, maxWealth].forEach((wealth) => {
+      if (wealth < minWealth || wealth > maxWealth) return;
+      const y = policyWealthToY(wealth, padding, chartHeight, minWealth, maxWealth);
+      ctx.fillText(Planner.formatCompactCurrency(wealth), padding.left - 10, y + 4);
+    });
+  }
+
+
+
+  function drawPolicyLegend(ctx, width, padding) {
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f97316";
+    ctx.fillText("Forced path", width - padding.right, 18);
+    ctx.fillStyle = "#6b7280";
+    ctx.fillText("Color: recommended beta", width - padding.right - 96, 18);
   }
 
 
@@ -603,6 +748,7 @@
     renderNetWorthChart,
     renderBetaChart,
     renderSelectedSimulationChart,
+    renderPolicyPathChart,
     getNetWorthYAxisMax,
     updateNetWorthZoomLabel,
     handlePathHover,
