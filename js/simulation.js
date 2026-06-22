@@ -17,19 +17,17 @@
       simulation,
       year,
       historicalReturnYear: "",
-      historicalBlockStartYear: "",
-      historicalBlockEndYear: "",
       startingWealth: 0,
       income: 0,
       expenses: 0,
       netCashFlow: 0,
-      nominalSpyReturn: "",
+      nominalSpxReturn: "",
       nominalRiskFreeReturn: "",
-      nominalSpyExcessReturn: "",
-      spyBetaUsed: "",
+      nominalSpxExcessReturn: "",
+      spxBetaUsed: "",
       nominalPortfolioReturn: "",
       inflation: "",
-      realSpyReturn: "",
+      realSpxReturn: "",
       realRiskFreeReturn: "",
       portfolioRealReturn: "",
       endingWealth: 0,
@@ -75,9 +73,6 @@
       let sampledReturnCount = 0;
       let sampledNominalReturnSum = 0;
       let sampledRealReturnSum = 0;
-      const sampledReturnPath = isDynamicBeta
-        ? null
-        : buildSampledReturnPath(returnRows, years.length, Planner.RETURN_BLOCK_YEARS, random);
       const path = [];
       const betaPath = [];
       const pathYearRows = [];
@@ -89,18 +84,16 @@
           const income = cashFlowForYear(scenario.income, year);
           const expenses = cashFlowForYear(scenario.expenses, year);
           const netCashFlow = income - expenses;
-          const sampledReturn = isDynamicBeta
-            ? buildAnnualSampledReturn(returnRows, random)
-            : sampledReturnPath[yearIndex];
-          const spyBetaUsed = isDynamicBeta
+          const sampledReturn = buildAnnualSampledReturn(returnRows, random);
+          const spxBetaUsed = isDynamicBeta
             ? selectDynamicBeta(dynamicPolicy, yearIndex, wealth)
-            : scenario.spyBeta;
-          const returnMetrics = buildReturnMetrics(sampledReturn.row, spyBetaUsed);
+            : scenario.spxBeta;
+          const returnMetrics = buildReturnMetrics(sampledReturn.row, spxBetaUsed);
           const yearResult = applyContinuousYear(wealth, netCashFlow, returnMetrics.realGrowthFactor);
 
           sampledReturnCount += 1;
-          sampledNominalReturnSum += returnMetrics.nominalSpyReturn;
-          sampledRealReturnSum += returnMetrics.realSpyReturn;
+          sampledNominalReturnSum += returnMetrics.nominalSpxReturn;
+          sampledRealReturnSum += returnMetrics.realSpxReturn;
           wealth = yearResult.endingWealth;
 
           if (yearResult.depleted) {
@@ -112,19 +105,17 @@
             simulation: i + 1,
             year,
             historicalReturnYear: sampledReturn.row.year,
-            historicalBlockStartYear: sampledReturn.blockStartYear,
-            historicalBlockEndYear: sampledReturn.blockEndYear,
             startingWealth: yearResult.startingWealth,
             income,
             expenses,
             netCashFlow,
-            nominalSpyReturn: returnMetrics.nominalSpyReturn,
+            nominalSpxReturn: returnMetrics.nominalSpxReturn,
             nominalRiskFreeReturn: returnMetrics.nominalRiskFreeReturn,
-            nominalSpyExcessReturn: returnMetrics.nominalSpyExcessReturn,
-            spyBetaUsed,
+            nominalSpxExcessReturn: returnMetrics.nominalSpxExcessReturn,
+            spxBetaUsed,
             nominalPortfolioReturn: returnMetrics.nominalPortfolioReturn,
             inflation: returnMetrics.inflation,
-            realSpyReturn: returnMetrics.realSpyReturn,
+            realSpxReturn: returnMetrics.realSpxReturn,
             realRiskFreeReturn: returnMetrics.realRiskFreeReturn,
             portfolioRealReturn: returnMetrics.realGrowthFactor - 1,
             endingWealth: wealth,
@@ -141,7 +132,7 @@
 
         wealthSums[yearIndex] += wealth;
         path.push({ year, wealth });
-        const betaForPath = pathYearRows[pathYearRows.length - 1]?.spyBetaUsed;
+        const betaForPath = pathYearRows[pathYearRows.length - 1]?.spxBetaUsed;
         if (Number.isFinite(betaForPath)) {
           betaSums[yearIndex] += betaForPath;
           betaCounts[yearIndex] += 1;
@@ -156,8 +147,8 @@
         points: path,
         betaPoints: betaPath,
         terminalWealth: wealth,
-        averageNominalSpyReturn: sampledReturnCount ? sampledNominalReturnSum / sampledReturnCount : null,
-        averageRealSpyReturn: sampledReturnCount ? sampledRealReturnSum / sampledReturnCount : null,
+        averageNominalSpxReturn: sampledReturnCount ? sampledNominalReturnSum / sampledReturnCount : null,
+        averageRealSpxReturn: sampledReturnCount ? sampledRealReturnSum / sampledReturnCount : null,
         failureYear
       };
       addReservoirSample(visualPaths, pathResult, i, Planner.MAX_VISUAL_PATHS, random);
@@ -167,8 +158,8 @@
         simulation: i + 1,
         failureYear,
         terminalWealth: wealth,
-        averageNominalSpyReturn: pathResult.averageNominalSpyReturn,
-        averageRealSpyReturn: pathResult.averageRealSpyReturn,
+        averageNominalSpxReturn: pathResult.averageNominalSpxReturn,
+        averageRealSpxReturn: pathResult.averageRealSpxReturn,
         sampledReturnYears: sampledReturnCount
       });
       simulationYearRowsBySimulation.set(i + 1, pathYearRows);
@@ -263,57 +254,31 @@
   }
 
 
-  function buildSampledReturnPath(returnRows, pathLength, blockYears, random = Math.random) {
-    const path = [];
-    const blockLength = Math.min(blockYears, returnRows.length);
-    const maxStartIndex = returnRows.length - blockLength;
-
-    while (path.length < pathLength) {
-      const startIndex = Planner.randomIndex(maxStartIndex + 1, random);
-      const endIndex = startIndex + blockLength - 1;
-      const blockStartYear = returnRows[startIndex].year;
-      const blockEndYear = returnRows[endIndex].year;
-
-      for (let offset = 0; offset < blockLength && path.length < pathLength; offset += 1) {
-        path.push({
-          row: returnRows[startIndex + offset],
-          blockStartYear,
-          blockEndYear
-        });
-      }
-    }
-
-    return path;
-  }
-
-
   function buildAnnualSampledReturn(returnRows, random = Math.random) {
     return {
-      row: returnRows[Planner.randomIndex(returnRows.length, random)],
-      blockStartYear: "",
-      blockEndYear: ""
+      row: returnRows[Planner.randomIndex(returnRows.length, random)]
     };
   }
 
 
-  function buildReturnMetrics(returnRow, spyBeta) {
-    const nominalSpyReturn = returnRow.nominalReturn ?? returnRow.return;
+  function buildReturnMetrics(returnRow, spxBeta) {
+    const nominalSpxReturn = returnRow.nominalReturn ?? returnRow.return;
     const nominalRiskFreeReturn = returnRow.riskFreeReturn ?? 0;
-    const nominalSpyExcessReturn = nominalSpyReturn - nominalRiskFreeReturn;
+    const nominalSpxExcessReturn = nominalSpxReturn - nominalRiskFreeReturn;
     const inflation = returnRow.inflation ?? 0;
-    const realSpyReturn = ((1 + nominalSpyReturn) / Math.max(0.000001, 1 + inflation)) - 1;
+    const realSpxReturn = ((1 + nominalSpxReturn) / Math.max(0.000001, 1 + inflation)) - 1;
     const realRiskFreeReturn = ((1 + nominalRiskFreeReturn) / Math.max(0.000001, 1 + inflation)) - 1;
-    const nominalPortfolioReturn = nominalRiskFreeReturn + spyBeta * nominalSpyExcessReturn;
+    const nominalPortfolioReturn = nominalRiskFreeReturn + spxBeta * nominalSpxExcessReturn;
     const nominalGrowthFactor = Math.max(0.000001, 1 + nominalPortfolioReturn);
     const realGrowthFactor = nominalGrowthFactor / Math.max(0.000001, 1 + inflation);
     return {
-      nominalSpyReturn,
+      nominalSpxReturn,
       nominalRiskFreeReturn,
-      nominalSpyExcessReturn,
-      spyBeta,
+      nominalSpxExcessReturn,
+      spxBeta,
       nominalPortfolioReturn,
       inflation,
-      realSpyReturn,
+      realSpxReturn,
       realRiskFreeReturn,
       realGrowthFactor
     };
@@ -324,6 +289,8 @@
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
     const valueByYear = new Array(years.length + 1);
     const expectedWealthByYear = new Array(years.length + 1);
+    const actionValueByYear = new Array(years.length);
+    const actionExpectedWealthByYear = new Array(years.length);
     const policyByYear = new Array(years.length);
     let nextValues = new Array(wealthBuckets.length).fill(0);
     let nextExpectedWealth = [...wealthBuckets];
@@ -336,11 +303,19 @@
       const netCashFlow = cashFlowForYear(scenario.income, year) - cashFlowForYear(scenario.expenses, year);
       const currentValues = new Array(wealthBuckets.length);
       const currentExpectedWealth = new Array(wealthBuckets.length);
+      const currentActionValues = new Array(wealthBuckets.length);
+      const currentActionExpectedWealth = new Array(wealthBuckets.length);
       const currentPolicy = new Array(wealthBuckets.length);
 
       for (let bucketIndex = 0; bucketIndex < wealthBuckets.length; bucketIndex += 1) {
         const startingWealth = wealthBuckets[bucketIndex];
+        const actionValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
+        const actionExpectedWealthValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
         if (startingWealth <= 0) {
+          actionValues.fill(1);
+          actionExpectedWealthValues.fill(0);
+          currentActionValues[bucketIndex] = actionValues;
+          currentActionExpectedWealth[bucketIndex] = actionExpectedWealthValues;
           currentValues[bucketIndex] = 1;
           currentExpectedWealth[bucketIndex] = 0;
           currentPolicy[bucketIndex] = 0;
@@ -351,7 +326,7 @@
         let bestExpectedWealth = Number.NEGATIVE_INFINITY;
         let bestBeta = Planner.DYNAMIC_BETA_VALUES[0];
 
-        Planner.DYNAMIC_BETA_VALUES.forEach((beta) => {
+        Planner.DYNAMIC_BETA_VALUES.forEach((beta, betaIndex) => {
           let totalDepletionRisk = 0;
           let totalExpectedWealth = 0;
           returnRows.forEach((returnRow) => {
@@ -366,6 +341,8 @@
           });
           const actionDepletionRisk = totalDepletionRisk / returnRows.length;
           const actionExpectedWealth = totalExpectedWealth / returnRows.length;
+          actionValues[betaIndex] = actionDepletionRisk;
+          actionExpectedWealthValues[betaIndex] = actionExpectedWealth;
 
           if (actionDepletionRisk < bestDepletionRisk - Planner.EPSILON) {
             bestDepletionRisk = actionDepletionRisk;
@@ -382,11 +359,15 @@
 
         currentValues[bucketIndex] = bestDepletionRisk;
         currentExpectedWealth[bucketIndex] = bestExpectedWealth;
+        currentActionValues[bucketIndex] = actionValues;
+        currentActionExpectedWealth[bucketIndex] = actionExpectedWealthValues;
         currentPolicy[bucketIndex] = bestBeta;
       }
 
       valueByYear[yearIndex] = currentValues;
       expectedWealthByYear[yearIndex] = currentExpectedWealth;
+      actionValueByYear[yearIndex] = currentActionValues;
+      actionExpectedWealthByYear[yearIndex] = currentActionExpectedWealth;
       policyByYear[yearIndex] = currentPolicy;
       nextValues = currentValues;
       nextExpectedWealth = currentExpectedWealth;
@@ -401,6 +382,8 @@
       wealthBuckets,
       valueByYear,
       expectedWealthByYear,
+      actionValueByYear,
+      actionExpectedWealthByYear,
       policyByYear
     };
   }
@@ -509,7 +492,6 @@
     applyContinuousYear,
     wealthAtTime,
     addReservoirSample,
-    buildSampledReturnPath,
     buildAnnualSampledReturn,
     buildReturnMetrics,
     buildDynamicBetaPolicy,

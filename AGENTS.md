@@ -8,7 +8,7 @@ This is a dependency-free static web app:
 - `styles.css` contains all layout and visual styling.
 - `js/` contains shared runtime modules attached to the global `Planner` namespace.
 - `app.js` bootstraps the app: state, DOM wiring, inputs, and run orchestration.
-- `data/spy-annual-returns.json` is fetched at runtime and must be served over HTTP.
+- `data/spx-annual-returns.json` is fetched at runtime and must be served over HTTP.
 
 There is no package manager, build pipeline, framework, backend, or test runner in the repo.
 
@@ -45,7 +45,7 @@ The Details tab uses `renderSelectedSimulationChart()` and `renderSimulationPath
 ## Important Implementation Details
 
 - Default inputs are set in `setDefaults()`.
-- SPY beta currently defaults to `0.8`.
+- SPX beta currently defaults to `0.8`.
 - Share links use the `p` query parameter to store compact current plan inputs plus a seeded simulation value; shared links restore inputs and auto-run after market data loads.
 - Simulation rows are stored in `simulationYearRowsBySimulation` so the Details tab can inspect one simulation without recomputing.
 - Result panels share one section shell: add `data-section-header` on a `.content-section`, optionally `data-summary-id`, `data-summary-text`, `data-picker-id`, `data-picker-label`, `data-download-id`, and `data-download-label`. Custom toolbar controls go in a `[data-section-toolbar]` slot. `mountSectionHeaders()` builds every header from `#sectionHeaderTemplate` on load.
@@ -72,7 +72,7 @@ http://127.0.0.1:8000/
 Manual smoke test:
 
 - Page loads without console errors.
-- Default SPY beta is `0.8`.
+- Default SPX beta is `0.8`.
 - Click `Run`; progress appears and results render.
 - Top metric values stay inside their cards, including large median wealth values.
 - Overview charts render and resize correctly.

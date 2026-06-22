@@ -25,7 +25,7 @@
     Planner.els.deathYear.value = sharedScenario.deathYear;
     Planner.els.netWorth.value = sharedScenario.netWorth;
     Planner.els.betaMode.value = sharedScenario.betaMode;
-    Planner.els.spyBeta.value = sharedScenario.spyBeta;
+    Planner.els.spxBeta.value = sharedScenario.spxBeta;
     Planner.els.simulationCount.value = sharedScenario.simulationCount;
     Planner.updateBetaModeControls();
 
@@ -49,7 +49,7 @@
       deathYear,
       netWorth: normalizeRequiredNumber(scenario.netWorth, "current net worth"),
       betaMode: normalizeBetaMode(scenario.betaMode),
-      spyBeta: normalizeRequiredNumber(scenario.spyBeta, "SPY beta"),
+      spxBeta: normalizeRequiredNumber(scenario.spxBeta, "SPX beta"),
       simulationCount: normalizeRequiredNumber(scenario.simulationCount, "simulation count"),
       income: normalizeSharedFlows(scenario.income, "income"),
       expenses: normalizeSharedFlows(scenario.expenses, "expense")
@@ -154,7 +154,7 @@
       scenario.currentYear,
       scenario.deathYear,
       scenario.netWorth,
-      scenario.spyBeta,
+      scenario.spxBeta,
       scenario.simulationCount
     ].map(Planner.formatShareNumber);
     plan.push(encodeBetaMode(scenario.betaMode));
@@ -182,7 +182,7 @@
       currentYear: parseSharedNumber(plan[0], "current year"),
       deathYear: parseSharedNumber(plan[1], "death year"),
       netWorth: parseSharedNumber(plan[2], "current net worth"),
-      spyBeta: parseSharedNumber(plan[3], "SPY beta"),
+      spxBeta: parseSharedNumber(plan[3], "SPX beta"),
       simulationCount: parseSharedNumber(plan[4], "simulation count"),
       betaMode: plan.length === 6 ? decodeBetaMode(plan[5]) : Planner.BETA_MODE_FIXED
     };

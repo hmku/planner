@@ -1,6 +1,5 @@
 window.Planner = window.Planner || {};
 Planner.MAX_VISUAL_PATHS = 200;
-Planner.RETURN_BLOCK_YEARS = 5;
 Planner.SIMULATION_CHUNK_SIZE = 100;
 Planner.MIN_PLAN_YEAR = 1900;
 Planner.MAX_PLAN_YEAR = 2200;

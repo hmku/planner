@@ -30,7 +30,7 @@
       netWorth: document.querySelector("#netWorth"),
       betaMode: document.querySelector("#betaMode"),
       fixedBetaControl: document.querySelector("#fixedBetaControl"),
-      spyBeta: document.querySelector("#spyBeta"),
+      spxBeta: document.querySelector("#spxBeta"),
       simulationCount: document.querySelector("#simulationCount"),
       incomeRows: document.querySelector("#incomeRows"),
       expenseRows: document.querySelector("#expenseRows"),
@@ -60,7 +60,8 @@
       dynamicPolicySection: document.querySelector("#dynamicPolicySection"),
       dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
       policyYearSelect: document.querySelector("#policyYearSelect"),
-      dynamicPolicyBandTable: document.querySelector("#dynamicPolicyBandTable"),
+      policyBucketSelect: document.querySelector("#policyBucketSelect"),
+      dynamicPolicyActionTable: document.querySelector("#dynamicPolicyActionTable"),
       dynamicPolicyTable: document.querySelector("#dynamicPolicyTable"),
       downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
       pageButtons: document.querySelectorAll("[data-page]"),
@@ -77,7 +78,7 @@
     Planner.els.deathYear.value = currentYear + 44;
     Planner.els.netWorth.value = 1250000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
-    Planner.els.spyBeta.value = 0.8;
+    Planner.els.spxBeta.value = 0.8;
     Planner.els.simulationCount.value = 50000;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
@@ -166,6 +167,9 @@
     Planner.els.policyYearSelect.addEventListener("change", () => {
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
+    Planner.els.policyBucketSelect.addEventListener("change", () => {
+      if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
+    });
     window.addEventListener("resize", () => {
       if (Planner.state.results) Planner.renderCharts(Planner.state.results);
     });
@@ -173,7 +177,7 @@
   }
 
   async function loadMarketData() {
-    const response = await fetch("data/spy-annual-returns.json");
+    const response = await fetch("data/spx-annual-returns.json");
     Planner.state.marketData = await response.json();
     const years = Planner.state.marketData.returns.map((entry) => entry.year);
     Planner.els.dataSpanMetric.textContent = `${Math.min(...years)}-${Math.max(...years)}`;
@@ -205,8 +209,8 @@
   function updateBetaModeControls() {
     const isDynamicBeta = Planner.normalizeBetaMode(Planner.els.betaMode.value) === Planner.BETA_MODE_DYNAMIC;
     Planner.els.fixedBetaControl.hidden = isDynamicBeta;
-    Planner.els.spyBeta.disabled = isDynamicBeta;
-    Planner.els.spyBeta.required = !isDynamicBeta;
+    Planner.els.spxBeta.disabled = isDynamicBeta;
+    Planner.els.spxBeta.required = !isDynamicBeta;
   }
 
   function showProgress() {
@@ -306,7 +310,7 @@
       deathYear: Planner.numberFromInput(Planner.els.deathYear),
       netWorth: Planner.numberFromInput(Planner.els.netWorth),
       betaMode: Planner.normalizeBetaMode(Planner.els.betaMode.value),
-      spyBeta: Planner.numberFromInput(Planner.els.spyBeta),
+      spxBeta: Planner.numberFromInput(Planner.els.spxBeta),
       simulationCount: Planner.numberFromInput(Planner.els.simulationCount)
     };
 
@@ -325,8 +329,8 @@
     if (!Number.isFinite(scenario.netWorth) || scenario.netWorth < 0) {
       throw new Error("Enter a non-negative current net worth.");
     }
-    if (scenario.betaMode === Planner.BETA_MODE_FIXED && !Number.isFinite(scenario.spyBeta)) {
-      throw new Error("Enter a valid SPY beta.");
+    if (scenario.betaMode === Planner.BETA_MODE_FIXED && !Number.isFinite(scenario.spxBeta)) {
+      throw new Error("Enter a valid SPX beta.");
     }
     if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < Planner.MIN_SIMULATION_COUNT) {
       throw new Error(`Run at least ${Planner.formatNumber(Planner.MIN_SIMULATION_COUNT)} simulations.`);

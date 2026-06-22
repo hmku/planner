@@ -1,6 +1,6 @@
 {
   "name": "S&P 500 annual total returns, 3-month T-bill returns, and CPI inflation since 1950",
-  "description": "Annual S&P 500 nominal total returns including dividends and annual 3-month T-bill returns from 1950 onward, paired with December-to-December CPI-U inflation. The planner uses T-bills as the risk-free return and converts simulated portfolio returns into current-dollar real returns. SPY began trading in 1993, so 1950-1992 observations come from the underlying index return series.",
+  "description": "Annual S&P 500 nominal total returns including dividends and annual 3-month T-bill returns from 1950 onward, paired with December-to-December CPI-U inflation. The planner uses T-bills as the risk-free return and converts simulated portfolio returns into current-dollar real returns.",
   "stockAndRiskFreeReturnSource": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
   "inflationSource": "https://fred.stlouisfed.org/series/CPIAUCNS",
   "updated": "2026-06-18",

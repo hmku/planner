@@ -2,32 +2,32 @@
 
 A static browser-based financial planning simulator. The app estimates portfolio depletion risk by running Monte Carlo simulations from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
 
-The planner lets you enter plan years, current net worth, beta mode, SPY beta, simulation count, annual income, and annual expenditures. It then shows:
+The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, annual income, and annual expenditures. It then shows:
 
 - probability of running out of money before the expected year of death
 - median final wealth in current dollars
-- current SPY beta for the first plan year
+- current SPX beta for the first plan year
 - historical return span used by the model
 - a depletion-year distribution
 - simulated current-dollar net worth paths
-- simulated SPY beta paths
+- simulated SPX beta paths
 - an Inspect Simulation view for one selected simulation's net worth path and annual return/cash-flow rows
-- a scenario-level dynamic-beta policy view with beta bands, visible wealth buckets, recommended beta, estimated depletion probability, and expected terminal wealth
+- a scenario-level dynamic-beta policy view with per-beta alternatives, visible wealth buckets, recommended beta, estimated depletion probability, and expected terminal wealth
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
 ## How It Works
 
-The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spy-annual-returns.json`. There is no build step, package manager, server API, or database.
+The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database.
 
-Fixed-beta simulations sample contiguous 5-year historical return blocks with replacement. Dynamic-beta simulations sample one historical year at a time so the beta decision for a simulation year cannot inspect future sampled returns. Portfolio nominal return is modeled as:
+Fixed-beta and dynamic-beta simulations sample one historical year at a time with replacement. Dynamic beta chooses the beta for a simulation year before that year's sampled return is drawn. Portfolio nominal return is modeled as:
 
 ```text
-T-bill return + SPY beta * (S&P 500 return - T-bill return)
+T-bill return + SPX beta * (S&P 500 return - T-bill return)
 ```
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
-Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Simulation rows and CSV exports include the SPY beta used each year. Dynamic runs also show the scenario-level policy in Inspect Beta Policy: beta bands and visible wealth buckets through `$1 billion`. The policy CSV includes the full internal grid and flags whether each row is shown in the UI.
+Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level policy in Inspect Beta Policy: per-beta alternatives for a selected wealth bucket and visible wealth buckets through `$1 billion`. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
 
 ## Sharing Plans
 
@@ -47,7 +47,7 @@ Then open:
 http://127.0.0.1:8000/
 ```
 
-Opening `index.html` directly may fail in some browsers because the app fetches `data/spy-annual-returns.json`.
+Opening `index.html` directly may fail in some browsers because the app fetches `data/spx-annual-returns.json`.
 
 ## Hosting
 

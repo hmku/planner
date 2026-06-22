@@ -202,14 +202,14 @@
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
     const { minYear, maxYear } = Planner.getYearSpan(results.scenario);
-    const maxBeta = Math.max(1.5, results.scenario.spyBeta || 0, ...Planner.DYNAMIC_BETA_VALUES);
+    const maxBeta = Math.max(1.5, results.scenario.spxBeta || 0, ...Planner.DYNAMIC_BETA_VALUES);
     const hoverIndex = Planner.state.hover ? Planner.state.hover.index : null;
 
     Planner.els.betaPathSummary.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
       ? "Average recommended beta and downsampled simulation beta paths."
-      : `Fixed beta ${Planner.formatBeta(results.scenario.spyBeta)} across every active path.`;
+      : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} across every active path.`;
 
-    drawAxes(ctx, padding, width, height, "SPY beta");
+    drawAxes(ctx, padding, width, height, "SPX beta");
     drawYBetaLabels(ctx, padding, chartHeight, maxBeta);
     drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
 
@@ -379,7 +379,7 @@
     Planner.drawFloatingTooltip(ctx, [
       `Ending: ${Planner.formatCurrency(hover.path.terminalWealth)}`,
       `Ending rank: ${Planner.formatPercent(hover.path.endingPercentile)}`,
-      `Avg real SPY return: ${Planner.formatPercent(hover.path.averageRealSpyReturn)}`,
+      `Avg real SPX return: ${Planner.formatPercent(hover.path.averageRealSpxReturn)}`,
       hover.path.failureYear ? `Depleted: ${hover.path.failureYear}` : "Not depleted"
     ], hover.x, hover.y, width, height, 218);
   }

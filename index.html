@@ -53,8 +53,8 @@
                 </select>
               </label>
               <label id="fixedBetaControl">
-                <span>SPY beta</span>
-                <input id="spyBeta" name="spyBeta" type="number" min="-3" max="3" step="0.05" required>
+                <span>SPX beta</span>
+                <input id="spxBeta" name="spxBeta" type="number" min="-3" max="3" step="0.05" required>
               </label>
               <label>
                 <span>Simulations</span>
@@ -91,7 +91,7 @@
               <strong id="medianWealthMetric">--</strong>
             </article>
             <article class="metric">
-              <span id="currentBetaMetricLabel">Current SPY beta</span>
+              <span id="currentBetaMetricLabel">Current SPX beta</span>
               <strong id="currentBetaMetric">--</strong>
             </article>
             <article class="metric">
@@ -147,12 +147,12 @@
             <section
               class="content-section"
               data-section-header
-              data-title="SPY Beta Over Time"
+              data-title="SPX Beta Over Time"
               data-summary-id="betaPathSummary"
               data-summary-text="Average beta and downsampled simulation paths."
             >
               <div class="canvas-wrap">
-                <canvas id="betaCanvas" width="980" height="360" aria-label="Simulated SPY beta paths over time"></canvas>
+                <canvas id="betaCanvas" width="980" height="360" aria-label="Simulated SPX beta paths over time"></canvas>
               </div>
             </section>
           </div>
@@ -172,21 +172,26 @@
               data-download-label="Download policy CSV"
             >
               <div class="policy-subsection">
-                <h3>Beta bands</h3>
+                <div class="policy-subsection-header">
+                  <h3>Beta alternatives</h3>
+                  <label class="simulation-picker policy-bucket-picker">
+                    <span>Wealth bucket</span>
+                    <select id="policyBucketSelect"></select>
+                  </label>
+                </div>
                 <div class="table-wrap">
                   <table>
                     <thead>
                       <tr>
                         <th>Policy beta</th>
-                        <th>Visible buckets</th>
-                        <th>Wealth range</th>
-                        <th>Estimated risk range</th>
-                        <th>Expected terminal wealth range</th>
+                        <th>Estimated depletion risk</th>
+                        <th>Expected terminal wealth</th>
+                        <th>Policy choice</th>
                       </tr>
                     </thead>
-                    <tbody id="dynamicPolicyBandTable">
+                    <tbody id="dynamicPolicyActionTable">
                       <tr>
-                        <td colspan="5">Run dynamic beta to inspect beta bands.</td>
+                        <td colspan="4">Run dynamic beta to inspect beta alternatives.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -238,16 +243,15 @@
                     <tr>
                       <th>Plan year</th>
                       <th>Sampled year</th>
-                      <th>Sampled block</th>
                       <th>Start wealth</th>
                       <th>Income</th>
                       <th>Expenses</th>
-                      <th>SPY return</th>
+                      <th>SPX return</th>
                       <th>Risk-free</th>
-                      <th>SPY excess</th>
-                      <th>SPY beta used</th>
+                      <th>SPX excess</th>
+                      <th>SPX beta used</th>
                       <th>Inflation</th>
-                      <th>SPY real return</th>
+                      <th>SPX real return</th>
                       <th>Portfolio nominal return</th>
                       <th>Portfolio real return</th>
                       <th>End wealth</th>
@@ -256,7 +260,7 @@
                   </thead>
                   <tbody id="simulationPathTable">
                     <tr>
-                      <td colspan="16">No results yet.</td>
+                      <td colspan="15">No results yet.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -274,11 +278,11 @@
               <div class="method-grid">
                 <article>
                   <h3>Historical Data</h3>
-                  <p>Fixed-beta simulations sample contiguous 5-year historical blocks from 1950-2025. Dynamic-beta simulations sample one historical year at a time so each beta choice uses only information available before that year's return is drawn.</p>
+                  <p>Fixed-beta and dynamic-beta simulations sample one historical year at a time from 1950-2025. Dynamic beta chooses each year&apos;s beta before that year&apos;s return is drawn.</p>
                 </article>
                 <article>
                   <h3>Return Model</h3>
-                  <p>Portfolio nominal return is the sampled T-bill return plus SPY beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor. Dynamic beta chooses from 0.0 to 1.5 in 0.1 steps.</p>
+                  <p>Portfolio nominal return is the sampled T-bill return plus SPX beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor. Dynamic beta chooses from 0.0 to 1.5 in 0.1 steps.</p>
                 </article>
                 <article>
                   <h3>Dynamic Beta</h3>
@@ -294,11 +298,11 @@
                 </article>
                 <article>
                   <h3>Charts</h3>
-                  <p>The depletion-year chart shows probability across all simulations. The overview charts show expected current-dollar wealth, average SPY beta, and downsampled paths for hover inspection. Dynamic-beta runs expose the scenario-level beta bands, visible wealth buckets, and recommended beta by year in Inspect Beta Policy.</p>
+                  <p>The depletion-year chart shows probability across all simulations. The overview charts show expected current-dollar wealth, average SPX beta, and downsampled paths for hover inspection. Dynamic-beta runs expose the scenario-level beta alternatives, visible wealth buckets, and recommended beta by year in Inspect Beta Policy.</p>
                 </article>
                 <article>
                   <h3>Limits</h3>
-                  <p>The model is a historical bootstrap, not a forecast. It does not model taxes, account types, asset allocation beyond SPY beta, fees, changing spending behavior, sequence constraints, or valuation-based expected returns.</p>
+                  <p>The model is a historical bootstrap, not a forecast. It does not model taxes, account types, asset allocation beyond SPX beta, fees, changing spending behavior, sequence constraints, or valuation-based expected returns.</p>
                 </article>
               </div>
             </section>

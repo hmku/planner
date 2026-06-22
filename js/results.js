@@ -7,8 +7,8 @@
     Planner.els.medianWealthMetric.textContent = Planner.formatCompactCurrency(results.medianTerminalWealth);
     Planner.els.medianWealthMetric.title = Planner.formatCurrency(results.medianTerminalWealth);
     Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-      ? "Current recommended SPY beta"
-      : "Current SPY beta";
+      ? "Current recommended SPX beta"
+      : "Current SPX beta";
     Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${Planner.formatNumber(simulations)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
@@ -29,7 +29,8 @@
     Planner.els.downloadPolicyCsv.disabled = true;
     Planner.els.dynamicPolicySection.hidden = true;
     Planner.els.policyYearSelect.replaceChildren();
-    Planner.els.dynamicPolicyBandTable.innerHTML = `<tr><td colspan="5">Run dynamic beta to inspect beta bands.</td></tr>`;
+    Planner.els.policyBucketSelect.replaceChildren();
+    Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">Run dynamic beta to inspect beta alternatives.</td></tr>`;
     Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">Run dynamic beta to inspect the policy.</td></tr>`;
     Planner.els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
     Planner.els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
@@ -39,7 +40,7 @@
 
   function getCurrentBeta(results) {
     if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) {
-      return results.scenario.spyBeta;
+      return results.scenario.spxBeta;
     }
     return Planner.selectDynamicBeta(results.dynamicPolicy, 0, results.scenario.netWorth);
   }
@@ -50,7 +51,7 @@
     const simulations = results.scenario.simulationCount;
     const modeText = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
       ? "Dynamic beta used a causal annual bootstrap and year/wealth policy."
-      : `Fixed beta ${Planner.formatBeta(results.scenario.spyBeta)} used 5-year historical return blocks.`;
+      : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} used annual historical return sampling.`;
     const depletedText = `${Planner.formatNumber(results.failureYears.length)} of ${Planner.formatNumber(simulations)} paths depleted (${Planner.formatPercent(results.risk)}).`;
     const notDepletedText = `${Planner.formatNumber(results.notDepletedCount)} paths did not deplete (${Planner.formatPercent(1 - results.risk)}).`;
     const chartText = Planner.els.showDepleted.checked
@@ -79,16 +80,15 @@
   const SIMULATION_PATH_COLUMNS = [
     { render: (row) => row.year },
     { render: (row) => row.historicalReturnYear || "--" },
-    { render: (row) => formatHistoricalBlock(row) },
     { render: (row) => Planner.formatCurrency(row.startingWealth) },
     { render: (row) => Planner.formatCurrency(row.income) },
     { render: (row) => Planner.formatCurrency(row.expenses) },
-    { render: (row) => Planner.formatPercent(row.nominalSpyReturn) },
+    { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalRiskFreeReturn) },
-    { render: (row) => Planner.formatPercent(row.nominalSpyExcessReturn) },
-    { render: (row) => Planner.formatBeta(row.spyBetaUsed) },
+    { render: (row) => Planner.formatPercent(row.nominalSpxExcessReturn) },
+    { render: (row) => Planner.formatBeta(row.spxBetaUsed) },
     { render: (row) => Planner.formatPercent(row.inflation) },
-    { render: (row) => Planner.formatPercent(row.realSpyReturn) },
+    { render: (row) => Planner.formatPercent(row.realSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalPortfolioReturn) },
     { render: (row) => Planner.formatPercent(row.portfolioRealReturn) },
     { render: (row) => Planner.formatCurrency(row.endingWealth) },
@@ -145,7 +145,7 @@
     const selectedYear = Number(Planner.els.policyYearSelect.value) || results.scenario.currentYear;
     const yearIndex = results.years.indexOf(selectedYear);
     if (yearIndex < 0) {
-      Planner.els.dynamicPolicyBandTable.innerHTML = `<tr><td colspan="5">No policy rows for this year.</td></tr>`;
+      Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">No beta alternatives for this year.</td></tr>`;
       Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">No policy rows for this year.</td></tr>`;
       return;
     }
@@ -158,22 +158,45 @@
       if (row.bucketIndex === currentBucketIndex) markers.push("Current wealth");
       return { ...row, markers };
     });
-    const bands = getDynamicPolicyBetaBands(rows);
-
     Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · showing wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
-
-    Planner.renderTableBody(
-      Planner.els.dynamicPolicyBandTable,
-      POLICY_BAND_TABLE_COLUMNS,
-      bands,
-      "No beta bands for this year."
-    );
+    renderPolicyBucketSelect(rows, currentBucketIndex);
+    renderDynamicPolicyActionTable(results, yearIndex);
 
     Planner.renderTableBody(
       Planner.els.dynamicPolicyTable,
       POLICY_TABLE_COLUMNS,
       rows,
       "No policy rows for this year."
+    );
+  }
+
+
+
+  function renderPolicyBucketSelect(rows, preferredBucketIndex) {
+    Planner.populateSelect(Planner.els.policyBucketSelect, rows, {
+      previousValue: Number(Planner.els.policyBucketSelect.value) || preferredBucketIndex || rows[0]?.bucketIndex,
+      getValue: (row) => row.bucketIndex,
+      getLabel: (row) => `#${Planner.formatNumber(row.bucketIndex)} · ${Planner.formatCurrency(row.wealth)}`
+    });
+  }
+
+
+
+  const POLICY_ACTION_TABLE_COLUMNS = [
+    { render: (row) => Planner.formatBeta(row.beta) },
+    { render: (row) => Planner.formatPercent(row.estimatedDepletionRisk) },
+    { render: (row) => Planner.formatCurrency(row.expectedTerminalWealth) },
+    { render: (row) => row.isRecommended ? "Recommended" : "--" }
+  ];
+
+  function renderDynamicPolicyActionTable(results, yearIndex) {
+    const bucketIndex = Number(Planner.els.policyBucketSelect.value);
+    const rows = getDynamicPolicyActionRows(results, yearIndex, bucketIndex);
+    Planner.renderTableBody(
+      Planner.els.dynamicPolicyActionTable,
+      POLICY_ACTION_TABLE_COLUMNS,
+      rows,
+      "No beta alternatives for this bucket."
     );
   }
 
@@ -195,61 +218,28 @@
   }
 
 
+  function getDynamicPolicyActionRows(results, yearIndex, bucketIndex) {
+    const policy = results.dynamicPolicy;
+    const actionRiskRow = policy.actionValueByYear?.[yearIndex]?.[bucketIndex] || [];
+    const actionExpectedWealthRow = policy.actionExpectedWealthByYear?.[yearIndex]?.[bucketIndex] || [];
+    const recommendedBeta = policy.policyByYear[yearIndex]?.[bucketIndex];
+    return policy.betaValues.map((beta, betaIndex) => ({
+      year: results.years[yearIndex],
+      bucketIndex,
+      wealth: policy.wealthBuckets[bucketIndex],
+      beta,
+      recommendedBeta,
+      estimatedDepletionRisk: actionRiskRow[betaIndex],
+      expectedTerminalWealth: actionExpectedWealthRow[betaIndex],
+      isRecommended: Math.abs(beta - recommendedBeta) <= Planner.EPSILON
+    }));
+  }
+
+
+
   function getVisibleDynamicPolicyRows(results, yearIndex) {
     return getDynamicPolicyRows(results, yearIndex)
       .filter((row) => row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET);
-  }
-
-
-
-  const POLICY_BAND_TABLE_COLUMNS = [
-    { render: (row) => Planner.formatBeta(row.beta) },
-    { render: (row) => Planner.formatNumber(row.bucketCount) },
-    { render: (row) => formatRange(row.minWealth, row.maxWealth, Planner.formatCurrency) },
-    { render: (row) => formatRange(row.minRisk, row.maxRisk, Planner.formatPercent) },
-    { render: (row) => formatRange(row.minExpectedTerminalWealth, row.maxExpectedTerminalWealth, Planner.formatCurrency) }
-  ];
-
-  function getDynamicPolicyBetaBands(rows) {
-    const bands = [];
-    rows.forEach((row) => {
-      const previous = bands[bands.length - 1];
-      if (!previous || Math.abs(previous.beta - row.beta) > Planner.EPSILON) {
-        bands.push({
-          beta: row.beta,
-          bucketCount: 1,
-          minWealth: row.wealth,
-          maxWealth: row.wealth,
-          minRisk: row.estimatedDepletionRisk,
-          maxRisk: row.estimatedDepletionRisk,
-          minExpectedTerminalWealth: row.expectedTerminalWealth,
-          maxExpectedTerminalWealth: row.expectedTerminalWealth
-        });
-        return;
-      }
-
-      previous.bucketCount += 1;
-      previous.maxWealth = row.wealth;
-      previous.minRisk = Math.min(previous.minRisk, row.estimatedDepletionRisk);
-      previous.maxRisk = Math.max(previous.maxRisk, row.estimatedDepletionRisk);
-      previous.minExpectedTerminalWealth = Math.min(previous.minExpectedTerminalWealth, row.expectedTerminalWealth);
-      previous.maxExpectedTerminalWealth = Math.max(previous.maxExpectedTerminalWealth, row.expectedTerminalWealth);
-    });
-    return bands;
-  }
-
-
-
-  function formatRange(min, max, formatter) {
-    if (Math.abs(min - max) <= Planner.EPSILON) return formatter(min);
-    return `${formatter(min)} to ${formatter(max)}`;
-  }
-
-
-
-  function formatHistoricalBlock(row) {
-    if (!row.historicalBlockStartYear || !row.historicalBlockEndYear) return "--";
-    return `${row.historicalBlockStartYear}-${row.historicalBlockEndYear}`;
   }
 
 
@@ -260,19 +250,17 @@
       "simulation",
       "year",
       "historical_return_year",
-      "historical_return_block_start_year",
-      "historical_return_block_end_year",
       "starting_wealth_current_dollars",
       "income_current_dollars",
       "expenses_current_dollars",
       "net_cash_flow_current_dollars",
-      "nominal_spy_return",
+      "nominal_spx_return",
       "risk_free_return",
-      "spy_excess_return",
-      "spy_beta_used",
+      "spx_excess_return",
+      "spx_beta_used",
       "portfolio_nominal_return",
       "inflation",
-      "real_spy_return",
+      "real_spx_return",
       "real_risk_free_return",
       "portfolio_real_return",
       "ending_wealth_current_dollars",
@@ -290,19 +278,17 @@
         row.simulation,
         row.year,
         row.historicalReturnYear,
-        row.historicalBlockStartYear,
-        row.historicalBlockEndYear,
         row.startingWealth,
         row.income,
         row.expenses,
         row.netCashFlow,
-        row.nominalSpyReturn,
+        row.nominalSpxReturn,
         row.nominalRiskFreeReturn,
-        row.nominalSpyExcessReturn,
-        row.spyBetaUsed,
+        row.nominalSpxExcessReturn,
+        row.spxBetaUsed,
         row.nominalPortfolioReturn,
         row.inflation,
-        row.realSpyReturn,
+        row.realSpxReturn,
         row.realRiskFreeReturn,
         row.portfolioRealReturn,
         row.endingWealth,
@@ -323,21 +309,27 @@
       "year",
       "bucket_index",
       "bucket_wealth_current_dollars",
-      "recommended_spy_beta",
+      "evaluated_spx_beta",
       "estimated_depletion_probability",
       "expected_terminal_wealth_current_dollars",
+      "is_recommended_beta",
+      "recommended_spx_beta",
       "shown_in_table"
     ];
     const rows = Planner.state.results.years.flatMap((year, yearIndex) => (
-      getDynamicPolicyRows(Planner.state.results, yearIndex).map((row) => [
-        year,
-        row.bucketIndex,
-        row.wealth,
-        row.beta,
-        row.estimatedDepletionRisk,
-        row.expectedTerminalWealth,
-        row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET ? "yes" : "no"
-      ])
+      getDynamicPolicyRows(Planner.state.results, yearIndex).flatMap((policyRow) => (
+        getDynamicPolicyActionRows(Planner.state.results, yearIndex, policyRow.bucketIndex).map((actionRow) => [
+          year,
+          actionRow.bucketIndex,
+          actionRow.wealth,
+          actionRow.beta,
+          actionRow.estimatedDepletionRisk,
+          actionRow.expectedTerminalWealth,
+          actionRow.isRecommended ? "yes" : "no",
+          actionRow.recommendedBeta,
+          actionRow.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET ? "yes" : "no"
+        ])
+      ))
     ));
     Planner.downloadCsvFile(`financial-planner-dynamic-beta-policy-${Date.now()}.csv`, headers, rows);
   }
@@ -369,9 +361,8 @@
     renderDynamicPolicyControls,
     renderDynamicPolicyTable,
     getDynamicPolicyRows,
+    getDynamicPolicyActionRows,
     getVisibleDynamicPolicyRows,
-    getDynamicPolicyBetaBands,
-    formatHistoricalBlock,
     downloadSimulationCsv,
     downloadPolicyCsv,
     switchPage
