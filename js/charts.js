@@ -391,7 +391,8 @@
 
   function renderPolicyBucketPlot(canvas, results, rows, metric, currentBucketIndex) {
     const { ctx, width, height } = beginChart(canvas);
-    if (!rows.length) {
+    const plotRows = rows.filter((row) => row.wealth > 0);
+    if (!plotRows.length) {
       drawEmptyState(ctx, width, height, "No visible wealth buckets for this year.");
       return;
     }
@@ -399,23 +400,23 @@
     const padding = { top: 34, right: 34, bottom: 62, left: 86 };
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
-    const minWealth = rows[0].wealth;
-    const maxWealth = rows[rows.length - 1].wealth;
-    const yMax = getPolicyMetricMax(rows, metric);
+    const minWealth = plotRows[0].wealth;
+    const maxWealth = plotRows[plotRows.length - 1].wealth;
+    const yScale = getPolicyMetricScale(plotRows, metric);
 
     drawAxes(ctx, padding, width, height, getPolicyMetricLabel(metric));
     drawPolicyBucketXLabels(ctx, padding, chartWidth, height, minWealth, maxWealth);
-    drawPolicyMetricYLabels(ctx, padding, chartHeight, yMax, metric);
+    drawPolicyMetricYLabels(ctx, padding, chartHeight, yScale, metric);
 
     ctx.save();
     ctx.beginPath();
     ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
     ctx.clip();
 
-    const points = rows.map((row) => ({
+    const points = plotRows.map((row) => ({
       row,
       x: policyWealthToX(row.wealth, padding, chartWidth, minWealth, maxWealth),
-      y: policyMetricToY(getPolicyMetricValue(row, metric), padding, chartHeight, yMax)
+      y: policyMetricToY(getPolicyMetricValue(row, metric), padding, chartHeight, yScale)
     }));
 
     ctx.strokeStyle = "#4f46e5";
@@ -477,14 +478,21 @@
 
 
   function policyWealthToX(wealth, padding, chartWidth, minWealth, maxWealth) {
-    const t = (Math.log(wealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
+    const clampedWealth = Math.max(minWealth, Math.min(maxWealth, wealth));
+    const t = (Math.log(clampedWealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
     return padding.left + t * chartWidth;
   }
 
 
 
-  function policyMetricToY(value, padding, chartHeight, yMax) {
-    return padding.top + chartHeight - (value / Math.max(0.000001, yMax)) * chartHeight;
+  function policyMetricToY(value, padding, chartHeight, scale) {
+    if (scale.log) {
+      if (value <= 0) return padding.top + chartHeight;
+      const clampedValue = Math.max(scale.min, Math.min(scale.max, value));
+      const t = (Math.log(clampedValue) - Math.log(scale.min)) / Math.max(0.000001, Math.log(scale.max) - Math.log(scale.min));
+      return padding.top + chartHeight - t * chartHeight;
+    }
+    return padding.top + chartHeight - (value / Math.max(0.000001, scale.max)) * chartHeight;
   }
 
 
@@ -497,11 +505,19 @@
 
 
 
-  function getPolicyMetricMax(rows, metric) {
-    if (metric === "beta") return Math.max(1.5, ...rows.map((row) => row.beta || 0));
+  function getPolicyMetricScale(rows, metric) {
+    if (metric === "beta") return { min: 0, max: Math.max(1.5, ...rows.map((row) => row.beta || 0)), log: false };
     const maxValue = Math.max(...rows.map((row) => getPolicyMetricValue(row, metric) || 0));
-    if (metric === "risk") return Math.max(0.01, maxValue);
-    return Math.max(1, maxValue);
+    if (metric === "risk") return { min: 0, max: Math.max(0.01, maxValue), log: false };
+    const positiveValues = rows
+      .map((row) => getPolicyMetricValue(row, metric))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const minValue = Math.min(...positiveValues);
+    return {
+      min: Number.isFinite(minValue) ? minValue : 1,
+      max: Math.max(1, maxValue),
+      log: true
+    };
   }
 
 
@@ -535,15 +551,29 @@
 
 
 
-  function drawPolicyMetricYLabels(ctx, padding, chartHeight, yMax, metric) {
+  function drawPolicyMetricYLabels(ctx, padding, chartHeight, scale, metric) {
     ctx.fillStyle = "#6b7280";
     ctx.font = "12px system-ui";
     ctx.textAlign = "right";
-    for (let i = 0; i <= 4; i += 1) {
-      const value = (yMax / 4) * i;
-      const y = padding.top + chartHeight - (chartHeight / 4) * i;
+    const values = scale.log
+      ? logScaleLabelValues(scale.min, scale.max)
+      : [0, 0.25, 0.5, 0.75, 1].map((share) => scale.max * share);
+    values.forEach((value) => {
+      const y = policyMetricToY(value, padding, chartHeight, scale);
       ctx.fillText(formatPolicyMetricValue(value, metric), padding.left - 10, y + 4);
+    });
+  }
+
+
+
+  function logScaleLabelValues(minValue, maxValue) {
+    if (maxValue <= minValue) return [minValue];
+    const values = [];
+    for (let i = 0; i <= 4; i += 1) {
+      const t = i / 4;
+      values.push(Math.exp(Math.log(minValue) + (Math.log(maxValue) - Math.log(minValue)) * t));
     }
+    return values;
   }
 
 
