@@ -29,6 +29,7 @@
     Planner.els.downloadPolicyCsv.disabled = true;
     Planner.els.dynamicPolicySection.hidden = true;
     Planner.els.policyYearSelect.replaceChildren();
+    Planner.els.dynamicPolicyBandTable.innerHTML = `<tr><td colspan="5">Run dynamic beta to inspect beta bands.</td></tr>`;
     Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">Run dynamic beta to inspect the policy.</td></tr>`;
     Planner.els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
     Planner.els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
@@ -144,29 +145,29 @@
     const selectedYear = Number(Planner.els.policyYearSelect.value) || results.scenario.currentYear;
     const yearIndex = results.years.indexOf(selectedYear);
     if (yearIndex < 0) {
+      Planner.els.dynamicPolicyBandTable.innerHTML = `<tr><td colspan="5">No policy rows for this year.</td></tr>`;
       Planner.els.dynamicPolicyTable.innerHTML = `<tr><td colspan="6">No policy rows for this year.</td></tr>`;
       return;
     }
 
-    const selectedSimulation = Number(Planner.els.simulationSelect.value) || 1;
-    const selectedRows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
-    const selectedPathRow = selectedRows.find((row) => row.year === selectedYear);
-    const selectedBucketIndex = selectedPathRow && selectedPathRow.startingWealth > 0
-      ? Planner.nearestBucketIndex(results.dynamicPolicy.wealthBuckets, selectedPathRow.startingWealth)
-      : null;
     const currentBucketIndex = selectedYear === results.scenario.currentYear
       ? Planner.nearestBucketIndex(results.dynamicPolicy.wealthBuckets, results.scenario.netWorth)
       : null;
-    const rows = getDynamicPolicyRows(results, yearIndex).map((row) => {
+    const rows = getVisibleDynamicPolicyRows(results, yearIndex).map((row) => {
       const markers = [];
-      if (row.bucketIndex === selectedBucketIndex) markers.push("Selected path");
       if (row.bucketIndex === currentBucketIndex) markers.push("Current wealth");
       return { ...row, markers };
     });
+    const bands = getDynamicPolicyBetaBands(rows);
 
-    Planner.els.dynamicPolicySummary.textContent = selectedPathRow && selectedPathRow.startingWealth > 0
-      ? `${selectedYear} · sim ${Planner.formatNumber(selectedSimulation)} · ${Planner.formatCurrency(selectedPathRow.startingWealth)} · beta ${Planner.formatBeta(selectedPathRow.spyBetaUsed)}`
-      : `${selectedYear} policy · pick a simulation in Inspect Simulation to mark its bucket`;
+    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · showing wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
+
+    Planner.renderTableBody(
+      Planner.els.dynamicPolicyBandTable,
+      POLICY_BAND_TABLE_COLUMNS,
+      bands,
+      "No beta bands for this year."
+    );
 
     Planner.renderTableBody(
       Planner.els.dynamicPolicyTable,
@@ -191,6 +192,57 @@
       estimatedDepletionRisk: valueRow[bucketIndex],
       expectedTerminalWealth: expectedWealthRow[bucketIndex]
     }));
+  }
+
+
+  function getVisibleDynamicPolicyRows(results, yearIndex) {
+    return getDynamicPolicyRows(results, yearIndex)
+      .filter((row) => row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET);
+  }
+
+
+
+  const POLICY_BAND_TABLE_COLUMNS = [
+    { render: (row) => Planner.formatBeta(row.beta) },
+    { render: (row) => Planner.formatNumber(row.bucketCount) },
+    { render: (row) => formatRange(row.minWealth, row.maxWealth, Planner.formatCurrency) },
+    { render: (row) => formatRange(row.minRisk, row.maxRisk, Planner.formatPercent) },
+    { render: (row) => formatRange(row.minExpectedTerminalWealth, row.maxExpectedTerminalWealth, Planner.formatCurrency) }
+  ];
+
+  function getDynamicPolicyBetaBands(rows) {
+    const bands = [];
+    rows.forEach((row) => {
+      const previous = bands[bands.length - 1];
+      if (!previous || Math.abs(previous.beta - row.beta) > Planner.EPSILON) {
+        bands.push({
+          beta: row.beta,
+          bucketCount: 1,
+          minWealth: row.wealth,
+          maxWealth: row.wealth,
+          minRisk: row.estimatedDepletionRisk,
+          maxRisk: row.estimatedDepletionRisk,
+          minExpectedTerminalWealth: row.expectedTerminalWealth,
+          maxExpectedTerminalWealth: row.expectedTerminalWealth
+        });
+        return;
+      }
+
+      previous.bucketCount += 1;
+      previous.maxWealth = row.wealth;
+      previous.minRisk = Math.min(previous.minRisk, row.estimatedDepletionRisk);
+      previous.maxRisk = Math.max(previous.maxRisk, row.estimatedDepletionRisk);
+      previous.minExpectedTerminalWealth = Math.min(previous.minExpectedTerminalWealth, row.expectedTerminalWealth);
+      previous.maxExpectedTerminalWealth = Math.max(previous.maxExpectedTerminalWealth, row.expectedTerminalWealth);
+    });
+    return bands;
+  }
+
+
+
+  function formatRange(min, max, formatter) {
+    if (Math.abs(min - max) <= Planner.EPSILON) return formatter(min);
+    return `${formatter(min)} to ${formatter(max)}`;
   }
 
 
@@ -273,7 +325,8 @@
       "bucket_wealth_current_dollars",
       "recommended_spy_beta",
       "estimated_depletion_probability",
-      "expected_terminal_wealth_current_dollars"
+      "expected_terminal_wealth_current_dollars",
+      "shown_in_table"
     ];
     const rows = Planner.state.results.years.flatMap((year, yearIndex) => (
       getDynamicPolicyRows(Planner.state.results, yearIndex).map((row) => [
@@ -282,7 +335,8 @@
         row.wealth,
         row.beta,
         row.estimatedDepletionRisk,
-        row.expectedTerminalWealth
+        row.expectedTerminalWealth,
+        row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET ? "yes" : "no"
       ])
     ));
     Planner.downloadCsvFile(`financial-planner-dynamic-beta-policy-${Date.now()}.csv`, headers, rows);
@@ -315,6 +369,8 @@
     renderDynamicPolicyControls,
     renderDynamicPolicyTable,
     getDynamicPolicyRows,
+    getVisibleDynamicPolicyRows,
+    getDynamicPolicyBetaBands,
     formatHistoricalBlock,
     downloadSimulationCsv,
     downloadPolicyCsv,

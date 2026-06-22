@@ -592,6 +592,26 @@ select:focus {
   margin-bottom: 18px;
 }
 
+.policy-subsection {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.policy-subsection:first-of-type {
+  margin-top: 0;
+}
+
+.policy-subsection h3 {
+  margin: 0;
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .zoom-control {
   display: grid;
   gap: 6px;

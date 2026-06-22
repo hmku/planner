@@ -60,6 +60,7 @@
       dynamicPolicySection: document.querySelector("#dynamicPolicySection"),
       dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
       policyYearSelect: document.querySelector("#policyYearSelect"),
+      dynamicPolicyBandTable: document.querySelector("#dynamicPolicyBandTable"),
       dynamicPolicyTable: document.querySelector("#dynamicPolicyTable"),
       downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
       pageButtons: document.querySelectorAll("[data-page]"),
@@ -160,7 +161,6 @@
       if (!Planner.state.results) return;
       Planner.state.detailHover = null;
       Planner.renderSimulationPathTable(Planner.state.results);
-      Planner.renderDynamicPolicyTable(Planner.state.results);
       Planner.renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
     });
     Planner.els.policyYearSelect.addEventListener("change", () => {
