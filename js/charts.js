@@ -525,7 +525,7 @@
   function getPolicyMetricLabel(metric) {
     if (metric === "risk") return "Estimated depletion risk";
     if (metric === "terminalWealth") return "Expected terminal wealth";
-    return "Policy beta";
+    return "Optimal SPX beta";
   }
 
 

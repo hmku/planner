@@ -61,6 +61,7 @@
       dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
       policyYearSelect: document.querySelector("#policyYearSelect"),
       policyBucketSelect: document.querySelector("#policyBucketSelect"),
+      policyBucketPlotTitle: document.querySelector("#policyBucketPlotTitle"),
       policyMetricSelect: document.querySelector("#policyMetricSelect"),
       dynamicPolicyCanvas: document.querySelector("#dynamicPolicyCanvas"),
       policyPathSummary: document.querySelector("#policyPathSummary"),

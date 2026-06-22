@@ -183,10 +183,10 @@
                   <table>
                     <thead>
                       <tr>
-                        <th>Policy beta</th>
+                        <th>Optimal SPX beta</th>
                         <th>Estimated depletion risk</th>
                         <th>Expected terminal wealth</th>
-                        <th>Policy choice</th>
+                        <th>Optimal choice</th>
                       </tr>
                     </thead>
                     <tbody id="dynamicPolicyActionTable">
@@ -199,11 +199,11 @@
               </div>
               <div class="policy-subsection">
                 <div class="policy-subsection-header">
-                  <h3>Visible wealth buckets</h3>
+                  <h3 id="policyBucketPlotTitle">Optimal SPX beta vs current wealth</h3>
                   <label class="simulation-picker policy-metric-picker">
                     <span>Plot y-axis</span>
                     <select id="policyMetricSelect">
-                      <option value="beta">Policy beta</option>
+                      <option value="beta">Optimal SPX beta</option>
                       <option value="risk">Estimated depletion risk</option>
                       <option value="terminalWealth">Expected terminal wealth</option>
                     </select>
@@ -245,7 +245,7 @@
                   </label>
                 </div>
                 <div class="canvas-wrap">
-                  <canvas id="policyPathCanvas" class="policy-path-canvas" width="980" height="400" aria-label="Policy beta heatmap with explored path"></canvas>
+                  <canvas id="policyPathCanvas" class="policy-path-canvas" width="980" height="400" aria-label="Optimal SPX beta heatmap with explored path"></canvas>
                 </div>
                 <div class="table-wrap">
                   <table>
@@ -258,7 +258,7 @@
                         <th>SPX return</th>
                         <th>Inflation</th>
                         <th>End wealth</th>
-                        <th>Policy beta next</th>
+                        <th>Optimal SPX beta next</th>
                         <th>Risk from node</th>
                       </tr>
                     </thead>

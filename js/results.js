@@ -156,6 +156,7 @@
       return { ...row, markers };
     });
     const metricLabel = getPolicyMetricLabel(Planner.els.policyMetricSelect.value);
+    Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs current wealth`;
     Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
     renderPolicyBucketSelect(rows, currentBucketIndex);
     renderDynamicPolicyActionTable(results, yearIndex);
@@ -183,7 +184,7 @@
   function getPolicyMetricLabel(metric) {
     if (metric === "risk") return "Estimated depletion risk";
     if (metric === "terminalWealth") return "Expected terminal wealth";
-    return "Policy beta";
+    return "Optimal SPX beta";
   }
 
 
