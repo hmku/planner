@@ -2,7 +2,7 @@
 
 A static browser-based financial planning simulator. The app estimates portfolio depletion risk by running Monte Carlo simulations from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
 
-The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, annual income, and annual expenditures. It then shows:
+The planner lets you enter plan years, current net worth, beta mode, SPX beta, acceptable dynamic-beta depletion risk, simulation count, annual income, and annual expenditures. It then shows:
 
 - probability of running out of money before the expected year of death
 - median final wealth in current dollars
@@ -27,11 +27,11 @@ T-bill return + SPX beta * (S&P 500 return - T-bill return)
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
-Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Inspect Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level policy in Inspect Beta Policy: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
+Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the highest expected terminal wealth among choices at or below the acceptable depletion-risk threshold, and falls back to the lowest estimated depletion probability when no beta meets that threshold. The default threshold is `0%`, which preserves the previous minimize-depletion-risk behavior. Inspect Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level policy in Inspect Beta Policy: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
 
 ## Sharing Plans
 
-Each successful run updates the browser address bar to a share URL containing the current plan inputs, beta mode, and the run's simulation seed in the `p` query parameter. The active tab is stored separately in the `tab` query parameter so refreshes and copied links reopen the same view. Click `Share` to copy that URL. Opening it restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
+Each successful run updates the browser address bar to a share URL containing the current plan inputs, beta mode, acceptable dynamic-beta depletion risk, and the run's simulation seed in the `p` query parameter. The active tab is stored separately in the `tab` query parameter so refreshes and copied links reopen the same view. Click `Share` to copy that URL. Opening it restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
 
 ## Run Locally
 

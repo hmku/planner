@@ -325,6 +325,8 @@
         let bestDepletionRisk = Number.POSITIVE_INFINITY;
         let bestExpectedWealth = Number.NEGATIVE_INFINITY;
         let bestBeta = Planner.DYNAMIC_BETA_VALUES[0];
+        let bestMeetsRiskThreshold = false;
+        const riskThreshold = Planner.normalizeRiskThreshold(scenario.dynamicRiskThreshold);
 
         Planner.DYNAMIC_BETA_VALUES.forEach((beta, betaIndex) => {
           let totalDepletionRisk = 0;
@@ -343,15 +345,21 @@
           const actionExpectedWealth = totalExpectedWealth / returnRows.length;
           actionValues[betaIndex] = actionDepletionRisk;
           actionExpectedWealthValues[betaIndex] = actionExpectedWealth;
+          const actionMeetsRiskThreshold = actionDepletionRisk <= riskThreshold + Planner.EPSILON;
 
-          if (actionDepletionRisk < bestDepletionRisk - Planner.EPSILON) {
+          if (actionMeetsRiskThreshold && !bestMeetsRiskThreshold) {
             bestDepletionRisk = actionDepletionRisk;
             bestExpectedWealth = actionExpectedWealth;
             bestBeta = beta;
-          } else if (
-            Math.abs(actionDepletionRisk - bestDepletionRisk) <= Planner.EPSILON &&
-            actionExpectedWealth > bestExpectedWealth + Planner.EPSILON
-          ) {
+            bestMeetsRiskThreshold = true;
+          } else if (actionMeetsRiskThreshold && bestMeetsRiskThreshold) {
+            if (isHigherExpectedWealthAction(actionExpectedWealth, actionDepletionRisk, bestExpectedWealth, bestDepletionRisk)) {
+              bestDepletionRisk = actionDepletionRisk;
+              bestExpectedWealth = actionExpectedWealth;
+              bestBeta = beta;
+            }
+          } else if (!bestMeetsRiskThreshold && isLowerRiskAction(actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth)) {
+            bestDepletionRisk = actionDepletionRisk;
             bestExpectedWealth = actionExpectedWealth;
             bestBeta = beta;
           }
@@ -386,6 +394,24 @@
       actionExpectedWealthByYear,
       policyByYear
     };
+  }
+
+
+  function isHigherExpectedWealthAction(actionExpectedWealth, actionDepletionRisk, bestExpectedWealth, bestDepletionRisk) {
+    if (actionExpectedWealth > bestExpectedWealth + Planner.EPSILON) return true;
+    return (
+      Math.abs(actionExpectedWealth - bestExpectedWealth) <= Planner.EPSILON &&
+      actionDepletionRisk < bestDepletionRisk - Planner.EPSILON
+    );
+  }
+
+
+  function isLowerRiskAction(actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth) {
+    if (actionDepletionRisk < bestDepletionRisk - Planner.EPSILON) return true;
+    return (
+      Math.abs(actionDepletionRisk - bestDepletionRisk) <= Planner.EPSILON &&
+      actionExpectedWealth > bestExpectedWealth + Planner.EPSILON
+    );
   }
 
 

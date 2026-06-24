@@ -26,6 +26,7 @@
     Planner.els.netWorth.value = sharedScenario.netWorth;
     Planner.els.betaMode.value = sharedScenario.betaMode;
     Planner.els.spxBeta.value = sharedScenario.spxBeta;
+    Planner.els.dynamicRiskThreshold.value = Planner.formatShareNumber(sharedScenario.dynamicRiskThreshold * 100);
     Planner.els.simulationCount.value = sharedScenario.simulationCount;
     Planner.updateBetaModeControls();
 
@@ -50,6 +51,7 @@
       netWorth: normalizeRequiredNumber(scenario.netWorth, "current net worth"),
       betaMode: normalizeBetaMode(scenario.betaMode),
       spxBeta: normalizeRequiredNumber(scenario.spxBeta, "SPX beta"),
+      dynamicRiskThreshold: Planner.normalizeRiskThreshold(scenario.dynamicRiskThreshold),
       simulationCount: normalizeRequiredNumber(scenario.simulationCount, "simulation count"),
       income: normalizeSharedFlows(scenario.income, "income"),
       expenses: normalizeSharedFlows(scenario.expenses, "expense")
@@ -200,6 +202,7 @@
       scenario.simulationCount
     ].map(Planner.formatShareNumber);
     plan.push(encodeBetaMode(scenario.betaMode));
+    plan.push(Planner.formatShareNumber(Planner.normalizeRiskThreshold(scenario.dynamicRiskThreshold)));
 
     return [
       Planner.formatShareNumber(seed),
@@ -217,7 +220,7 @@
       throw new Error("The link format is not supported.");
     }
     const plan = parts[1].split(",");
-    if (plan.length !== 5 && plan.length !== 6) {
+    if (plan.length !== 5 && plan.length !== 6 && plan.length !== 7) {
       throw new Error("The shared scenario is missing.");
     }
     const scenario = {
@@ -226,7 +229,8 @@
       netWorth: parseSharedNumber(plan[2], "current net worth"),
       spxBeta: parseSharedNumber(plan[3], "SPX beta"),
       simulationCount: parseSharedNumber(plan[4], "simulation count"),
-      betaMode: plan.length === 6 ? decodeBetaMode(plan[5]) : Planner.BETA_MODE_FIXED
+      betaMode: plan.length >= 6 ? decodeBetaMode(plan[5]) : Planner.BETA_MODE_FIXED,
+      dynamicRiskThreshold: plan.length >= 7 ? parseSharedRiskThreshold(plan[6]) : 0
     };
     scenario.income = decodeSharedFlows(parts[2], "income", scenario);
     scenario.expenses = decodeSharedFlows(parts[3], "expense", scenario);
@@ -310,6 +314,16 @@
     const number = Number(value);
     if (!Number.isFinite(number)) {
       throw new Error(`The shared ${label} is invalid.`);
+    }
+    return number;
+  }
+
+
+
+  function parseSharedRiskThreshold(value) {
+    const number = parseSharedNumber(value, "acceptable depletion risk");
+    if (number < 0 || number > 1) {
+      throw new Error("The shared acceptable depletion risk is invalid.");
     }
     return number;
   }
@@ -424,6 +438,7 @@
     encodeFlowMode,
     decodeFlowMode,
     parseSharedNumber,
+    parseSharedRiskThreshold,
     encodeShareText,
     decodeShareText,
     getRawQueryParam,

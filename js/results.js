@@ -54,7 +54,7 @@
   function updateScenarioSummary(results) {
     const simulations = results.scenario.simulationCount;
     const modeText = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-      ? "Dynamic beta used a causal annual bootstrap and year/wealth policy."
+      ? `Dynamic beta used a causal annual bootstrap and year/wealth policy with ${Planner.formatPolicyRiskPercent(results.scenario.dynamicRiskThreshold)} acceptable depletion risk.`
       : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} used annual historical return sampling.`;
     const depletedText = `${Planner.formatNumber(results.failureYears.length)} of ${Planner.formatNumber(simulations)} paths depleted (${Planner.formatPercent(results.risk)}).`;
     const notDepletedText = `${Planner.formatNumber(results.notDepletedCount)} paths did not deplete (${Planner.formatPercent(1 - results.risk)}).`;
@@ -157,7 +157,7 @@
     });
     const metricLabel = getPolicyMetricLabel(Planner.els.policyMetricSelect.value);
     Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs current wealth`;
-    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
+    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · acceptable depletion risk ${Planner.formatPolicyRiskPercent(results.scenario.dynamicRiskThreshold)} · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
     renderPolicyBucketSelect(rows, currentBucketIndex);
     renderDynamicPolicyActionTable(results, yearIndex);
     Planner.renderPolicyBucketPlot(
