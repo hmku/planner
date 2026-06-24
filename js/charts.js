@@ -391,8 +391,11 @@
 
   function renderPolicyBucketPlot(canvas, results, rows, metric, currentBucketIndex) {
     const { ctx, width, height } = beginChart(canvas);
+    Planner.state.policyBucketHitPoints = [];
+    Planner.state.policyBucketPlot = { rows, metric, currentBucketIndex };
     const plotRows = rows.filter((row) => row.wealth > 0);
     if (!plotRows.length) {
+      Planner.state.policyBucketHover = null;
       drawEmptyState(ctx, width, height, "No visible wealth buckets for this year.");
       return;
     }
@@ -418,6 +421,17 @@
       x: policyWealthToX(row.wealth, padding, chartWidth, minWealth, maxWealth),
       y: policyMetricToY(getPolicyMetricValue(row, metric), padding, chartHeight, yScale)
     }));
+    Planner.state.policyBucketHitPoints = points;
+
+    const hoverBucketIndex = Planner.state.policyBucketHover?.point?.row.bucketIndex;
+    const hoverPoint = Number.isFinite(hoverBucketIndex)
+      ? points.find((point) => point.row.bucketIndex === hoverBucketIndex)
+      : null;
+    if (hoverPoint) {
+      Planner.state.policyBucketHover.point = hoverPoint;
+    } else {
+      Planner.state.policyBucketHover = null;
+    }
 
     ctx.strokeStyle = "#4f46e5";
     ctx.lineWidth = 2.5;
@@ -436,7 +450,11 @@
     });
 
     drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth);
+    if (Planner.state.policyBucketHover) {
+      drawPolicyBucketHoverMarker(ctx, Planner.state.policyBucketHover, padding, chartWidth, chartHeight);
+    }
     ctx.restore();
+    if (Planner.state.policyBucketHover) drawPolicyBucketTooltip(ctx, Planner.state.policyBucketHover, width, height);
   }
 
 
@@ -764,6 +782,42 @@
 
 
 
+  function drawPolicyBucketHoverMarker(ctx, hover, padding, chartWidth, chartHeight) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(79, 70, 229, 0.28)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(hover.point.x, padding.top);
+    ctx.lineTo(hover.point.x, padding.top + chartHeight);
+    ctx.moveTo(padding.left, hover.point.y);
+    ctx.lineTo(padding.left + chartWidth, hover.point.y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = "#e11d48";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+
+
+  function drawPolicyBucketTooltip(ctx, hover, width, height) {
+    const row = hover.point.row;
+    Planner.drawFloatingTooltip(ctx, [
+      `Wealth: ${Planner.formatCurrency(row.wealth)}`,
+      `Optimal beta: ${Planner.formatBeta(row.beta)}`,
+      `Depletion risk: ${Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk)}`,
+      `Expected terminal: ${Planner.formatCompactCurrency(row.expectedTerminalWealth)}`
+    ], hover.x, hover.y, width, height, 238);
+  }
+
+
+
   function handlePathHover(event) {
     handleSeriesChartHover(
       event,
@@ -807,8 +861,62 @@
 
 
 
+  function handlePolicyBucketHover(event) {
+    if (!Planner.state.results || Planner.state.activePage !== "policy" || !Planner.state.policyBucketPlot) return;
+
+    const rect = Planner.els.dynamicPolicyCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const nearest = findNearestPolicyBucketPoint(x, y);
+    const nextHover = nearest ? { point: nearest, x, y } : null;
+    const currentBucket = Planner.state.policyBucketHover?.point?.row.bucketIndex ?? null;
+    const nextBucket = nextHover?.point?.row.bucketIndex ?? null;
+
+    if (currentBucket !== nextBucket || nextHover) {
+      Planner.state.policyBucketHover = nextHover;
+      Planner.renderPolicyBucketPlot(
+        Planner.els.dynamicPolicyCanvas,
+        Planner.state.results,
+        Planner.state.policyBucketPlot.rows,
+        Planner.state.policyBucketPlot.metric,
+        Planner.state.policyBucketPlot.currentBucketIndex
+      );
+    }
+  }
+
+
+
   function findNearestDetailPoint(x, y) {
     const points = Planner.state.detailHitPoints;
+    if (!points.length) return null;
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const point of points) {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = point;
+      }
+    }
+
+    for (let i = 1; i < points.length; i += 1) {
+      const distance = Planner.distanceToSegment(x, y, points[i - 1], points[i]);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
+        const distB = Math.hypot(x - points[i].x, y - points[i].y);
+        nearest = distA <= distB ? points[i - 1] : points[i];
+      }
+    }
+
+    return nearestDistance <= 18 ? nearest : null;
+  }
+
+
+
+  function findNearestPolicyBucketPoint(x, y) {
+    const points = Planner.state.policyBucketHitPoints;
     if (!points.length) return null;
 
     let nearest = null;
@@ -944,6 +1052,7 @@
     updateNetWorthZoomLabel,
     handlePathHover,
     handleBetaPathHover,
-    handleDetailChartHover
+    handleDetailChartHover,
+    handlePolicyBucketHover
   });
 })(window.Planner = window.Planner || {});

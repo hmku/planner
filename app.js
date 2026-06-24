@@ -9,6 +9,9 @@
     betaPathHitAreas: [],
     detailHover: null,
     detailHitPoints: [],
+    policyBucketHover: null,
+    policyBucketHitPoints: [],
+    policyBucketPlot: null,
     isDirty: true,
     isRunning: false,
     cancelRequested: false,
@@ -157,6 +160,19 @@
       Planner.state.detailHover = null;
       if (Planner.state.results) Planner.renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
     });
+    Planner.els.dynamicPolicyCanvas.addEventListener("mousemove", Planner.handlePolicyBucketHover);
+    Planner.els.dynamicPolicyCanvas.addEventListener("mouseleave", () => {
+      Planner.state.policyBucketHover = null;
+      if (Planner.state.results && Planner.state.policyBucketPlot) {
+        Planner.renderPolicyBucketPlot(
+          Planner.els.dynamicPolicyCanvas,
+          Planner.state.results,
+          Planner.state.policyBucketPlot.rows,
+          Planner.state.policyBucketPlot.metric,
+          Planner.state.policyBucketPlot.currentBucketIndex
+        );
+      }
+    });
     Planner.els.netWorthZoom.addEventListener("input", () => {
       Planner.updateNetWorthZoomLabel();
       if (Planner.state.results) Planner.renderNetWorthChart(Planner.els.pathsCanvas, Planner.state.results);
@@ -174,12 +190,15 @@
       Planner.renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
     });
     Planner.els.policyYearSelect.addEventListener("change", () => {
+      Planner.state.policyBucketHover = null;
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
     Planner.els.policyBucketSelect.addEventListener("change", () => {
+      Planner.state.policyBucketHover = null;
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
     Planner.els.policyMetricSelect.addEventListener("change", () => {
+      Planner.state.policyBucketHover = null;
       if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
     });
     [
@@ -402,6 +421,7 @@
     Planner.state.cancelRequested = false;
     Planner.state.hover = null;
     Planner.state.detailHover = null;
+    Planner.state.policyBucketHover = null;
     showProgress();
     updateRunState();
     await Planner.yieldToBrowser();
