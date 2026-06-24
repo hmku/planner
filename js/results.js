@@ -550,16 +550,19 @@
 
 
   function switchPage(page) {
-    Planner.state.activePage = page;
+    const nextPage = Planner.normalizePage(page);
+    Planner.state.activePage = nextPage;
     Planner.state.hover = null;
     Planner.state.detailHover = null;
+    Planner.state.policyBucketHover = null;
+    Planner.updatePageUrl(nextPage);
     Planner.els.pageButtons.forEach((button) => {
-      button.classList.toggle("active", button.dataset.page === page);
+      button.classList.toggle("active", button.dataset.page === nextPage);
     });
-    Planner.els.overviewPage.hidden = page !== "overview";
-    Planner.els.detailsPage.hidden = page !== "details";
-    Planner.els.policyPage.hidden = page !== "policy";
-    Planner.els.methodologyPage.hidden = page !== "methodology";
+    Planner.els.overviewPage.hidden = nextPage !== "overview";
+    Planner.els.detailsPage.hidden = nextPage !== "details";
+    Planner.els.policyPage.hidden = nextPage !== "policy";
+    Planner.els.methodologyPage.hidden = nextPage !== "methodology";
     if (Planner.state.results) Planner.renderCharts(Planner.state.results);
   }
 

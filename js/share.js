@@ -96,6 +96,18 @@
 
 
 
+  function normalizePage(page) {
+    return Planner.PAGE_IDS.includes(page) ? page : "overview";
+  }
+
+
+
+  function getPageFromUrl() {
+    return normalizePage(decodeQueryValue(getRawQueryParam("tab")));
+  }
+
+
+
   function normalizeRequiredNumber(value, label) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
@@ -137,7 +149,12 @@
 
   function buildShareUrl(scenario, seed) {
     const url = new URL(window.location.href);
-    return `${url.origin}${url.pathname}?p=${encodeSharePayload(scenario, seed)}`;
+    const parts = [`p=${encodeSharePayload(scenario, seed)}`];
+    const page = normalizePage(Planner.state.activePage);
+    if (page !== "overview") {
+      parts.push(`tab=${encodeURIComponent(page)}`);
+    }
+    return `${url.origin}${url.pathname}?${parts.join("&")}`;
   }
 
 
@@ -145,6 +162,31 @@
   function updateShareUrl(scenario, seed) {
     if (!window.history || typeof window.history.replaceState !== "function") return;
     window.history.replaceState(null, "", buildShareUrl(scenario, seed));
+  }
+
+
+
+  function updatePageUrl(page) {
+    if (!window.history || typeof window.history.replaceState !== "function") return;
+    window.history.replaceState(null, "", buildCurrentUrlWithPage(page));
+  }
+
+
+
+  function buildCurrentUrlWithPage(page) {
+    const url = new URL(window.location.href);
+    const nextPage = normalizePage(page);
+    const query = window.location.search.startsWith("?")
+      ? window.location.search.slice(1)
+      : window.location.search;
+    const pairs = query
+      ? query.split("&").filter((pair) => pair && getQueryKey(pair) !== "tab")
+      : [];
+    if (nextPage !== "overview") {
+      pairs.push(`tab=${encodeURIComponent(nextPage)}`);
+    }
+    const search = pairs.length ? `?${pairs.join("&")}` : "";
+    return `${url.origin}${url.pathname}${search}${url.hash}`;
   }
 
 
@@ -302,6 +344,24 @@
 
 
 
+  function getQueryKey(pair) {
+    const separatorIndex = pair.indexOf("=");
+    return decodeQueryValue(separatorIndex === -1 ? pair : pair.slice(0, separatorIndex));
+  }
+
+
+
+  function decodeQueryValue(value) {
+    if (value === null) return null;
+    try {
+      return decodeURIComponent(value.replace(/\+/g, "%20"));
+    } catch (error) {
+      return null;
+    }
+  }
+
+
+
   async function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -346,10 +406,14 @@
     normalizeSharedFlow,
     normalizeSharedMode,
     normalizeBetaMode,
+    normalizePage,
+    getPageFromUrl,
     normalizeRequiredNumber,
     sharePlan,
     buildShareUrl,
     updateShareUrl,
+    updatePageUrl,
+    buildCurrentUrlWithPage,
     encodeSharePayload,
     decodeSharePayload,
     encodeBetaMode,
@@ -363,6 +427,8 @@
     encodeShareText,
     decodeShareText,
     getRawQueryParam,
+    getQueryKey,
+    decodeQueryValue,
     copyText,
     fallbackCopyText,
     setShareStatus

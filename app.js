@@ -487,6 +487,7 @@
     const sharedPlan = Planner.applySharedPlanFromUrl();
     Planner.bindEvents();
     Planner.resetDetailsControls();
+    Planner.switchPage(Planner.getPageFromUrl());
     Planner.updateRunState();
     await Planner.loadMarketData();
     Planner.updateRunState();
