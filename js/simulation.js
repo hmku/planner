@@ -287,11 +287,11 @@
 
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
-    const totalPolicyWork = years.length * wealthBuckets.length;
-    let completedPolicyWork = 0;
-    const onPolicyYearComplete = async (yearIndex, bucketCount) => {
-      completedPolicyWork += bucketCount;
-      onProgress((completedPolicyWork / Math.max(1, totalPolicyWork)) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
+    const policyBuilds = 2 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
+    let completedYearSteps = 0;
+    const onPolicyYearComplete = async (yearIndex) => {
+      completedYearSteps += 1;
+      onProgress((completedYearSteps / Math.max(1, policyBuilds * years.length)) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
       if (yearIndex % 4 === 0) {
         await Planner.yieldToBrowser();
       }
@@ -307,44 +307,16 @@
       onPolicyYearComplete
     });
     const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, "Minimum run-out risk", null, true)];
-    return {
-      betaValues: Planner.DYNAMIC_BETA_VALUES,
-      wealthBuckets,
-      frontier,
-      ...minRiskPolicy
-    };
-  }
-
-
-  async function buildDynamicBetaFrontier(results, returnRows, onProgress = () => {}, shouldCancel = () => false) {
-    const scenario = results.scenario;
-    const years = results.years;
-    const dynamicPolicy = results.dynamicPolicy;
-    if (!dynamicPolicy || scenario.betaMode !== Planner.BETA_MODE_DYNAMIC) return [];
-
-    const frontierWealthBuckets = buildDynamicFrontierWealthBuckets(scenario, years);
-    const frontierPolicyBuilds = 1 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
-    const totalPolicyWork = years.length * frontierPolicyBuilds * frontierWealthBuckets.length;
-    let completedPolicyWork = 0;
-    const onPolicyYearComplete = async (yearIndex, bucketCount) => {
-      completedPolicyWork += bucketCount;
-      onProgress(completedPolicyWork / Math.max(1, totalPolicyWork));
-      if (yearIndex % 4 === 0) {
-        await Planner.yieldToBrowser();
-      }
-    };
-
-    const frontier = [buildFrontierPoint(dynamicPolicy, scenario, dynamicPolicy.wealthBuckets, "Minimum run-out risk", null, true)];
     const maxWealthPolicy = await buildDynamicBetaPolicyForObjective({
       scenario,
       returnRows,
       years,
-      wealthBuckets: frontierWealthBuckets,
+      wealthBuckets,
       objective: { type: "riskPenalty", riskPenalty: 0, label: "Maximum expected wealth" },
       shouldCancel,
       onPolicyYearComplete
     });
-    const maxWealthPoint = buildFrontierPoint(maxWealthPolicy, scenario, frontierWealthBuckets, maxWealthPolicy.objective.label, 0, false);
+    const maxWealthPoint = buildFrontierPoint(maxWealthPolicy, scenario, wealthBuckets, maxWealthPolicy.objective.label, 0, false);
     addFrontierPoint(frontier, maxWealthPoint);
     const riskPenaltyScale = calibrateFrontierRiskPenaltyScale(frontier[0], maxWealthPoint, scenario);
 
@@ -354,7 +326,7 @@
         scenario,
         returnRows,
         years,
-        wealthBuckets: frontierWealthBuckets,
+        wealthBuckets,
         objective: {
           type: "riskPenalty",
           riskPenalty,
@@ -363,12 +335,16 @@
         shouldCancel,
         onPolicyYearComplete
       });
-      addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, frontierWealthBuckets, policy.objective.label, riskPenalty, false));
+      addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, wealthBuckets, policy.objective.label, riskPenalty, false));
     }
 
     frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
-    dynamicPolicy.frontier = frontier;
-    return frontier;
+    return {
+      betaValues: Planner.DYNAMIC_BETA_VALUES,
+      wealthBuckets,
+      frontier,
+      ...minRiskPolicy
+    };
   }
 
 
@@ -410,10 +386,8 @@
       const currentActionValues = new Array(wealthBuckets.length);
       const currentActionExpectedWealth = new Array(wealthBuckets.length);
       const currentPolicy = new Array(wealthBuckets.length);
-      let completedBucketsThisYear = 0;
 
       for (let bucketIndex = 0; bucketIndex < wealthBuckets.length; bucketIndex += 1) {
-        throwIfCanceled(shouldCancel);
         const startingWealth = wealthBuckets[bucketIndex];
         const actionValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
         const actionExpectedWealthValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
@@ -425,11 +399,6 @@
           currentValues[bucketIndex] = 1;
           currentExpectedWealth[bucketIndex] = 0;
           currentPolicy[bucketIndex] = 0;
-          completedBucketsThisYear += 1;
-          if (completedBucketsThisYear >= Planner.DYNAMIC_POLICY_BUCKET_CHUNK_SIZE) {
-            await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
-            completedBucketsThisYear = 0;
-          }
           continue;
         }
 
@@ -467,12 +436,6 @@
         currentActionValues[bucketIndex] = actionValues;
         currentActionExpectedWealth[bucketIndex] = actionExpectedWealthValues;
         currentPolicy[bucketIndex] = bestBeta;
-        completedBucketsThisYear += 1;
-
-        if (completedBucketsThisYear >= Planner.DYNAMIC_POLICY_BUCKET_CHUNK_SIZE) {
-          await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
-          completedBucketsThisYear = 0;
-        }
       }
 
       valueByYear[yearIndex] = currentValues;
@@ -482,9 +445,7 @@
       policyByYear[yearIndex] = currentPolicy;
       nextValues = currentValues;
       nextExpectedWealth = currentExpectedWealth;
-      if (completedBucketsThisYear > 0) {
-        await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
-      }
+      await onPolicyYearComplete(yearIndex);
     }
 
     return {
@@ -525,20 +486,14 @@
 
 
   function buildFrontierPoint(policy, scenario, wealthBuckets, label, riskPenalty, isMinRisk) {
-    const initialWealth = scenario.netWorth || 0;
-    const depletionRisk = initialWealth <= 0
-      ? policy.valueByYear[0]?.[0]
-      : interpolateBucketValue(wealthBuckets, policy.valueByYear[0] || [], initialWealth);
-    const expectedTerminalWealth = initialWealth <= 0
-      ? policy.expectedWealthByYear[0]?.[0]
-      : interpolateBucketValue(wealthBuckets, policy.expectedWealthByYear[0] || [], initialWealth);
+    const bucketIndex = nearestBucketIndex(wealthBuckets, scenario.netWorth);
     return {
       label,
       riskPenalty,
       isMinRisk,
-      depletionRisk,
-      expectedTerminalWealth,
-      currentBeta: selectDynamicBeta(policy, 0, initialWealth)
+      depletionRisk: policy.valueByYear[0]?.[bucketIndex] ?? null,
+      expectedTerminalWealth: policy.expectedWealthByYear[0]?.[bucketIndex] ?? null,
+      currentBeta: policy.policyByYear[0]?.[bucketIndex] ?? null
     };
   }
 
@@ -554,48 +509,18 @@
   }
 
 
-  function buildDynamicWealthBuckets(scenario, bucketCount = Planner.DYNAMIC_WEALTH_BUCKETS) {
+  function buildDynamicWealthBuckets(scenario) {
     const wealthCap = Math.max(Planner.DYNAMIC_MAX_WEALTH_BUCKET, scenario.netWorth);
-    const buckets = new Set([0]);
+    const buckets = [0];
     const minPositiveWealth = Planner.DYNAMIC_MIN_POSITIVE_WEALTH_BUCKET;
     const logMax = Math.log(wealthCap);
 
-    for (let index = 0; index < bucketCount; index += 1) {
-      const t = index / Math.max(1, bucketCount - 1);
-      buckets.add(minPositiveWealth * Math.exp(t * (logMax - Math.log(minPositiveWealth))));
+    for (let index = 0; index < Planner.DYNAMIC_WEALTH_BUCKETS; index += 1) {
+      const t = index / Math.max(1, Planner.DYNAMIC_WEALTH_BUCKETS - 1);
+      buckets.push(minPositiveWealth * Math.exp(t * (logMax - Math.log(minPositiveWealth))));
     }
 
-    return [...buckets].sort((a, b) => a - b);
-  }
-
-
-  function buildDynamicFrontierWealthBuckets(scenario, years) {
-    const anchors = buildFrontierWealthAnchors(scenario, years);
-    const buckets = new Set(buildDynamicWealthBuckets(scenario, Planner.DYNAMIC_FRONTIER_WEALTH_BUCKETS));
-    const wealthCap = Math.max(Planner.DYNAMIC_MAX_WEALTH_BUCKET, scenario.netWorth);
-    anchors.forEach((wealth) => {
-      if (Number.isFinite(wealth) && wealth > 0 && wealth <= wealthCap) {
-        buckets.add(wealth);
-      }
-    });
-    return [...buckets].sort((a, b) => a - b);
-  }
-
-
-  function buildFrontierWealthAnchors(scenario, years) {
-    const anchors = [];
-    const currentWealth = Math.max(0, scenario.netWorth || 0);
-    const currentWealthMultipliers = [0.1, 0.18, 0.25, 0.35, 0.5, 0.7, 0.85, 1, 1.15, 1.35, 1.7, 2.2, 3, 4.5, 7, 10, 15, 25, 40, 70, 120, 200];
-    currentWealthMultipliers.forEach((multiple) => anchors.push(currentWealth * multiple));
-
-    const maxAnnualOutflow = years.reduce((maxOutflow, year) => {
-      const netCashFlow = cashFlowForYear(scenario.income, year) - cashFlowForYear(scenario.expenses, year);
-      return Math.max(maxOutflow, Math.max(0, -netCashFlow));
-    }, 0);
-    const outflowMultipliers = [0.5, 1, 1.5, 2, 3, 5, 8, 12, 18, 25, 40, 65, 100, 160, 250, 400];
-    outflowMultipliers.forEach((multiple) => anchors.push(maxAnnualOutflow * multiple));
-
-    return anchors;
+    return buckets;
   }
 
 
@@ -683,7 +608,6 @@
     isCancellationError,
     throwIfCanceled,
     simulateScenario,
-    buildDynamicBetaFrontier,
     getWorstSurvivingPath,
     applyContinuousYear,
     wealthAtTime,
