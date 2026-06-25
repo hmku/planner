@@ -80,6 +80,7 @@
     if (Planner.state.activePage === "overview") {
       renderDistributionChart(Planner.els.distributionCanvas, results);
       renderNetWorthChart(Planner.els.pathsCanvas, results);
+      renderFrontierChart(Planner.els.frontierCanvas, results);
       renderBetaChart(Planner.els.betaCanvas, results);
       return;
     }
@@ -250,6 +251,78 @@
     ctx.restore();
     drawBetaChartLegend(ctx, width, padding);
     if (Planner.state.hover) drawBetaPathTooltip(ctx, Planner.state.hover, width, height);
+  }
+
+
+
+  function renderFrontierChart(canvas, results) {
+    const { ctx, width, height } = beginChart(canvas);
+    Planner.state.frontierHitPoints = [];
+    const rows = results.dynamicPolicy?.frontier || [];
+    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !rows.length) {
+      Planner.state.frontierHover = null;
+      drawEmptyState(ctx, width, height, "Run dynamic beta to compare risk and expected wealth policies.");
+      return;
+    }
+
+    const padding = { top: 28, right: 36, bottom: 58, left: 86 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const maxRisk = Math.max(0.01, ...rows.map((row) => row.depletionRisk || 0)) * 1.05;
+    const maxWealth = Math.max(1, ...rows.map((row) => row.expectedTerminalWealth || 0)) * 1.05;
+
+    drawAxes(ctx, padding, width, height, "Expected terminal wealth");
+    drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);
+    drawFrontierXLabels(ctx, padding, chartWidth, height, maxRisk);
+
+    const points = rows.map((row) => ({
+      row,
+      x: padding.left + (row.depletionRisk / maxRisk) * chartWidth,
+      y: padding.top + chartHeight - (row.expectedTerminalWealth / maxWealth) * chartHeight
+    }));
+    Planner.state.frontierHitPoints = points;
+
+    const hoverLabel = Planner.state.frontierHover?.point?.row.label;
+    const hoverPoint = hoverLabel
+      ? points.find((point) => point.row.label === hoverLabel)
+      : null;
+    if (hoverPoint) {
+      Planner.state.frontierHover.point = hoverPoint;
+    } else {
+      Planner.state.frontierHover = null;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+    ctx.clip();
+
+    ctx.strokeStyle = "#4f46e5";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+
+    points.forEach((point) => {
+      ctx.fillStyle = point.row.isMinRisk ? "#e11d48" : "#4f46e5";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, point.row.isMinRisk ? 5 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    if (Planner.state.frontierHover) {
+      drawFrontierHoverMarker(ctx, Planner.state.frontierHover, padding, chartWidth, chartHeight);
+    }
+    ctx.restore();
+
+    drawFrontierLegend(ctx, width, padding);
+    if (Planner.state.frontierHover) drawFrontierTooltip(ctx, Planner.state.frontierHover, width, height);
   }
 
 
@@ -728,6 +801,17 @@
 
 
 
+  function drawFrontierLegend(ctx, width, padding) {
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#e11d48";
+    ctx.fillText("Main min-risk policy", width - padding.right, 18);
+    ctx.fillStyle = "#4f46e5";
+    ctx.fillText("Risk-penalty policies", width - padding.right - 138, 18);
+  }
+
+
+
   function drawPathTooltip(ctx, hover, width, height) {
     Planner.drawFloatingTooltip(ctx, [
       `Ending: ${Planner.formatCurrency(hover.path.terminalWealth)}`,
@@ -778,6 +862,42 @@
       `Year: ${hover.point.year}`,
       `Net worth: ${Planner.formatCurrency(hover.point.wealth)}`
     ], hover.x, hover.y, width, height, 196);
+  }
+
+
+
+  function drawFrontierHoverMarker(ctx, hover, padding, chartWidth, chartHeight) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(79, 70, 229, 0.28)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(hover.point.x, padding.top);
+    ctx.lineTo(hover.point.x, padding.top + chartHeight);
+    ctx.moveTo(padding.left, hover.point.y);
+    ctx.lineTo(padding.left + chartWidth, hover.point.y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = "#e11d48";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+
+
+  function drawFrontierTooltip(ctx, hover, width, height) {
+    const row = hover.point.row;
+    Planner.drawFloatingTooltip(ctx, [
+      row.label,
+      `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
+      `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
+      `Current beta: ${Planner.formatBeta(row.currentBeta)}`
+    ], hover.x, hover.y, width, height, 252);
   }
 
 
@@ -838,6 +958,25 @@
       Planner.state.betaPathHitAreas,
       renderBetaChart
     );
+  }
+
+
+
+  function handleFrontierHover(event) {
+    if (!Planner.state.results || Planner.state.activePage !== "overview") return;
+
+    const rect = Planner.els.frontierCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const nearest = findNearestFrontierPoint(x, y);
+    const nextHover = nearest ? { point: nearest, x, y } : null;
+    const currentLabel = Planner.state.frontierHover?.point?.row.label ?? null;
+    const nextLabel = nextHover?.point?.row.label ?? null;
+
+    if (currentLabel !== nextLabel || nextHover) {
+      Planner.state.frontierHover = nextHover;
+      renderFrontierChart(Planner.els.frontierCanvas, Planner.state.results);
+    }
   }
 
 
@@ -944,6 +1083,35 @@
 
 
 
+  function findNearestFrontierPoint(x, y) {
+    const points = Planner.state.frontierHitPoints;
+    if (!points.length) return null;
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const point of points) {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = point;
+      }
+    }
+
+    for (let i = 1; i < points.length; i += 1) {
+      const distance = Planner.distanceToSegment(x, y, points[i - 1], points[i]);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
+        const distB = Math.hypot(x - points[i].x, y - points[i].y);
+        nearest = distA <= distB ? points[i - 1] : points[i];
+      }
+    }
+
+    return nearestDistance <= 18 ? nearest : null;
+  }
+
+
+
   function drawAxes(ctx, padding, width, height, yTitle) {
     ctx.strokeStyle = "#dfe3ee";
     ctx.lineWidth = 1;
@@ -1009,6 +1177,21 @@
 
 
 
+  function drawFrontierXLabels(ctx, padding, chartWidth, height, maxRisk) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 4; i += 1) {
+      const value = (maxRisk / 4) * i;
+      const x = padding.left + (chartWidth / 4) * i;
+      ctx.fillText(Planner.formatPolicyRiskPercent(value), x, height - 24);
+    }
+    ctx.textAlign = "right";
+    ctx.fillText("Run-out risk", padding.left + chartWidth, height - 8);
+  }
+
+
+
   function drawEndingPercentileLabels(ctx, results, padding, chartHeight, width, maxWealth) {
     const percentiles = [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
     ctx.fillStyle = "#6b7280";
@@ -1044,6 +1227,7 @@
     renderCharts,
     renderDistributionChart,
     renderNetWorthChart,
+    renderFrontierChart,
     renderBetaChart,
     renderSelectedSimulationChart,
     renderPolicyBucketPlot,
@@ -1052,6 +1236,7 @@
     updateNetWorthZoomLabel,
     handlePathHover,
     handleBetaPathHover,
+    handleFrontierHover,
     handleDetailChartHover,
     handlePolicyBucketHover
   });

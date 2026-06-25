@@ -192,13 +192,6 @@
   }
 
 
-  function normalizeRiskThreshold(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return 0;
-    return Math.max(0, Math.min(1, number));
-  }
-
-
   function yearToX(year, minYear, maxYear, padding, chartWidth) {
     return padding.left + ((year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
   }
@@ -254,7 +247,6 @@
     fitCanvas,
     clearCanvas,
     getYearSpan,
-    normalizeRiskThreshold,
     yearToX,
     drawFloatingTooltip,
     findNearestSegmentHit

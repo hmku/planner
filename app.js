@@ -7,6 +7,8 @@
     hover: null,
     pathHitAreas: [],
     betaPathHitAreas: [],
+    frontierHover: null,
+    frontierHitPoints: [],
     detailHover: null,
     detailHitPoints: [],
     policyBucketHover: null,
@@ -34,8 +36,6 @@
       betaMode: document.querySelector("#betaMode"),
       fixedBetaControl: document.querySelector("#fixedBetaControl"),
       spxBeta: document.querySelector("#spxBeta"),
-      dynamicRiskThresholdControl: document.querySelector("#dynamicRiskThresholdControl"),
-      dynamicRiskThreshold: document.querySelector("#dynamicRiskThreshold"),
       simulationCount: document.querySelector("#simulationCount"),
       incomeRows: document.querySelector("#incomeRows"),
       expenseRows: document.querySelector("#expenseRows"),
@@ -51,12 +51,14 @@
       dataSpanMetric: document.querySelector("#dataSpanMetric"),
       scenarioSummary: document.querySelector("#scenarioSummary"),
       netWorthSummary: document.querySelector("#netWorthSummary"),
+      frontierSummary: document.querySelector("#frontierSummary"),
       betaPathSummary: document.querySelector("#betaPathSummary"),
       netWorthZoom: document.querySelector("#netWorthZoom"),
       netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
       showDepleted: document.querySelector("#showDepleted"),
       distributionCanvas: document.querySelector("#distributionCanvas"),
       pathsCanvas: document.querySelector("#pathsCanvas"),
+      frontierCanvas: document.querySelector("#frontierCanvas"),
       betaCanvas: document.querySelector("#betaCanvas"),
       selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
       simulationSelect: document.querySelector("#simulationSelect"),
@@ -93,7 +95,6 @@
     Planner.els.netWorth.value = 1250000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = 0.8;
-    Planner.els.dynamicRiskThreshold.value = 0;
     Planner.els.simulationCount.value = 50000;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
@@ -157,6 +158,11 @@
     Planner.els.betaCanvas.addEventListener("mouseleave", () => {
       Planner.state.hover = null;
       if (Planner.state.results) Planner.renderBetaChart(Planner.els.betaCanvas, Planner.state.results);
+    });
+    Planner.els.frontierCanvas.addEventListener("mousemove", Planner.handleFrontierHover);
+    Planner.els.frontierCanvas.addEventListener("mouseleave", () => {
+      Planner.state.frontierHover = null;
+      if (Planner.state.results) Planner.renderFrontierChart(Planner.els.frontierCanvas, Planner.state.results);
     });
     Planner.els.selectedSimulationCanvas.addEventListener("mousemove", Planner.handleDetailChartHover);
     Planner.els.selectedSimulationCanvas.addEventListener("mouseleave", () => {
@@ -258,9 +264,6 @@
     Planner.els.fixedBetaControl.hidden = isDynamicBeta;
     Planner.els.spxBeta.disabled = isDynamicBeta;
     Planner.els.spxBeta.required = !isDynamicBeta;
-    Planner.els.dynamicRiskThresholdControl.hidden = !isDynamicBeta;
-    Planner.els.dynamicRiskThreshold.disabled = !isDynamicBeta;
-    Planner.els.dynamicRiskThreshold.required = isDynamicBeta;
   }
 
   function showProgress() {
@@ -361,7 +364,6 @@
       netWorth: Planner.numberFromInput(Planner.els.netWorth),
       betaMode: Planner.normalizeBetaMode(Planner.els.betaMode.value),
       spxBeta: Planner.numberFromInput(Planner.els.spxBeta),
-      dynamicRiskThreshold: Planner.numberFromInput(Planner.els.dynamicRiskThreshold),
       simulationCount: Planner.numberFromInput(Planner.els.simulationCount)
     };
 
@@ -382,12 +384,6 @@
     }
     if (scenario.betaMode === Planner.BETA_MODE_FIXED && !Number.isFinite(scenario.spxBeta)) {
       throw new Error("Enter a valid SPX beta.");
-    }
-    if (
-      scenario.betaMode === Planner.BETA_MODE_DYNAMIC &&
-      (!Number.isFinite(scenario.dynamicRiskThreshold) || scenario.dynamicRiskThreshold < 0 || scenario.dynamicRiskThreshold > 1)
-    ) {
-      throw new Error("Enter an acceptable depletion risk from 0 to 1.");
     }
     if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < Planner.MIN_SIMULATION_COUNT) {
       throw new Error(`Run at least ${Planner.formatNumber(Planner.MIN_SIMULATION_COUNT)} simulations.`);
@@ -433,6 +429,7 @@
     Planner.state.isRunning = true;
     Planner.state.cancelRequested = false;
     Planner.state.hover = null;
+    Planner.state.frontierHover = null;
     Planner.state.detailHover = null;
     Planner.state.policyBucketHover = null;
     showProgress();

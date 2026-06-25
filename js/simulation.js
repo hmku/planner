@@ -287,6 +287,67 @@
 
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
+    const policyBuilds = 1 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_MULTIPLIERS.length;
+    let completedYearSteps = 0;
+    const onPolicyYearComplete = async (yearIndex) => {
+      completedYearSteps += 1;
+      onProgress((completedYearSteps / Math.max(1, policyBuilds * years.length)) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
+      if (yearIndex % 4 === 0) {
+        await Planner.yieldToBrowser();
+      }
+    };
+
+    const minRiskPolicy = await buildDynamicBetaPolicyForObjective({
+      scenario,
+      returnRows,
+      years,
+      wealthBuckets,
+      objective: { type: "minRisk", label: "Minimum run-out risk" },
+      shouldCancel,
+      onPolicyYearComplete
+    });
+    const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, "Minimum run-out risk", null, true)];
+    const riskPenaltyScale = Math.max(1000000, scenario.netWorth || 0);
+
+    for (const multiplier of Planner.DYNAMIC_FRONTIER_RISK_PENALTY_MULTIPLIERS) {
+      const riskPenalty = multiplier * riskPenaltyScale;
+      const policy = await buildDynamicBetaPolicyForObjective({
+        scenario,
+        returnRows,
+        years,
+        wealthBuckets,
+        objective: {
+          type: "riskPenalty",
+          riskPenalty,
+          label: multiplier === 0
+            ? "Maximum expected wealth"
+            : `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}`
+        },
+        shouldCancel,
+        onPolicyYearComplete
+      });
+      addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, wealthBuckets, policy.objective.label, riskPenalty, false));
+    }
+
+    frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
+    return {
+      betaValues: Planner.DYNAMIC_BETA_VALUES,
+      wealthBuckets,
+      frontier,
+      ...minRiskPolicy
+    };
+  }
+
+
+  async function buildDynamicBetaPolicyForObjective({
+    scenario,
+    returnRows,
+    years,
+    wealthBuckets,
+    objective,
+    shouldCancel,
+    onPolicyYearComplete
+  }) {
     const valueByYear = new Array(years.length + 1);
     const expectedWealthByYear = new Array(years.length + 1);
     const actionValueByYear = new Array(years.length);
@@ -325,8 +386,6 @@
         let bestDepletionRisk = Number.POSITIVE_INFINITY;
         let bestExpectedWealth = Number.NEGATIVE_INFINITY;
         let bestBeta = Planner.DYNAMIC_BETA_VALUES[0];
-        let bestMeetsRiskThreshold = false;
-        const riskThreshold = Planner.normalizeRiskThreshold(scenario.dynamicRiskThreshold);
 
         Planner.DYNAMIC_BETA_VALUES.forEach((beta, betaIndex) => {
           let totalDepletionRisk = 0;
@@ -345,20 +404,8 @@
           const actionExpectedWealth = totalExpectedWealth / returnRows.length;
           actionValues[betaIndex] = actionDepletionRisk;
           actionExpectedWealthValues[betaIndex] = actionExpectedWealth;
-          const actionMeetsRiskThreshold = actionDepletionRisk <= riskThreshold + Planner.EPSILON;
 
-          if (actionMeetsRiskThreshold && !bestMeetsRiskThreshold) {
-            bestDepletionRisk = actionDepletionRisk;
-            bestExpectedWealth = actionExpectedWealth;
-            bestBeta = beta;
-            bestMeetsRiskThreshold = true;
-          } else if (actionMeetsRiskThreshold && bestMeetsRiskThreshold) {
-            if (isHigherExpectedWealthAction(actionExpectedWealth, actionDepletionRisk, bestExpectedWealth, bestDepletionRisk)) {
-              bestDepletionRisk = actionDepletionRisk;
-              bestExpectedWealth = actionExpectedWealth;
-              bestBeta = beta;
-            }
-          } else if (!bestMeetsRiskThreshold && isLowerRiskAction(actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth)) {
+          if (isBetterDynamicAction(objective, actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth)) {
             bestDepletionRisk = actionDepletionRisk;
             bestExpectedWealth = actionExpectedWealth;
             bestBeta = beta;
@@ -379,15 +426,11 @@
       policyByYear[yearIndex] = currentPolicy;
       nextValues = currentValues;
       nextExpectedWealth = currentExpectedWealth;
-      onProgress(((years.length - yearIndex) / years.length) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
-      if (yearIndex % 4 === 0) {
-        await Planner.yieldToBrowser();
-      }
+      await onPolicyYearComplete(yearIndex);
     }
 
     return {
-      betaValues: Planner.DYNAMIC_BETA_VALUES,
-      wealthBuckets,
+      objective,
       valueByYear,
       expectedWealthByYear,
       actionValueByYear,
@@ -397,12 +440,20 @@
   }
 
 
-  function isHigherExpectedWealthAction(actionExpectedWealth, actionDepletionRisk, bestExpectedWealth, bestDepletionRisk) {
-    if (actionExpectedWealth > bestExpectedWealth + Planner.EPSILON) return true;
-    return (
-      Math.abs(actionExpectedWealth - bestExpectedWealth) <= Planner.EPSILON &&
-      actionDepletionRisk < bestDepletionRisk - Planner.EPSILON
-    );
+  function isBetterDynamicAction(objective, actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth) {
+    if (!Number.isFinite(bestDepletionRisk) || !Number.isFinite(bestExpectedWealth)) return true;
+    if (objective.type === "riskPenalty") {
+      const actionScore = actionExpectedWealth - objective.riskPenalty * actionDepletionRisk;
+      const bestScore = bestExpectedWealth - objective.riskPenalty * bestDepletionRisk;
+      if (actionScore > bestScore + Planner.EPSILON) return true;
+      if (Math.abs(actionScore - bestScore) > Planner.EPSILON) return false;
+      if (actionDepletionRisk < bestDepletionRisk - Planner.EPSILON) return true;
+      return (
+        Math.abs(actionDepletionRisk - bestDepletionRisk) <= Planner.EPSILON &&
+        actionExpectedWealth > bestExpectedWealth + Planner.EPSILON
+      );
+    }
+    return isLowerRiskAction(actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth);
   }
 
 
@@ -412,6 +463,30 @@
       Math.abs(actionDepletionRisk - bestDepletionRisk) <= Planner.EPSILON &&
       actionExpectedWealth > bestExpectedWealth + Planner.EPSILON
     );
+  }
+
+
+  function buildFrontierPoint(policy, scenario, wealthBuckets, label, riskPenalty, isMinRisk) {
+    const bucketIndex = nearestBucketIndex(wealthBuckets, scenario.netWorth);
+    return {
+      label,
+      riskPenalty,
+      isMinRisk,
+      depletionRisk: policy.valueByYear[0]?.[bucketIndex] ?? null,
+      expectedTerminalWealth: policy.expectedWealthByYear[0]?.[bucketIndex] ?? null,
+      currentBeta: policy.policyByYear[0]?.[bucketIndex] ?? null
+    };
+  }
+
+
+  function addFrontierPoint(frontier, point) {
+    if (!Number.isFinite(point.depletionRisk) || !Number.isFinite(point.expectedTerminalWealth)) return;
+    const duplicate = frontier.some((existing) => (
+      Math.abs(existing.depletionRisk - point.depletionRisk) <= 0.00005 &&
+      Math.abs(existing.expectedTerminalWealth - point.expectedTerminalWealth) <= 1 &&
+      Math.abs((existing.currentBeta ?? 0) - (point.currentBeta ?? 0)) <= Planner.EPSILON
+    ));
+    if (!duplicate) frontier.push(point);
   }
 
 

@@ -12,6 +12,9 @@
     Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${Planner.formatNumber(simulations)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
+    Planner.els.frontierSummary.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy?.frontier?.length
+      ? `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`
+      : "Run dynamic beta to compare risk and expected terminal wealth policies.";
 
     renderSimulationSelect(results);
     renderSimulationPathTable(results);
@@ -54,7 +57,7 @@
   function updateScenarioSummary(results) {
     const simulations = results.scenario.simulationCount;
     const modeText = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-      ? `Dynamic beta used a causal annual bootstrap and year/wealth policy with ${Planner.formatPolicyRiskPercent(results.scenario.dynamicRiskThreshold)} acceptable depletion risk.`
+      ? "Dynamic beta used a causal annual bootstrap and minimum-run-out-risk year/wealth policy."
       : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} used annual historical return sampling.`;
     const depletedText = `${Planner.formatNumber(results.failureYears.length)} of ${Planner.formatNumber(simulations)} paths depleted (${Planner.formatPercent(results.risk)}).`;
     const notDepletedText = `${Planner.formatNumber(results.notDepletedCount)} paths did not deplete (${Planner.formatPercent(1 - results.risk)}).`;
@@ -157,7 +160,7 @@
     });
     const metricLabel = getPolicyMetricLabel(Planner.els.policyMetricSelect.value);
     Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs current wealth`;
-    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} scenario policy · acceptable depletion risk ${Planner.formatPolicyRiskPercent(results.scenario.dynamicRiskThreshold)} · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
+    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} minimum-run-out-risk policy · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
     renderPolicyBucketSelect(rows, currentBucketIndex);
     renderDynamicPolicyActionTable(results, yearIndex);
     Planner.renderPolicyBucketPlot(
@@ -553,6 +556,7 @@
     const nextPage = Planner.normalizePage(page);
     Planner.state.activePage = nextPage;
     Planner.state.hover = null;
+    Planner.state.frontierHover = null;
     Planner.state.detailHover = null;
     Planner.state.policyBucketHover = null;
     Planner.updatePageUrl(nextPage);

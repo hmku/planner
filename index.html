@@ -56,10 +56,6 @@
                 <span>SPX beta</span>
                 <input id="spxBeta" name="spxBeta" type="number" min="-3" max="3" step="0.05" required>
               </label>
-              <label id="dynamicRiskThresholdControl">
-                <span>Acceptable depletion risk</span>
-                <input id="dynamicRiskThreshold" name="dynamicRiskThreshold" type="number" min="0" max="1" step="0.001" required>
-              </label>
               <label>
                 <span>Simulations</span>
                 <input id="simulationCount" name="simulationCount" type="text" inputmode="numeric" data-format="integer" autocomplete="off" required>
@@ -146,6 +142,17 @@
               </div>
               <div class="canvas-wrap">
                 <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
+              </div>
+            </section>
+            <section
+              class="content-section"
+              data-section-header
+              data-title="Dynamic Beta Frontier"
+              data-summary-id="frontierSummary"
+              data-summary-text="Run dynamic beta to compare policy tradeoffs."
+            >
+              <div class="canvas-wrap">
+                <canvas id="frontierCanvas" width="980" height="360" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
               </div>
             </section>
             <section
@@ -341,7 +348,7 @@
                 </article>
                 <article>
                   <h3>Dynamic Beta</h3>
-                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the highest expected terminal wealth among choices at or below the acceptable depletion-risk threshold, and falls back to the lowest estimated depletion probability when no beta meets that threshold. Inspect Beta Policy shows per-beta alternatives, a visible wealth bucket plot through $1 billion, and a forced-beta path explorer.</p>
+                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. The Overview frontier compares additional risk-penalty policies by expected terminal wealth and run-out probability. Inspect Beta Policy shows per-beta alternatives, a visible wealth bucket plot through $1 billion, and a forced-beta path explorer.</p>
                 </article>
                 <article>
                   <h3>Cash Flows</h3>
