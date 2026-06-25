@@ -937,7 +937,7 @@
 
 
   function handleFrontierHover(event) {
-    if (!Planner.state.results || Planner.state.activePage !== "overview") return;
+    if (!Planner.state.results || Planner.state.activePage !== "frontier") return;
 
     const rect = Planner.els.frontierCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;

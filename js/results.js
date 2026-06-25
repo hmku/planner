@@ -4,8 +4,8 @@
     Planner.els.simulationSelect.disabled = false;
     Planner.els.downloadCsv.disabled = false;
     Planner.els.riskMetric.textContent = Planner.formatPercent(results.risk);
-    Planner.els.medianWealthMetric.textContent = Planner.formatCompactCurrency(results.medianTerminalWealth);
-    Planner.els.medianWealthMetric.title = Planner.formatCurrency(results.medianTerminalWealth);
+    Planner.els.medianWealthMetric.textContent = Planner.formatCompactCurrency(results.expectedTerminalWealth);
+    Planner.els.medianWealthMetric.title = Planner.formatCurrency(results.expectedTerminalWealth);
     Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
       ? "Current recommended SPX beta"
       : "Current SPX beta";

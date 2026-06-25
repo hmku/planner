@@ -171,6 +171,7 @@
     const notDepletedCount = failures.length - failureYears.length;
     const worstSurvivingPath = getWorstSurvivingPath(simulationRows);
     const terminalWealthSorted = [...terminalWealth].sort((a, b) => a - b);
+    const expectedTerminalWealth = terminalWealth.reduce((sum, wealth) => sum + wealth, 0) / Math.max(1, terminalWealth.length);
     const expectedPath = years.map((year, index) => ({
       year,
       wealth: wealthSums[index] / scenario.simulationCount
@@ -207,6 +208,7 @@
       risk: failureYears.length / failures.length,
       earliestFailureYear: failureYears.length ? Math.min(...failureYears) : null,
       worstSurvivingPath,
+      expectedTerminalWealth,
       medianTerminalWealth: Planner.percentile(terminalWealth, 0.5)
     };
   }

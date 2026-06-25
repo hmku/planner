@@ -280,11 +280,9 @@
     Planner.els.runFrontier.disabled = Planner.state.isFrontierRunning
       ? Planner.state.frontierCancelRequested
       : !canRunFrontier;
-    Planner.els.runFrontier.textContent = Planner.state.frontierCancelRequested
-      ? "Stopping"
-      : Planner.state.isFrontierRunning
-        ? "Stop"
-        : "Run Frontier";
+    Planner.els.runFrontier.textContent = Planner.state.isFrontierRunning
+      ? (Planner.state.frontierCancelRequested ? "Stopping" : "Stop")
+      : "Run Frontier";
     Planner.els.runFrontier.classList.toggle("is-running", Planner.state.isFrontierRunning);
   }
 
@@ -457,7 +455,7 @@
 
     Planner.state.isRunning = true;
     Planner.state.cancelRequested = false;
-    Planner.state.frontierCancelRequested = true;
+    Planner.state.frontierCancelRequested = Planner.state.isFrontierRunning;
     Planner.state.hover = null;
     Planner.state.frontierHover = null;
     Planner.state.detailHover = null;
