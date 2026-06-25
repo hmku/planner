@@ -287,7 +287,7 @@
 
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
-    const policyBuilds = 1 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_MULTIPLIERS.length;
+    const policyBuilds = 2 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
     let completedYearSteps = 0;
     const onPolicyYearComplete = async (yearIndex) => {
       completedYearSteps += 1;
@@ -307,10 +307,21 @@
       onPolicyYearComplete
     });
     const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, "Minimum run-out risk", null, true)];
-    const riskPenaltyScale = Math.max(1000000, scenario.netWorth || 0);
+    const maxWealthPolicy = await buildDynamicBetaPolicyForObjective({
+      scenario,
+      returnRows,
+      years,
+      wealthBuckets,
+      objective: { type: "riskPenalty", riskPenalty: 0, label: "Maximum expected wealth" },
+      shouldCancel,
+      onPolicyYearComplete
+    });
+    const maxWealthPoint = buildFrontierPoint(maxWealthPolicy, scenario, wealthBuckets, maxWealthPolicy.objective.label, 0, false);
+    addFrontierPoint(frontier, maxWealthPoint);
+    const riskPenaltyScale = calibrateFrontierRiskPenaltyScale(frontier[0], maxWealthPoint, scenario);
 
-    for (const multiplier of Planner.DYNAMIC_FRONTIER_RISK_PENALTY_MULTIPLIERS) {
-      const riskPenalty = multiplier * riskPenaltyScale;
+    for (const factor of Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS) {
+      const riskPenalty = factor * riskPenaltyScale;
       const policy = await buildDynamicBetaPolicyForObjective({
         scenario,
         returnRows,
@@ -319,9 +330,7 @@
         objective: {
           type: "riskPenalty",
           riskPenalty,
-          label: multiplier === 0
-            ? "Maximum expected wealth"
-            : `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}`
+          label: `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}`
         },
         shouldCancel,
         onPolicyYearComplete
@@ -336,6 +345,16 @@
       frontier,
       ...minRiskPolicy
     };
+  }
+
+
+  function calibrateFrontierRiskPenaltyScale(minRiskPoint, maxWealthPoint, scenario) {
+    const riskRange = Math.abs((maxWealthPoint.depletionRisk || 0) - (minRiskPoint.depletionRisk || 0));
+    const wealthRange = Math.abs((maxWealthPoint.expectedTerminalWealth || 0) - (minRiskPoint.expectedTerminalWealth || 0));
+    if (riskRange > Planner.EPSILON && wealthRange > 1) {
+      return wealthRange / riskRange;
+    }
+    return Math.max(1000000, scenario.netWorth || 0, maxWealthPoint.expectedTerminalWealth || 0);
   }
 
 

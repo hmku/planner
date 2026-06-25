@@ -268,17 +268,17 @@
     const padding = { top: 28, right: 36, bottom: 58, left: 86 };
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
-    const maxRisk = Math.max(0.01, ...rows.map((row) => row.depletionRisk || 0)) * 1.05;
-    const maxWealth = Math.max(1, ...rows.map((row) => row.expectedTerminalWealth || 0)) * 1.05;
+    const riskScale = paddedScale(rows.map((row) => row.depletionRisk), 0, 1, 0.08);
+    const wealthScale = paddedScale(rows.map((row) => row.expectedTerminalWealth), 0, Number.POSITIVE_INFINITY, 0.08);
 
     drawAxes(ctx, padding, width, height, "Expected terminal wealth");
-    drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);
-    drawFrontierXLabels(ctx, padding, chartWidth, height, maxRisk);
+    drawFrontierYLabels(ctx, padding, chartHeight, wealthScale);
+    drawFrontierXLabels(ctx, padding, chartWidth, height, riskScale);
 
     const points = rows.map((row) => ({
       row,
-      x: padding.left + (row.depletionRisk / maxRisk) * chartWidth,
-      y: padding.top + chartHeight - (row.expectedTerminalWealth / maxWealth) * chartHeight
+      x: valueToScaledX(row.depletionRisk, padding, chartWidth, riskScale),
+      y: valueToScaledY(row.expectedTerminalWealth, padding, chartHeight, wealthScale)
     }));
     Planner.state.frontierHitPoints = points;
 
@@ -1090,17 +1090,61 @@
 
 
 
-  function drawFrontierXLabels(ctx, padding, chartWidth, height, maxRisk) {
+  function drawFrontierYLabels(ctx, padding, chartHeight, scale) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 4; i += 1) {
+      const value = scale.min + ((scale.max - scale.min) / 4) * i;
+      const y = valueToScaledY(value, padding, chartHeight, scale);
+      ctx.fillText(Planner.formatCompactCurrency(value), padding.left - 10, y + 4);
+    }
+  }
+
+
+
+  function drawFrontierXLabels(ctx, padding, chartWidth, height, scale) {
     ctx.fillStyle = "#6b7280";
     ctx.font = "12px system-ui";
     ctx.textAlign = "center";
     for (let i = 0; i <= 4; i += 1) {
-      const value = (maxRisk / 4) * i;
-      const x = padding.left + (chartWidth / 4) * i;
+      const value = scale.min + ((scale.max - scale.min) / 4) * i;
+      const x = valueToScaledX(value, padding, chartWidth, scale);
       ctx.fillText(Planner.formatPolicyRiskPercent(value), x, height - 24);
     }
     ctx.textAlign = "right";
     ctx.fillText("Run-out risk", padding.left + chartWidth, height - 8);
+  }
+
+
+
+  function paddedScale(values, minLimit, maxLimit, paddingShare) {
+    const finiteValues = values.filter((value) => Number.isFinite(value));
+    const minValue = finiteValues.length ? Math.min(...finiteValues) : minLimit;
+    const maxValue = finiteValues.length ? Math.max(...finiteValues) : minLimit + 1;
+    const span = Math.max(0.000001, maxValue - minValue);
+    const padding = span * paddingShare;
+    let min = Math.max(minLimit, minValue - padding);
+    let max = Math.min(maxLimit, maxValue + padding);
+    if (max - min < 0.000001) {
+      const fallbackPadding = Math.max(0.000001, Math.abs(maxValue || 1) * paddingShare);
+      min = Math.max(minLimit, minValue - fallbackPadding);
+      max = Math.min(maxLimit, maxValue + fallbackPadding);
+    }
+    if (max <= min) max = min + 0.000001;
+    return { min, max };
+  }
+
+
+
+  function valueToScaledX(value, padding, chartWidth, scale) {
+    return padding.left + ((value - scale.min) / Math.max(0.000001, scale.max - scale.min)) * chartWidth;
+  }
+
+
+
+  function valueToScaledY(value, padding, chartHeight, scale) {
+    return padding.top + chartHeight - ((value - scale.min) / Math.max(0.000001, scale.max - scale.min)) * chartHeight;
   }
 
 
