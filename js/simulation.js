@@ -388,8 +388,10 @@
       const currentActionValues = new Array(wealthBuckets.length);
       const currentActionExpectedWealth = new Array(wealthBuckets.length);
       const currentPolicy = new Array(wealthBuckets.length);
+      let completedBucketsThisYear = 0;
 
       for (let bucketIndex = 0; bucketIndex < wealthBuckets.length; bucketIndex += 1) {
+        throwIfCanceled(shouldCancel);
         const startingWealth = wealthBuckets[bucketIndex];
         const actionValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
         const actionExpectedWealthValues = new Array(Planner.DYNAMIC_BETA_VALUES.length);
@@ -401,6 +403,11 @@
           currentValues[bucketIndex] = 1;
           currentExpectedWealth[bucketIndex] = 0;
           currentPolicy[bucketIndex] = 0;
+          completedBucketsThisYear += 1;
+          if (completedBucketsThisYear >= Planner.DYNAMIC_POLICY_BUCKET_CHUNK_SIZE) {
+            await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
+            completedBucketsThisYear = 0;
+          }
           continue;
         }
 
@@ -438,6 +445,12 @@
         currentActionValues[bucketIndex] = actionValues;
         currentActionExpectedWealth[bucketIndex] = actionExpectedWealthValues;
         currentPolicy[bucketIndex] = bestBeta;
+        completedBucketsThisYear += 1;
+
+        if (completedBucketsThisYear >= Planner.DYNAMIC_POLICY_BUCKET_CHUNK_SIZE) {
+          await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
+          completedBucketsThisYear = 0;
+        }
       }
 
       valueByYear[yearIndex] = currentValues;
@@ -447,7 +460,9 @@
       policyByYear[yearIndex] = currentPolicy;
       nextValues = currentValues;
       nextExpectedWealth = currentExpectedWealth;
-      await onPolicyYearComplete(yearIndex, wealthBuckets.length);
+      if (completedBucketsThisYear > 0) {
+        await onPolicyYearComplete(yearIndex, completedBucketsThisYear);
+      }
     }
 
     return {
