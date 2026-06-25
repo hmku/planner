@@ -17,6 +17,7 @@
     isDirty: true,
     isRunning: false,
     cancelRequested: false,
+    frontierRunId: 0,
     inputVersion: 0,
     nextSimulationSeed: null,
     shareStatusTimer: null
@@ -428,6 +429,7 @@
 
     Planner.state.isRunning = true;
     Planner.state.cancelRequested = false;
+    Planner.state.frontierRunId += 1;
     Planner.state.hover = null;
     Planner.state.frontierHover = null;
     Planner.state.detailHover = null;
@@ -449,6 +451,7 @@
       Planner.state.isDirty = Planner.state.inputVersion !== runVersion;
       Planner.updateShareUrl(scenario, seed);
       Planner.renderResults(results);
+      scheduleDynamicFrontier(results);
     } catch (error) {
       Planner.els.scenarioSummary.textContent = Planner.isCancellationError(error)
         ? "Simulation stopped. Fix the inputs and run again."
@@ -460,6 +463,29 @@
       hideProgress();
       updateRunState();
     }
+  }
+
+  function scheduleDynamicFrontier(results) {
+    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
+    const frontierRunId = Planner.state.frontierRunId;
+    Planner.els.frontierSummary.textContent = "Calculating risk/wealth frontier in the background; the red point is the full-detail min-risk policy already used for this simulation.";
+
+    window.setTimeout(async () => {
+      try {
+        await Planner.buildDynamicBetaFrontier(
+          results,
+          Planner.state.marketData.returns,
+          () => {},
+          () => Planner.state.frontierRunId !== frontierRunId || Planner.state.results !== results
+        );
+        if (Planner.state.frontierRunId !== frontierRunId || Planner.state.results !== results) return;
+        Planner.els.frontierSummary.textContent = `Approximate risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the full-detail min-risk policy used for the simulation.`;
+        Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
+      } catch (error) {
+        if (Planner.isCancellationError(error) || Planner.state.frontierRunId !== frontierRunId) return;
+        Planner.els.frontierSummary.textContent = `Frontier unavailable: ${error.message}`;
+      }
+    }, 0);
   }
 
   function requestSimulationCancel() {
