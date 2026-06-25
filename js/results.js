@@ -13,7 +13,7 @@
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${Planner.formatNumber(simulations)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
     Planner.els.frontierSummary.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy?.frontier?.length
-      ? `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`
+      ? `Approximate risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the full-detail min-risk policy used for the simulation.`
       : "Run dynamic beta to compare risk and expected terminal wealth policies.";
 
     renderSimulationSelect(results);
