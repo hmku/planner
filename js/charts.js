@@ -316,9 +316,7 @@
       ctx.stroke();
     });
 
-    if (Planner.state.frontierHover) {
-      drawFrontierHoverMarker(ctx, Planner.state.frontierHover, padding, chartWidth, chartHeight);
-    }
+    if (Planner.state.frontierHover) drawCrosshairPoint(ctx, Planner.state.frontierHover.point, padding, chartWidth, chartHeight);
     ctx.restore();
 
     drawFrontierLegend(ctx, width, padding);
@@ -523,9 +521,7 @@
     });
 
     drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth);
-    if (Planner.state.policyBucketHover) {
-      drawPolicyBucketHoverMarker(ctx, Planner.state.policyBucketHover, padding, chartWidth, chartHeight);
-    }
+    if (Planner.state.policyBucketHover) drawCrosshairPoint(ctx, Planner.state.policyBucketHover.point, padding, chartWidth, chartHeight);
     ctx.restore();
     if (Planner.state.policyBucketHover) drawPolicyBucketTooltip(ctx, Planner.state.policyBucketHover, width, height);
   }
@@ -866,16 +862,16 @@
 
 
 
-  function drawFrontierHoverMarker(ctx, hover, padding, chartWidth, chartHeight) {
+  function drawCrosshairPoint(ctx, point, padding, chartWidth, chartHeight) {
     ctx.save();
     ctx.strokeStyle = "rgba(79, 70, 229, 0.28)";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(hover.point.x, padding.top);
-    ctx.lineTo(hover.point.x, padding.top + chartHeight);
-    ctx.moveTo(padding.left, hover.point.y);
-    ctx.lineTo(padding.left + chartWidth, hover.point.y);
+    ctx.moveTo(point.x, padding.top);
+    ctx.lineTo(point.x, padding.top + chartHeight);
+    ctx.moveTo(padding.left, point.y);
+    ctx.lineTo(padding.left + chartWidth, point.y);
     ctx.stroke();
     ctx.restore();
 
@@ -883,7 +879,7 @@
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
@@ -898,30 +894,6 @@
       `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
       `Current beta: ${Planner.formatBeta(row.currentBeta)}`
     ], hover.x, hover.y, width, height, 252);
-  }
-
-
-
-  function drawPolicyBucketHoverMarker(ctx, hover, padding, chartWidth, chartHeight) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(79, 70, 229, 0.28)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(hover.point.x, padding.top);
-    ctx.lineTo(hover.point.x, padding.top + chartHeight);
-    ctx.moveTo(padding.left, hover.point.y);
-    ctx.lineTo(padding.left + chartWidth, hover.point.y);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.fillStyle = "#e11d48";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
   }
 
 
@@ -968,7 +940,7 @@
     const rect = Planner.els.frontierCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const nearest = findNearestFrontierPoint(x, y);
+    const nearest = findNearestPointOnPolyline(Planner.state.frontierHitPoints, x, y);
     const nextHover = nearest ? { point: nearest, x, y } : null;
     const currentLabel = Planner.state.frontierHover?.point?.row.label ?? null;
     const nextLabel = nextHover?.point?.row.label ?? null;
@@ -987,7 +959,7 @@
     const rect = Planner.els.selectedSimulationCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const nearest = findNearestDetailPoint(x, y);
+    const nearest = findNearestPointOnPolyline(Planner.state.detailHitPoints, x, y);
     const nextHover = nearest ? { point: nearest, x, y } : null;
     const currentYear = Planner.state.detailHover ? Planner.state.detailHover.point.year : null;
     const nextYear = nextHover ? nextHover.point.year : null;
@@ -1006,7 +978,7 @@
     const rect = Planner.els.dynamicPolicyCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const nearest = findNearestPolicyBucketPoint(x, y);
+    const nearest = findNearestPointOnPolyline(Planner.state.policyBucketHitPoints, x, y);
     const nextHover = nearest ? { point: nearest, x, y } : null;
     const currentBucket = Planner.state.policyBucketHover?.point?.row.bucketIndex ?? null;
     const nextBucket = nextHover?.point?.row.bucketIndex ?? null;
@@ -1025,66 +997,7 @@
 
 
 
-  function findNearestDetailPoint(x, y) {
-    const points = Planner.state.detailHitPoints;
-    if (!points.length) return null;
-
-    let nearest = null;
-    let nearestDistance = Infinity;
-    for (const point of points) {
-      const distance = Math.hypot(x - point.x, y - point.y);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = point;
-      }
-    }
-
-    for (let i = 1; i < points.length; i += 1) {
-      const distance = Planner.distanceToSegment(x, y, points[i - 1], points[i]);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
-        const distB = Math.hypot(x - points[i].x, y - points[i].y);
-        nearest = distA <= distB ? points[i - 1] : points[i];
-      }
-    }
-
-    return nearestDistance <= 18 ? nearest : null;
-  }
-
-
-
-  function findNearestPolicyBucketPoint(x, y) {
-    const points = Planner.state.policyBucketHitPoints;
-    if (!points.length) return null;
-
-    let nearest = null;
-    let nearestDistance = Infinity;
-    for (const point of points) {
-      const distance = Math.hypot(x - point.x, y - point.y);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = point;
-      }
-    }
-
-    for (let i = 1; i < points.length; i += 1) {
-      const distance = Planner.distanceToSegment(x, y, points[i - 1], points[i]);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
-        const distB = Math.hypot(x - points[i].x, y - points[i].y);
-        nearest = distA <= distB ? points[i - 1] : points[i];
-      }
-    }
-
-    return nearestDistance <= 18 ? nearest : null;
-  }
-
-
-
-  function findNearestFrontierPoint(x, y) {
-    const points = Planner.state.frontierHitPoints;
+  function findNearestPointOnPolyline(points, x, y) {
     if (!points.length) return null;
 
     let nearest = null;
