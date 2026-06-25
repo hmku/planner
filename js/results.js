@@ -12,9 +12,13 @@
     Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${Planner.formatNumber(simulations)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
-    Planner.els.frontierSummary.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy?.frontier?.length
-      ? `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`
-      : "Run dynamic beta to compare risk and expected terminal wealth policies.";
+    if (results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy?.frontier?.length > 1) {
+      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`;
+    } else if (results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC) {
+      Planner.els.frontierSummary.textContent = "Run the frontier to compare risk-penalty policies against the main min-risk policy.";
+    } else {
+      Planner.els.frontierSummary.textContent = "Switch to dynamic beta and run a simulation before running the frontier.";
+    }
 
     renderSimulationSelect(results);
     renderSimulationPathTable(results);
@@ -566,6 +570,7 @@
     Planner.els.overviewPage.hidden = nextPage !== "overview";
     Planner.els.detailsPage.hidden = nextPage !== "details";
     Planner.els.policyPage.hidden = nextPage !== "policy";
+    Planner.els.frontierPage.hidden = nextPage !== "frontier";
     Planner.els.methodologyPage.hidden = nextPage !== "methodology";
     if (Planner.state.results) Planner.renderCharts(Planner.state.results);
   }

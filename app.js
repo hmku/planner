@@ -17,6 +17,8 @@
     isDirty: true,
     isRunning: false,
     cancelRequested: false,
+    isFrontierRunning: false,
+    frontierCancelRequested: false,
     inputVersion: 0,
     nextSimulationSeed: null,
     shareStatusTimer: null
@@ -52,6 +54,7 @@
       scenarioSummary: document.querySelector("#scenarioSummary"),
       netWorthSummary: document.querySelector("#netWorthSummary"),
       frontierSummary: document.querySelector("#frontierSummary"),
+      runFrontier: document.querySelector("#runFrontier"),
       betaPathSummary: document.querySelector("#betaPathSummary"),
       netWorthZoom: document.querySelector("#netWorthZoom"),
       netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
@@ -84,6 +87,7 @@
       overviewPage: document.querySelector("#overviewPage"),
       detailsPage: document.querySelector("#detailsPage"),
       policyPage: document.querySelector("#policyPage"),
+      frontierPage: document.querySelector("#frontierPage"),
       methodologyPage: document.querySelector("#methodologyPage")
     });
   }
@@ -106,6 +110,7 @@
 
   function bindEvents() {
     Planner.els.runSimulation.addEventListener("click", runSimulation);
+    Planner.els.runFrontier.addEventListener("click", runFrontier);
     Planner.els.sharePlan.addEventListener("click", Planner.sharePlan);
     Planner.els.form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -240,6 +245,9 @@
     if (!Planner.state.isRunning) {
       Planner.state.nextSimulationSeed = null;
     }
+    if (Planner.state.isFrontierRunning) {
+      Planner.state.frontierCancelRequested = true;
+    }
     if (!Planner.state.isDirty || Planner.state.isRunning) {
       Planner.state.inputVersion += 1;
     }
@@ -257,6 +265,27 @@
         ? "Stop"
         : "Run";
     Planner.els.runSimulation.classList.toggle("is-running", Planner.state.isRunning);
+    updateFrontierRunState();
+  }
+
+  function updateFrontierRunState() {
+    const canRunFrontier = Boolean(
+      Planner.state.marketData &&
+      Planner.state.results &&
+      Planner.state.results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC &&
+      Planner.state.results.dynamicPolicy &&
+      !Planner.state.isDirty &&
+      !Planner.state.isRunning
+    );
+    Planner.els.runFrontier.disabled = Planner.state.isFrontierRunning
+      ? Planner.state.frontierCancelRequested
+      : !canRunFrontier;
+    Planner.els.runFrontier.textContent = Planner.state.frontierCancelRequested
+      ? "Stopping"
+      : Planner.state.isFrontierRunning
+        ? "Stop"
+        : "Run Frontier";
+    Planner.els.runFrontier.classList.toggle("is-running", Planner.state.isFrontierRunning);
   }
 
   function updateBetaModeControls() {
@@ -428,6 +457,7 @@
 
     Planner.state.isRunning = true;
     Planner.state.cancelRequested = false;
+    Planner.state.frontierCancelRequested = true;
     Planner.state.hover = null;
     Planner.state.frontierHover = null;
     Planner.state.detailHover = null;
@@ -459,6 +489,55 @@
       Planner.state.cancelRequested = false;
       hideProgress();
       updateRunState();
+    }
+  }
+
+  async function runFrontier() {
+    if (Planner.state.isFrontierRunning) {
+      Planner.state.frontierCancelRequested = true;
+      updateFrontierRunState();
+      return;
+    }
+
+    const results = Planner.state.results;
+    if (
+      !Planner.state.marketData ||
+      !results ||
+      results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC ||
+      !results.dynamicPolicy ||
+      Planner.state.isDirty ||
+      Planner.state.isRunning
+    ) {
+      return;
+    }
+
+    Planner.state.isFrontierRunning = true;
+    Planner.state.frontierCancelRequested = false;
+    Planner.state.frontierHover = null;
+    Planner.els.frontierSummary.textContent = "Calculating dynamic beta frontier: 0%.";
+    updateFrontierRunState();
+    await Planner.yieldToBrowser();
+
+    try {
+      await Planner.buildDynamicBetaFrontier(
+        results,
+        Planner.state.marketData.returns,
+        (progress) => {
+          const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
+          Planner.els.frontierSummary.textContent = `Calculating dynamic beta frontier: ${percent}%.`;
+        },
+        () => Planner.state.frontierCancelRequested
+      );
+      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`;
+      Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
+    } catch (error) {
+      Planner.els.frontierSummary.textContent = Planner.isCancellationError(error)
+        ? "Frontier stopped."
+        : `Frontier unavailable: ${error.message}`;
+    } finally {
+      Planner.state.isFrontierRunning = false;
+      Planner.state.frontierCancelRequested = false;
+      updateFrontierRunState();
     }
   }
 

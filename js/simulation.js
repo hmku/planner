@@ -287,11 +287,10 @@
 
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
-    const policyBuilds = 2 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
     let completedYearSteps = 0;
     const onPolicyYearComplete = async (yearIndex) => {
       completedYearSteps += 1;
-      onProgress((completedYearSteps / Math.max(1, policyBuilds * years.length)) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
+      onProgress((completedYearSteps / Math.max(1, years.length)) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
       if (yearIndex % 4 === 0) {
         await Planner.yieldToBrowser();
       }
@@ -306,6 +305,33 @@
       shouldCancel,
       onPolicyYearComplete
     });
+    const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, "Minimum run-out risk", null, true)];
+    return {
+      betaValues: Planner.DYNAMIC_BETA_VALUES,
+      wealthBuckets,
+      frontier,
+      ...minRiskPolicy
+    };
+  }
+
+
+  async function buildDynamicBetaFrontier(results, returnRows, onProgress = () => {}, shouldCancel = () => false) {
+    const scenario = results.scenario;
+    const years = results.years;
+    const minRiskPolicy = results.dynamicPolicy;
+    if (!minRiskPolicy || scenario.betaMode !== Planner.BETA_MODE_DYNAMIC) return [];
+
+    const wealthBuckets = minRiskPolicy.wealthBuckets;
+    const policyBuilds = 1 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
+    let completedYearSteps = 0;
+    const onPolicyYearComplete = async (yearIndex) => {
+      completedYearSteps += 1;
+      onProgress(completedYearSteps / Math.max(1, policyBuilds * years.length));
+      if (yearIndex % 4 === 0) {
+        await Planner.yieldToBrowser();
+      }
+    };
+
     const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, "Minimum run-out risk", null, true)];
     const maxWealthPolicy = await buildDynamicBetaPolicyForObjective({
       scenario,
@@ -339,12 +365,8 @@
     }
 
     frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
-    return {
-      betaValues: Planner.DYNAMIC_BETA_VALUES,
-      wealthBuckets,
-      frontier,
-      ...minRiskPolicy
-    };
+    minRiskPolicy.frontier = frontier;
+    return frontier;
   }
 
 
@@ -608,6 +630,7 @@
     isCancellationError,
     throwIfCanceled,
     simulateScenario,
+    buildDynamicBetaFrontier,
     getWorstSurvivingPath,
     applyContinuousYear,
     wealthAtTime,

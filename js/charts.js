@@ -80,7 +80,6 @@
     if (Planner.state.activePage === "overview") {
       renderDistributionChart(Planner.els.distributionCanvas, results);
       renderNetWorthChart(Planner.els.pathsCanvas, results);
-      renderFrontierChart(Planner.els.frontierCanvas, results);
       renderBetaChart(Planner.els.betaCanvas, results);
       return;
     }
@@ -90,6 +89,9 @@
     if (Planner.state.activePage === "policy") {
       if (Planner.renderDynamicPolicyTable) Planner.renderDynamicPolicyTable(results);
       renderPolicyPathChart(Planner.els.policyPathCanvas, results, results.policyPathExplorer);
+    }
+    if (Planner.state.activePage === "frontier") {
+      renderFrontierChart(Planner.els.frontierCanvas, results);
     }
   }
 

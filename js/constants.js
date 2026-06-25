@@ -10,7 +10,7 @@ Planner.MAX_SIMULATION_YEAR_ROWS = 12000000;
 Planner.MAX_SHARED_FLOWS = 100;
 Planner.BETA_MODE_FIXED = "fixed";
 Planner.BETA_MODE_DYNAMIC = "dynamic";
-Planner.PAGE_IDS = ["overview", "details", "policy", "methodology"];
+Planner.PAGE_IDS = ["overview", "details", "policy", "frontier", "methodology"];
 Planner.DYNAMIC_BETA_VALUES = Array.from({ length: 16 }, (_, index) => Number((index * 0.1).toFixed(1)));
 Planner.DYNAMIC_WEALTH_BUCKETS = 180;
 Planner.DYNAMIC_MIN_POSITIVE_WEALTH_BUCKET = 10000;
