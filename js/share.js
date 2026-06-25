@@ -26,7 +26,7 @@
     Planner.els.netWorth.value = sharedScenario.netWorth;
     Planner.els.betaMode.value = sharedScenario.betaMode;
     Planner.els.spxBeta.value = sharedScenario.spxBeta;
-    Planner.els.dynamicRiskThreshold.value = Planner.formatShareNumber(sharedScenario.dynamicRiskThreshold * 100);
+    Planner.els.dynamicRiskThreshold.value = Planner.formatShareNumber(sharedScenario.dynamicRiskThreshold);
     Planner.els.simulationCount.value = sharedScenario.simulationCount;
     Planner.updateBetaModeControls();
 

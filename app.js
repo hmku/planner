@@ -361,7 +361,7 @@
       netWorth: Planner.numberFromInput(Planner.els.netWorth),
       betaMode: Planner.normalizeBetaMode(Planner.els.betaMode.value),
       spxBeta: Planner.numberFromInput(Planner.els.spxBeta),
-      dynamicRiskThreshold: Planner.numberFromInput(Planner.els.dynamicRiskThreshold) / 100,
+      dynamicRiskThreshold: Planner.numberFromInput(Planner.els.dynamicRiskThreshold),
       simulationCount: Planner.numberFromInput(Planner.els.simulationCount)
     };
 
@@ -387,7 +387,7 @@
       scenario.betaMode === Planner.BETA_MODE_DYNAMIC &&
       (!Number.isFinite(scenario.dynamicRiskThreshold) || scenario.dynamicRiskThreshold < 0 || scenario.dynamicRiskThreshold > 1)
     ) {
-      throw new Error("Enter an acceptable depletion risk from 0% to 100%.");
+      throw new Error("Enter an acceptable depletion risk from 0 to 1.");
     }
     if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < Planner.MIN_SIMULATION_COUNT) {
       throw new Error(`Run at least ${Planner.formatNumber(Planner.MIN_SIMULATION_COUNT)} simulations.`);
