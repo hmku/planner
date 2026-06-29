@@ -96,8 +96,8 @@
   function setDefaults() {
     const currentYear = new Date().getFullYear();
     Planner.els.currentYear.value = currentYear;
-    Planner.els.deathYear.value = currentYear + 44;
-    Planner.els.netWorth.value = 1250000;
+    Planner.els.deathYear.value = currentYear + 60;
+    Planner.els.netWorth.value = 100000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = 0.8;
     Planner.els.simulationCount.value = 50000;

@@ -16,6 +16,8 @@ The planner lets you enter plan years, current net worth, beta mode, SPX beta, s
 - a scenario-level dynamic-beta policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
+By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, and `50,000` simulations.
+
 ## How It Works
 
 The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database.
