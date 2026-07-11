@@ -92,3 +92,35 @@ git diff --stat
 ```
 
 At the time this file was written, the environment did not have a headless Chrome binary installed, so browser smoke tests had to be manual.
+
+## Cursor Cloud specific instructions
+
+This repo has no package manager or build step — nothing to install beyond Python 3 and Node.js (Node is only used for `node --check` syntax validation).
+
+### Running the app
+
+Serve the project root over HTTP (required so `data/spx-annual-returns.json` can be fetched):
+
+```bash
+python3 -m http.server 8000
+```
+
+Open `http://127.0.0.1:8000/`. The **Run** button stays disabled until market data loads; once enabled, click **Run** to exercise the core Monte Carlo flow.
+
+### Lint / syntax checks
+
+There is no ESLint config. Use:
+
+```bash
+for f in js/*.js app.js; do node --check "$f"; done
+```
+
+### Browser testing
+
+Cloud agents can run the manual smoke test via the `computerUse` subagent against `http://127.0.0.1:8000/`. Default runs use 50,000 simulations, so the first **Run** may take several seconds while the progress bar advances.
+
+### Gotchas
+
+- Opening `index.html` via `file://` fails because the market-data JSON fetch requires HTTP.
+- Google Fonts load from CDN; offline environments may fall back to system fonts without breaking functionality.
+- Start the HTTP server from the repository root, not from a subdirectory.
