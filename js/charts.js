@@ -81,6 +81,9 @@
       renderDistributionChart(Planner.els.distributionCanvas, results);
       renderNetWorthChart(Planner.els.pathsCanvas, results);
       renderBetaChart(Planner.els.betaCanvas, results);
+      if (results.scenario.hedgeEnabled) {
+        renderHedgeCoverageChart(Planner.els.hedgeCoverageCanvas, results);
+      }
       return;
     }
     if (Planner.state.activePage === "details") {
@@ -255,6 +258,63 @@
     if (Planner.state.hover) drawBetaPathTooltip(ctx, Planner.state.hover, width, height);
   }
 
+
+
+  function renderHedgeCoverageChart(canvas, results) {
+    if (!canvas || !results.scenario.hedgeEnabled) return;
+    const { ctx, width, height } = beginChart(canvas);
+    Planner.state.hedgeCoveragePathHitAreas = Planner.state.hedgeCoveragePathHitAreas || [];
+    Planner.state.hedgeCoveragePathHitAreas.length = 0;
+
+    const padding = { top: 28, right: 36, bottom: 54, left: 70 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const { minYear, maxYear } = Planner.getYearSpan(results.scenario);
+    const maxCoverage = 1;
+    const hoverIndex = Planner.state.hover ? Planner.state.hover.index : null;
+
+    if (Planner.els.hedgeCoverageSummary) {
+      Planner.els.hedgeCoverageSummary.textContent = `Average optimized coverage for ${Planner.formatPercent(results.scenario.putStrikeDistance)} OTM one-year puts across active paths.`;
+    }
+
+    drawAxes(ctx, padding, width, height, "Put hedge coverage");
+    drawYProbabilityLabels(ctx, padding, chartHeight, maxCoverage);
+    drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
+    ctx.clip();
+
+    drawDownsampledPaths(
+      ctx,
+      Planner.state.hedgeCoveragePathHitAreas,
+      results.visualPaths,
+      padding,
+      chartWidth,
+      chartHeight,
+      minYear,
+      maxYear,
+      maxCoverage,
+      (path) => path.coveragePoints || [],
+      (point) => point.coverage,
+      hoverIndex
+    );
+    drawExpectedSeries(
+      ctx,
+      results.expectedCoveragePath || [],
+      padding,
+      chartWidth,
+      chartHeight,
+      minYear,
+      maxYear,
+      maxCoverage,
+      (point) => point.coverage
+    );
+    ctx.restore();
+    drawBetaChartLegend(ctx, width, padding);
+    if (Planner.state.hover) drawHedgeCoveragePathTooltip(ctx, Planner.state.hover, width, height);
+  }
 
 
   function renderFrontierChart(canvas, results) {
@@ -447,7 +507,8 @@
     results.years.forEach((year, yearIndex) => {
       const policyRow = policy.policyByYear[yearIndex] || [];
       visibleBuckets.forEach((bucket, visibleIndex) => {
-        const beta = policyRow[bucket.bucketIndex] ?? 0;
+        const action = policyRow[bucket.bucketIndex];
+        const beta = Number.isFinite(action?.beta) ? action.beta : (Number.isFinite(action) ? action : 0);
         const x = padding.left + yearIndex * cellWidth;
         const y = padding.top + chartHeight - (visibleIndex + 1) * cellHeight;
         ctx.fillStyle = policyBetaColor(beta);
@@ -831,6 +892,16 @@
 
 
 
+  function drawHedgeCoveragePathTooltip(ctx, hover, width, height) {
+    Planner.drawFloatingTooltip(ctx, [
+      `Simulation: ${Planner.formatNumber(hover.path.simulation)}`,
+      `Ending: ${Planner.formatCurrency(hover.path.terminalWealth)}`,
+      hover.path.failureYear ? `Depleted: ${hover.path.failureYear}` : "Not depleted"
+    ], hover.x, hover.y, width, height, 218);
+  }
+
+
+
   function drawDetailHover(ctx, hover, padding, width, height) {
     ctx.save();
     ctx.strokeStyle = "rgba(79, 70, 229, 0.35)";
@@ -890,24 +961,32 @@
 
   function drawFrontierTooltip(ctx, hover, width, height) {
     const row = hover.point.row;
-    Planner.drawFloatingTooltip(ctx, [
+    const lines = [
       row.label,
       `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
       `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
       `Current beta: ${Planner.formatBeta(row.currentBeta)}`
-    ], hover.x, hover.y, width, height, 252);
+    ];
+    if (Number.isFinite(row.currentHedgeCoverage)) {
+      lines.push(`Current coverage: ${Planner.formatCoverage(row.currentHedgeCoverage)}`);
+    }
+    Planner.drawFloatingTooltip(ctx, lines, hover.x, hover.y, width, height, 252);
   }
 
 
 
   function drawPolicyBucketTooltip(ctx, hover, width, height) {
     const row = hover.point.row;
-    Planner.drawFloatingTooltip(ctx, [
+    const lines = [
       `Wealth: ${Planner.formatCurrency(row.wealth)}`,
       `Optimal beta: ${Planner.formatBeta(row.beta)}`,
       `Depletion risk: ${Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk)}`,
       `Expected terminal: ${Planner.formatCompactCurrency(row.expectedTerminalWealth)}`
-    ], hover.x, hover.y, width, height, 238);
+    ];
+    if (Number.isFinite(row.hedgeCoverage)) {
+      lines.splice(2, 0, `Optimal coverage: ${Planner.formatCoverage(row.hedgeCoverage)}`);
+    }
+    Planner.drawFloatingTooltip(ctx, lines, hover.x, hover.y, width, height, 238);
   }
 
 
@@ -931,6 +1010,18 @@
       "overview",
       Planner.state.betaPathHitAreas,
       renderBetaChart
+    );
+  }
+
+
+
+  function handleHedgeCoveragePathHover(event) {
+    handleSeriesChartHover(
+      event,
+      Planner.els.hedgeCoverageCanvas,
+      "overview",
+      Planner.state.hedgeCoveragePathHitAreas || [],
+      renderHedgeCoverageChart
     );
   }
 
@@ -1188,6 +1279,7 @@
     renderNetWorthChart,
     renderFrontierChart,
     renderBetaChart,
+    renderHedgeCoverageChart,
     renderSelectedSimulationChart,
     renderPolicyBucketPlot,
     renderPolicyPathChart,
@@ -1195,6 +1287,7 @@
     updateNetWorthZoomLabel,
     handlePathHover,
     handleBetaPathHover,
+    handleHedgeCoveragePathHover,
     handleFrontierHover,
     handleDetailChartHover,
     handlePolicyBucketHover

@@ -6,18 +6,32 @@
     Planner.els.riskMetric.textContent = Planner.formatPercent(results.risk);
     Planner.els.medianWealthMetric.textContent = Planner.formatCompactCurrency(results.expectedTerminalWealth);
     Planner.els.medianWealthMetric.title = Planner.formatCurrency(results.expectedTerminalWealth);
-    Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-      ? "Current recommended SPX beta"
-      : "Current SPX beta";
-    Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
+    const currentAction = getCurrentAction(results);
+    if (results.scenario.hedgeEnabled) {
+      Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
+        ? "Current beta / put coverage"
+        : "Current beta / put coverage";
+      Planner.els.currentBetaMetric.textContent = `${Planner.formatBeta(currentAction.beta)} / ${Planner.formatCoverage(currentAction.hedgeCoverage)}`;
+    } else {
+      Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
+        ? "Current recommended SPX beta"
+        : "Current SPX beta";
+      Planner.els.currentBetaMetric.textContent = Planner.formatBeta(currentAction.beta);
+    }
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across all ${Planner.formatNumber(simulations)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths for hover inspection.`;
-    if (results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy?.frontier?.length > 1) {
-      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`;
-    } else if (results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC) {
+    if (Planner.els.hedgeCoverageSection) {
+      Planner.els.hedgeCoverageSection.hidden = !results.scenario.hedgeEnabled;
+    }
+    if (results.scenario.hedgeEnabled && Planner.els.hedgeCoverageSummary) {
+      Planner.els.hedgeCoverageSummary.textContent = `Average optimized put coverage for ${Planner.formatPercent(results.scenario.putStrikeDistance)} OTM one-year puts, with ${Planner.formatNumber(results.visualPaths.length)} downsampled paths.`;
+    }
+    if (results.dynamicPolicy?.frontier?.length > 1) {
+      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} policies; the red point is the main min-risk policy used for the simulation.`;
+    } else if (results.dynamicPolicy) {
       Planner.els.frontierSummary.textContent = "Run the frontier to compare risk-penalty policies against the main min-risk policy.";
     } else {
-      Planner.els.frontierSummary.textContent = "Switch to dynamic beta and run a simulation before running the frontier.";
+      Planner.els.frontierSummary.textContent = "Run a dynamic beta or hedged simulation before running the frontier.";
     }
 
     renderSimulationSelect(results);
@@ -40,20 +54,30 @@
     Planner.els.policyPathBeta.replaceChildren();
     Planner.els.policyPathReturnYear.replaceChildren();
     Planner.els.policyPathReturnYear.disabled = true;
-    Planner.els.policyPathTable.innerHTML = `<tr><td colspan="9">Run dynamic beta to inspect a policy path.</td></tr>`;
+    Planner.els.policyPathTable.innerHTML = `<tr><td colspan="11">Run dynamic beta to inspect a policy path.</td></tr>`;
     Planner.els.policyPathSummary.textContent = "Run dynamic beta to inspect a policy path.";
-    Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">Run dynamic beta to inspect beta alternatives.</td></tr>`;
+    Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="5">Run dynamic beta to inspect beta alternatives.</td></tr>`;
     Planner.els.dynamicPolicySummary.textContent = "Run dynamic beta to inspect the policy.";
     Planner.els.selectedSimulationSummary.textContent = "Run a simulation to inspect one path.";
+    if (Planner.els.hedgeCoverageSection) Planner.els.hedgeCoverageSection.hidden = true;
+  }
+
+
+
+  function getCurrentAction(results) {
+    if (!results.dynamicPolicy) {
+      return {
+        beta: results.scenario.spxBeta,
+        hedgeCoverage: results.scenario.hedgeEnabled ? 0 : 0
+      };
+    }
+    return Planner.selectDynamicAction(results.dynamicPolicy, results.scenario, 0, results.scenario.netWorth);
   }
 
 
 
   function getCurrentBeta(results) {
-    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) {
-      return results.scenario.spxBeta;
-    }
-    return Planner.selectDynamicBeta(results.dynamicPolicy, 0, results.scenario.netWorth);
+    return getCurrentAction(results).beta;
   }
 
 
@@ -63,12 +87,15 @@
     const modeText = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
       ? "Dynamic beta used a causal annual bootstrap and minimum-run-out-risk year/wealth policy."
       : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} used annual historical return sampling.`;
+    const hedgeText = results.scenario.hedgeEnabled
+      ? ` Downside puts struck ${Planner.formatPercent(results.scenario.putStrikeDistance)} below SPX used optimized annual coverage.`
+      : "";
     const depletedText = `${Planner.formatNumber(results.failureYears.length)} of ${Planner.formatNumber(simulations)} paths depleted (${Planner.formatPercent(results.risk)}).`;
     const notDepletedText = `${Planner.formatNumber(results.notDepletedCount)} paths did not deplete (${Planner.formatPercent(1 - results.risk)}).`;
     const chartText = Planner.els.showDepleted.checked
       ? "The chart shows only depleted paths, while probabilities still use all simulations as the denominator."
       : "The chart includes both depleted and not-depleted paths.";
-    Planner.els.scenarioSummary.textContent = `${modeText} ${depletedText} ${notDepletedText} ${chartText}`;
+    Planner.els.scenarioSummary.textContent = `${modeText}${hedgeText} ${depletedText} ${notDepletedText} ${chartText}`;
   }
 
 
@@ -98,6 +125,10 @@
     { render: (row) => Planner.formatPercent(row.nominalRiskFreeReturn) },
     { render: (row) => Planner.formatPercent(row.nominalSpxExcessReturn) },
     { render: (row) => Planner.formatBeta(row.spxBetaUsed) },
+    { render: (row) => Planner.formatCoverage(row.hedgeCoverageUsed) },
+    { render: (row) => Number.isFinite(row.putPremium) ? Planner.formatCurrency(row.putPremium) : "--" },
+    { render: (row) => Number.isFinite(row.putPayoffReal) ? Planner.formatCurrency(row.putPayoffReal) : "--" },
+    { render: (row) => Number.isFinite(row.putStrikeVolatility) ? Planner.formatPercent(row.putStrikeVolatility) : "--" },
     { render: (row) => Planner.formatPercent(row.inflation) },
     { render: (row) => Planner.formatPercent(row.realSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalPortfolioReturn) },
@@ -126,7 +157,7 @@
 
 
   function renderDynamicPolicyControls(results) {
-    const hasDynamicPolicy = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC && results.dynamicPolicy;
+    const hasDynamicPolicy = Boolean(results.dynamicPolicy);
     Planner.els.dynamicPolicySection.hidden = !hasDynamicPolicy;
     Planner.els.downloadPolicyCsv.disabled = !hasDynamicPolicy;
     if (!hasDynamicPolicy) return;
@@ -144,12 +175,12 @@
 
 
   function renderDynamicPolicyTable(results) {
-    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
+    if (!results.dynamicPolicy) return;
 
     const selectedYear = Number(Planner.els.policyYearSelect.value) || results.scenario.currentYear;
     const yearIndex = results.years.indexOf(selectedYear);
     if (yearIndex < 0) {
-      Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="4">No beta alternatives for this year.</td></tr>`;
+      Planner.els.dynamicPolicyActionTable.innerHTML = `<tr><td colspan="5">No beta alternatives for this year.</td></tr>`;
       Planner.renderPolicyBucketPlot(Planner.els.dynamicPolicyCanvas, results, [], "beta", null);
       return;
     }
@@ -164,7 +195,10 @@
     });
     const metricLabel = getPolicyMetricLabel(Planner.els.policyMetricSelect.value);
     Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs current wealth`;
-    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} minimum-run-out-risk policy · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
+    const hedgeNote = results.scenario.hedgeEnabled
+      ? ` · put strike ${Planner.formatPercent(results.scenario.putStrikeDistance)} OTM`
+      : "";
+    Planner.els.dynamicPolicySummary.textContent = `${selectedYear} minimum-run-out-risk policy${hedgeNote} · plotting ${metricLabel.toLowerCase()} across visible wealth buckets through ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; DP grid runs through ${Planner.formatCompactCurrency(results.dynamicPolicy.wealthBuckets[results.dynamicPolicy.wealthBuckets.length - 1])}.`;
     renderPolicyBucketSelect(rows, currentBucketIndex);
     renderDynamicPolicyActionTable(results, yearIndex);
     Planner.renderPolicyBucketPlot(
@@ -217,7 +251,7 @@
 
 
   function renderPolicyPathExplorer(results) {
-    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !results.dynamicPolicy) return;
+    if (!results.dynamicPolicy) return;
 
     const explorer = buildPolicyPathExplorer(results);
     results.policyPathExplorer = explorer;
@@ -238,11 +272,13 @@
     { render: (row) => row.year },
     { render: (row) => Planner.formatCurrency(row.startingWealth) },
     { render: (row) => Planner.formatBeta(row.beta) },
+    { render: (row) => Planner.formatCoverage(row.hedgeCoverage) },
     { render: (row) => row.returnLabel },
     { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
     { render: (row) => Planner.formatPercent(row.inflation) },
     { render: (row) => Planner.formatCurrency(row.endingWealth) },
     { render: (row) => Planner.formatBeta(row.nextPolicyBeta) },
+    { render: (row) => Planner.formatCoverage(row.nextPolicyHedgeCoverage) },
     { render: (row) => Planner.formatPolicyRiskPercent(row.nodeRisk) }
   ];
 
@@ -261,6 +297,9 @@
     const points = [{ year: results.scenario.currentYear, wealth: results.scenario.netWorth }];
     let wealth = results.scenario.netWorth;
     let depleted = false;
+    const overrideCoverage = results.scenario.hedgeEnabled
+      ? Planner.selectDynamicHedgeCoverage(results.dynamicPolicy, 0, results.scenario.netWorth)
+      : 0;
 
     for (let yearIndex = 0; yearIndex < overrideYears; yearIndex += 1) {
       const year = results.years[yearIndex];
@@ -268,9 +307,26 @@
       const expenses = Planner.cashFlowForYear(results.scenario.expenses, year);
       const netCashFlow = income - expenses;
       const returnMetrics = Planner.buildReturnMetrics(returnRow, overrideBeta);
+      const putContract = results.scenario.hedgeEnabled
+        ? Planner.buildPutContractMetrics({
+          returnRow,
+          strikeRatio: 1 - results.scenario.putStrikeDistance,
+          impliedVolByYear: results.scenario.impliedVolByYear || Planner.state.marketData?.impliedVolByYear,
+          fallbackImpliedVol: results.scenario.fallbackImpliedVol ?? Planner.state.marketData?.fallbackImpliedVol
+        })
+        : null;
       const yearResult = depleted
-        ? { startingWealth: 0, endingWealth: 0, depleted: true }
-        : Planner.applyContinuousYear(wealth, netCashFlow, returnMetrics.realGrowthFactor);
+        ? { startingWealth: 0, endingWealth: 0, depleted: true, putPremium: 0, putPayoffReal: 0, putNotional: 0 }
+        : results.scenario.hedgeEnabled
+          ? Planner.applyHedgedYear({
+            startingWealth: wealth,
+            netCashFlow,
+            returnMetrics,
+            putContract,
+            beta: overrideBeta,
+            hedgeCoverage: overrideCoverage
+          })
+          : Planner.applyContinuousYear(wealth, netCashFlow, returnMetrics.realGrowthFactor);
       wealth = yearResult.depleted ? 0 : yearResult.endingWealth;
       depleted = depleted || yearResult.depleted;
       const nextYearIndex = yearIndex + 1;
@@ -280,11 +336,13 @@
         year,
         startingWealth: yearResult.startingWealth,
         beta: overrideBeta,
+        hedgeCoverage: results.scenario.hedgeEnabled ? overrideCoverage : "",
         returnLabel,
         nominalSpxReturn: returnMetrics.nominalSpxReturn,
         inflation: returnMetrics.inflation,
         endingWealth: wealth,
         nextPolicyBeta: nodeMetrics.nextPolicyBeta,
+        nextPolicyHedgeCoverage: nodeMetrics.nextPolicyHedgeCoverage,
         nodeRisk: nodeMetrics.risk
       });
       points.push({ year: results.years[nextYearIndex] || year, wealth });
@@ -293,6 +351,7 @@
     const finalMetrics = getPolicyNodeMetrics(results, overrideYears, wealth, depleted);
     return {
       overrideBeta,
+      overrideCoverage,
       overrideYears,
       returnMode,
       returnRow,
@@ -304,6 +363,7 @@
       finalRisk: finalMetrics.risk,
       finalExpectedTerminalWealth: finalMetrics.expectedTerminalWealth,
       finalPolicyBeta: finalMetrics.nextPolicyBeta,
+      finalPolicyHedgeCoverage: finalMetrics.nextPolicyHedgeCoverage,
       depleted
     };
   }
@@ -315,21 +375,25 @@
       return {
         risk: 1,
         expectedTerminalWealth: 0,
-        nextPolicyBeta: null
+        nextPolicyBeta: null,
+        nextPolicyHedgeCoverage: null
       };
     }
     if (yearIndex >= results.years.length) {
       return {
         risk: 0,
         expectedTerminalWealth: wealth,
-        nextPolicyBeta: null
+        nextPolicyBeta: null,
+        nextPolicyHedgeCoverage: null
       };
     }
     const policy = results.dynamicPolicy;
+    const action = Planner.selectDynamicAction(policy, results.scenario, yearIndex, wealth);
     return {
       risk: Planner.interpolateBucketValue(policy.wealthBuckets, policy.valueByYear[yearIndex], wealth),
       expectedTerminalWealth: Planner.interpolateBucketValue(policy.wealthBuckets, policy.expectedWealthByYear[yearIndex], wealth),
-      nextPolicyBeta: Planner.selectDynamicBeta(policy, yearIndex, wealth)
+      nextPolicyBeta: action.beta,
+      nextPolicyHedgeCoverage: action.hedgeCoverage
     };
   }
 
@@ -395,7 +459,7 @@
 
   function buildPolicyPathSummary(explorer) {
     const finalBeta = Number.isFinite(explorer.finalPolicyBeta)
-      ? `policy resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
+      ? `policy resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}${Number.isFinite(explorer.finalPolicyHedgeCoverage) ? ` / coverage ${Planner.formatCoverage(explorer.finalPolicyHedgeCoverage)}` : ""}`
       : "the plan horizon is reached";
     return `Force beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years using ${explorer.returnLabel.toLowerCase()} returns; ${finalBeta}. Final node: ${Planner.formatCurrency(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} depletion risk, ${Planner.formatCurrency(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
   }
@@ -404,6 +468,7 @@
 
   const POLICY_ACTION_TABLE_COLUMNS = [
     { render: (row) => Planner.formatBeta(row.beta) },
+    { render: (row) => Planner.formatCoverage(row.hedgeCoverage) },
     { render: (row) => Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk) },
     { render: (row) => Planner.formatCurrency(row.expectedTerminalWealth) },
     { render: (row) => row.isRecommended ? "Recommended" : "--" }
@@ -416,7 +481,7 @@
       Planner.els.dynamicPolicyActionTable,
       POLICY_ACTION_TABLE_COLUMNS,
       rows,
-      "No beta alternatives for this bucket."
+      "No action alternatives for this bucket."
     );
   }
 
@@ -427,31 +492,41 @@
     const policyRow = policy.policyByYear[yearIndex] || [];
     const valueRow = policy.valueByYear[yearIndex] || [];
     const expectedWealthRow = policy.expectedWealthByYear[yearIndex] || [];
-    return policy.wealthBuckets.map((wealth, bucketIndex) => ({
-      year: results.years[yearIndex],
-      bucketIndex,
-      wealth,
-      beta: policyRow[bucketIndex],
-      estimatedDepletionRisk: valueRow[bucketIndex],
-      expectedTerminalWealth: expectedWealthRow[bucketIndex]
-    }));
+    return policy.wealthBuckets.map((wealth, bucketIndex) => {
+      const action = policyRow[bucketIndex];
+      return {
+        year: results.years[yearIndex],
+        bucketIndex,
+        wealth,
+        beta: Number.isFinite(action?.beta) ? action.beta : action,
+        hedgeCoverage: Number.isFinite(action?.hedgeCoverage) ? action.hedgeCoverage : 0,
+        estimatedDepletionRisk: valueRow[bucketIndex],
+        expectedTerminalWealth: expectedWealthRow[bucketIndex]
+      };
+    });
   }
 
 
   function getDynamicPolicyActionRows(results, yearIndex, bucketIndex) {
     const policy = results.dynamicPolicy;
+    const actions = policy.actions || Planner.buildPolicyActions(results.scenario);
     const actionRiskRow = policy.actionValueByYear?.[yearIndex]?.[bucketIndex] || [];
     const actionExpectedWealthRow = policy.actionExpectedWealthByYear?.[yearIndex]?.[bucketIndex] || [];
-    const recommendedBeta = policy.policyByYear[yearIndex]?.[bucketIndex];
-    return policy.betaValues.map((beta, betaIndex) => ({
+    const recommendedAction = policy.policyByYear[yearIndex]?.[bucketIndex];
+    return actions.map((action, actionIndex) => ({
       year: results.years[yearIndex],
       bucketIndex,
       wealth: policy.wealthBuckets[bucketIndex],
-      beta,
-      recommendedBeta,
-      estimatedDepletionRisk: actionRiskRow[betaIndex],
-      expectedTerminalWealth: actionExpectedWealthRow[betaIndex],
-      isRecommended: Math.abs(beta - recommendedBeta) <= Planner.EPSILON
+      beta: action.beta,
+      hedgeCoverage: action.hedgeCoverage,
+      recommendedBeta: recommendedAction?.beta,
+      recommendedHedgeCoverage: recommendedAction?.hedgeCoverage,
+      estimatedDepletionRisk: actionRiskRow[actionIndex],
+      expectedTerminalWealth: actionExpectedWealthRow[actionIndex],
+      isRecommended: (
+        Math.abs(action.beta - (recommendedAction?.beta ?? Number.NaN)) <= Planner.EPSILON &&
+        Math.abs((action.hedgeCoverage || 0) - (recommendedAction?.hedgeCoverage || 0)) <= Planner.EPSILON
+      )
     }));
   }
 
@@ -478,6 +553,14 @@
       "risk_free_return",
       "spx_excess_return",
       "spx_beta_used",
+      "hedge_coverage_used",
+      "put_notional_current_dollars",
+      "put_premium_current_dollars",
+      "put_payoff_current_dollars",
+      "put_implied_vol",
+      "put_strike_volatility",
+      "put_implied_vol_source",
+      "used_fallback_implied_vol",
       "portfolio_nominal_return",
       "inflation",
       "real_spx_return",
@@ -506,6 +589,14 @@
         row.nominalRiskFreeReturn,
         row.nominalSpxExcessReturn,
         row.spxBetaUsed,
+        row.hedgeCoverageUsed,
+        row.putNotional,
+        row.putPremium,
+        row.putPayoffReal,
+        row.putImpliedVol,
+        row.putStrikeVolatility,
+        row.putImpliedVolSource,
+        row.usedFallbackImpliedVol === "" ? "" : (row.usedFallbackImpliedVol ? "yes" : "no"),
         row.nominalPortfolioReturn,
         row.inflation,
         row.realSpxReturn,
@@ -524,16 +615,18 @@
 
 
   function downloadPolicyCsv() {
-    if (!Planner.state.results || Planner.state.results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !Planner.state.results.dynamicPolicy) return;
+    if (!Planner.state.results || !Planner.state.results.dynamicPolicy) return;
     const headers = [
       "year",
       "bucket_index",
       "bucket_wealth_current_dollars",
       "evaluated_spx_beta",
+      "evaluated_hedge_coverage",
       "estimated_depletion_probability",
       "expected_terminal_wealth_current_dollars",
-      "is_recommended_beta",
+      "is_recommended_action",
       "recommended_spx_beta",
+      "recommended_hedge_coverage",
       "shown_in_table"
     ];
     const rows = Planner.state.results.years.flatMap((year, yearIndex) => (
@@ -543,10 +636,12 @@
           actionRow.bucketIndex,
           actionRow.wealth,
           actionRow.beta,
+          actionRow.hedgeCoverage,
           actionRow.estimatedDepletionRisk,
           actionRow.expectedTerminalWealth,
           actionRow.isRecommended ? "yes" : "no",
           actionRow.recommendedBeta,
+          actionRow.recommendedHedgeCoverage,
           actionRow.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET ? "yes" : "no"
         ])
       ))
@@ -579,6 +674,7 @@
   Object.assign(Planner, {
     renderResults,
     resetDetailsControls,
+    getCurrentAction,
     getCurrentBeta,
     updateScenarioSummary,
     renderSimulationSelect,

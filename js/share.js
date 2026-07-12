@@ -27,7 +27,10 @@
     Planner.els.betaMode.value = sharedScenario.betaMode;
     Planner.els.spxBeta.value = sharedScenario.spxBeta;
     Planner.els.simulationCount.value = sharedScenario.simulationCount;
+    Planner.els.hedgeEnabled.checked = Boolean(sharedScenario.hedgeEnabled);
+    Planner.els.putStrikeDistance.value = sharedScenario.putStrikeDistance;
     Planner.updateBetaModeControls();
+    Planner.updateHedgeControls();
 
     Planner.els.incomeRows.replaceChildren();
     Planner.els.expenseRows.replaceChildren();
@@ -51,6 +54,8 @@
       betaMode: normalizeBetaMode(scenario.betaMode),
       spxBeta: normalizeRequiredNumber(scenario.spxBeta, "SPX beta"),
       simulationCount: normalizeRequiredNumber(scenario.simulationCount, "simulation count"),
+      hedgeEnabled: Boolean(scenario.hedgeEnabled),
+      putStrikeDistance: normalizePutStrikeDistance(scenario.putStrikeDistance, scenario.hedgeEnabled),
       income: normalizeSharedFlows(scenario.income, "income"),
       expenses: normalizeSharedFlows(scenario.expenses, "expense")
     };
@@ -92,6 +97,20 @@
 
   function normalizeBetaMode(mode) {
     return mode === Planner.BETA_MODE_DYNAMIC ? Planner.BETA_MODE_DYNAMIC : Planner.BETA_MODE_FIXED;
+  }
+
+
+
+  function normalizePutStrikeDistance(value, hedgeEnabled) {
+    if (!hedgeEnabled) return Planner.DEFAULT_PUT_STRIKE_DISTANCE;
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      throw new Error("The shared put strike distance is invalid.");
+    }
+    if (number < Planner.MIN_PUT_STRIKE_DISTANCE || number > Planner.MAX_PUT_STRIKE_DISTANCE) {
+      throw new Error("The shared put strike distance is out of range.");
+    }
+    return number;
   }
 
 
@@ -200,6 +219,8 @@
       scenario.simulationCount
     ].map(Planner.formatShareNumber);
     plan.push(encodeBetaMode(scenario.betaMode));
+    plan.push(scenario.hedgeEnabled ? "h" : "n");
+    plan.push(Planner.formatShareNumber(scenario.putStrikeDistance || Planner.DEFAULT_PUT_STRIKE_DISTANCE));
 
     return [
       Planner.formatShareNumber(seed),
@@ -217,16 +238,21 @@
       throw new Error("The link format is not supported.");
     }
     const plan = parts[1].split(",");
-    if (plan.length !== 5 && plan.length !== 6 && plan.length !== 7) {
+    if (plan.length !== 5 && plan.length !== 6 && plan.length !== 7 && plan.length !== 8) {
       throw new Error("The shared scenario is missing.");
     }
+    const hedgeEnabled = plan.length >= 7 ? decodeHedgeEnabled(plan[6]) : false;
     const scenario = {
       currentYear: parseSharedNumber(plan[0], "current year"),
       deathYear: parseSharedNumber(plan[1], "death year"),
       netWorth: parseSharedNumber(plan[2], "current net worth"),
       spxBeta: parseSharedNumber(plan[3], "SPX beta"),
       simulationCount: parseSharedNumber(plan[4], "simulation count"),
-      betaMode: plan.length >= 6 ? decodeBetaMode(plan[5]) : Planner.BETA_MODE_FIXED
+      betaMode: plan.length >= 6 ? decodeBetaMode(plan[5]) : Planner.BETA_MODE_FIXED,
+      hedgeEnabled,
+      putStrikeDistance: plan.length >= 8
+        ? normalizePutStrikeDistance(parseSharedNumber(plan[7], "put strike distance"), hedgeEnabled)
+        : Planner.DEFAULT_PUT_STRIKE_DISTANCE
     };
     scenario.income = decodeSharedFlows(parts[2], "income", scenario);
     scenario.expenses = decodeSharedFlows(parts[3], "expense", scenario);
@@ -246,6 +272,12 @@
 
   function decodeBetaMode(value) {
     return value === "d" ? Planner.BETA_MODE_DYNAMIC : Planner.BETA_MODE_FIXED;
+  }
+
+
+
+  function decodeHedgeEnabled(value) {
+    return value === "h" || value === "1";
   }
 
 
@@ -406,6 +438,7 @@
     normalizeSharedFlow,
     normalizeSharedMode,
     normalizeBetaMode,
+    normalizePutStrikeDistance,
     normalizePage,
     getPageFromUrl,
     normalizeRequiredNumber,
@@ -418,6 +451,7 @@
     decodeSharePayload,
     encodeBetaMode,
     decodeBetaMode,
+    decodeHedgeEnabled,
     encodeSharedFlow,
     decodeSharedFlows,
     decodeSharedFlow,

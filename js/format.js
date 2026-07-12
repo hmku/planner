@@ -152,6 +152,11 @@
     }).format(value);
   }
 
+  function formatCoverage(value) {
+    if (value === null || value === "" || !Number.isFinite(value)) return "--";
+    return Planner.formatPercent(value);
+  }
+
   function formatShareNumber(value) {
     const text = String(Number(value));
     return text.startsWith("0.") ? text.slice(1) : text;
@@ -178,6 +183,7 @@
     formatPercent,
     formatPolicyRiskPercent,
     formatBeta,
+    formatCoverage,
     formatNumber
   });
 })(window.Planner = window.Planner || {});

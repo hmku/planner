@@ -1,0 +1,233 @@
+{
+  "name": "Annual start-of-year SPX implied volatility proxy from Cboe VIX",
+  "description": "First available Cboe VIX closing level of each calendar year, converted from percentage points to decimal annualized volatility. Used as an at-the-money volatility proxy for one-year European put pricing. Years before 1990 use the median of these observations as an explicit fallback.",
+  "source": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
+  "sourceName": "Cboe Volatility Index (VIX) historical daily closes",
+  "methodologyNotes": [
+    "VIX measures approximately 30-day expected SPX volatility, not one-year put implied volatility.",
+    "Each annual observation uses the first trading-day VIX close of that calendar year.",
+    "Values are stored as decimals (for example 0.1724 for a VIX close of 17.24).",
+    "Pre-1990 historical return years use fallbackImpliedVol because no official VIX history exists before 1990."
+  ],
+  "updated": "2026-07-12",
+  "fallbackImpliedVol": 0.18075,
+  "fallbackRule": "median of start-of-year VIX observations from 1990 through 2025",
+  "observations": [
+    {
+      "year": 1990,
+      "impliedVol": 0.1724,
+      "observationDate": "1990-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1991,
+      "impliedVol": 0.2662,
+      "observationDate": "1991-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1992,
+      "impliedVol": 0.1895,
+      "observationDate": "1992-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1993,
+      "impliedVol": 0.1336,
+      "observationDate": "1993-01-04",
+      "source": "vix"
+    },
+    {
+      "year": 1994,
+      "impliedVol": 0.1257,
+      "observationDate": "1994-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 1995,
+      "impliedVol": 0.1425,
+      "observationDate": "1995-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 1996,
+      "impliedVol": 0.1219,
+      "observationDate": "1996-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1997,
+      "impliedVol": 0.2114,
+      "observationDate": "1997-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1998,
+      "impliedVol": 0.2342,
+      "observationDate": "1998-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 1999,
+      "impliedVol": 0.2617,
+      "observationDate": "1999-01-04",
+      "source": "vix"
+    },
+    {
+      "year": 2000,
+      "impliedVol": 0.2421,
+      "observationDate": "2000-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2001,
+      "impliedVol": 0.2999,
+      "observationDate": "2001-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2002,
+      "impliedVol": 0.2271,
+      "observationDate": "2002-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2003,
+      "impliedVol": 0.2539,
+      "observationDate": "2003-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2004,
+      "impliedVol": 0.1822,
+      "observationDate": "2004-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2005,
+      "impliedVol": 0.1408,
+      "observationDate": "2005-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2006,
+      "impliedVol": 0.1114,
+      "observationDate": "2006-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2007,
+      "impliedVol": 0.1204,
+      "observationDate": "2007-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2008,
+      "impliedVol": 0.2317,
+      "observationDate": "2008-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2009,
+      "impliedVol": 0.3919,
+      "observationDate": "2009-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2010,
+      "impliedVol": 0.2004,
+      "observationDate": "2010-01-04",
+      "source": "vix"
+    },
+    {
+      "year": 2011,
+      "impliedVol": 0.1761,
+      "observationDate": "2011-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2012,
+      "impliedVol": 0.2297,
+      "observationDate": "2012-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2013,
+      "impliedVol": 0.1468,
+      "observationDate": "2013-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2014,
+      "impliedVol": 0.1423,
+      "observationDate": "2014-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2015,
+      "impliedVol": 0.1779,
+      "observationDate": "2015-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2016,
+      "impliedVol": 0.207,
+      "observationDate": "2016-01-04",
+      "source": "vix"
+    },
+    {
+      "year": 2017,
+      "impliedVol": 0.1285,
+      "observationDate": "2017-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2018,
+      "impliedVol": 0.0977,
+      "observationDate": "2018-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2019,
+      "impliedVol": 0.2322,
+      "observationDate": "2019-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2020,
+      "impliedVol": 0.1247,
+      "observationDate": "2020-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2021,
+      "impliedVol": 0.2697,
+      "observationDate": "2021-01-04",
+      "source": "vix"
+    },
+    {
+      "year": 2022,
+      "impliedVol": 0.166,
+      "observationDate": "2022-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2023,
+      "impliedVol": 0.229,
+      "observationDate": "2023-01-03",
+      "source": "vix"
+    },
+    {
+      "year": 2024,
+      "impliedVol": 0.132,
+      "observationDate": "2024-01-02",
+      "source": "vix"
+    },
+    {
+      "year": 2025,
+      "impliedVol": 0.1793,
+      "observationDate": "2025-01-02",
+      "source": "vix"
+    }
+  ]
+}

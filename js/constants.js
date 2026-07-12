@@ -19,6 +19,17 @@ Planner.DYNAMIC_MAX_WEALTH_BUCKET = 1000000000000;
 Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS = [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100];
 Planner.DYNAMIC_POLICY_PROGRESS_SHARE = 0.5;
 Planner.EPSILON = 0.000000001;
+Planner.DEFAULT_HEDGE_ENABLED = false;
+Planner.DEFAULT_PUT_STRIKE_DISTANCE = 0.2;
+Planner.MIN_PUT_STRIKE_DISTANCE = 0.05;
+Planner.MAX_PUT_STRIKE_DISTANCE = 0.5;
+Planner.HEDGE_COVERAGE_VALUES = Array.from({ length: 11 }, (_, index) => Number((index * 0.1).toFixed(1)));
+Planner.PUT_SKEW_SLOPE = -0.17;
+Planner.PUT_SKEW_CURVATURE = 0.02;
+Planner.PUT_SKEW_XI_MIN = -2;
+Planner.PUT_SKEW_XI_MAX = 0;
+Planner.MIN_PUT_STRIKE_VOLATILITY = 0.01;
+Planner.MAX_PUT_STRIKE_VOLATILITY = 2;
 Planner.DEFAULT_INCOME = [
   { name: "Salary", amount: 120000, startMode: "current", startYear: 2026, endMode: "fixed", endYear: 2045 }
 ];
