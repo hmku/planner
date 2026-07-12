@@ -8,9 +8,7 @@
     Planner.els.medianWealthMetric.title = Planner.formatCurrency(results.expectedTerminalWealth);
     const currentAction = getCurrentAction(results);
     if (results.scenario.hedgeEnabled) {
-      Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-        ? "Current beta / put coverage"
-        : "Current beta / put coverage";
+      Planner.els.currentBetaMetricLabel.textContent = "Current beta / put coverage";
       Planner.els.currentBetaMetric.textContent = `${Planner.formatBeta(currentAction.beta)} / ${Planner.formatCoverage(currentAction.hedgeCoverage)}`;
     } else {
       Planner.els.currentBetaMetricLabel.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
