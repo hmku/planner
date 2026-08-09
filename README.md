@@ -1,6 +1,6 @@
 # Financial Runway Planner
 
-A static browser-based financial planning simulator. The app estimates portfolio depletion risk by running Monte Carlo simulations from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
+A static browser-based financial planning simulator built around dynamic SPX-beta optimization. Rather than assuming one allocation throughout a plan, it uses backward dynamic programming to recommend an SPX beta for each year and wealth level, minimizing estimated portfolio-depletion risk and using expected terminal wealth to break ties. Its Monte Carlo simulations draw from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
 
 The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, annual income, and annual expenditures. It then shows:
 
