@@ -7,6 +7,7 @@
     hover: null,
     pathHitAreas: [],
     betaPathHitAreas: [],
+    hedgeCoveragePathHitAreas: [],
     frontierHover: null,
     frontierHitPoints: [],
     detailHover: null,
@@ -40,6 +41,9 @@
       fixedBetaControl: document.querySelector("#fixedBetaControl"),
       spxBeta: document.querySelector("#spxBeta"),
       simulationCount: document.querySelector("#simulationCount"),
+      hedgeEnabled: document.querySelector("#hedgeEnabled"),
+      putStrikeControl: document.querySelector("#putStrikeControl"),
+      putStrikeDistance: document.querySelector("#putStrikeDistance"),
       incomeRows: document.querySelector("#incomeRows"),
       expenseRows: document.querySelector("#expenseRows"),
       addIncome: document.querySelector("#addIncome"),
@@ -57,6 +61,8 @@
       frontierSummary: document.querySelector("#frontierSummary"),
       runFrontier: document.querySelector("#runFrontier"),
       betaPathSummary: document.querySelector("#betaPathSummary"),
+      hedgeCoverageSection: document.querySelector("#hedgeCoverageSection"),
+      hedgeCoverageSummary: document.querySelector("#hedgeCoverageSummary"),
       netWorthZoom: document.querySelector("#netWorthZoom"),
       netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
       showDepleted: document.querySelector("#showDepleted"),
@@ -64,6 +70,7 @@
       pathsCanvas: document.querySelector("#pathsCanvas"),
       frontierCanvas: document.querySelector("#frontierCanvas"),
       betaCanvas: document.querySelector("#betaCanvas"),
+      hedgeCoverageCanvas: document.querySelector("#hedgeCoverageCanvas"),
       selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
       simulationSelect: document.querySelector("#simulationSelect"),
       simulationPathTable: document.querySelector("#simulationPathTable"),
@@ -101,12 +108,15 @@
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = 0.8;
     Planner.els.simulationCount.value = 50000;
+    Planner.els.hedgeEnabled.checked = Planner.DEFAULT_HEDGE_ENABLED;
+    Planner.els.putStrikeDistance.value = Planner.DEFAULT_PUT_STRIKE_DISTANCE;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
     Planner.DEFAULT_EXPENSES.forEach((flow) => addFlowRow(Planner.els.expenseRows, flow));
     Planner.bindFormattedInputs(document);
     Planner.formatAllFormattedInputs(document);
     updateBetaModeControls();
+    updateHedgeControls();
   }
 
   function bindEvents() {
@@ -125,6 +135,7 @@
     Planner.els.form.addEventListener("input", markDirty);
     Planner.els.form.addEventListener("change", markDirty);
     Planner.els.betaMode.addEventListener("change", updateBetaModeControls);
+    Planner.els.hedgeEnabled.addEventListener("change", updateHedgeControls);
     [Planner.els.currentYear, Planner.els.deathYear].forEach((input) => {
       input.addEventListener("change", syncRelativeFlowYears);
     });
@@ -164,6 +175,11 @@
     Planner.els.betaCanvas.addEventListener("mouseleave", () => {
       Planner.state.hover = null;
       if (Planner.state.results) Planner.renderBetaChart(Planner.els.betaCanvas, Planner.state.results);
+    });
+    Planner.els.hedgeCoverageCanvas.addEventListener("mousemove", Planner.handleHedgeCoveragePathHover);
+    Planner.els.hedgeCoverageCanvas.addEventListener("mouseleave", () => {
+      Planner.state.hover = null;
+      if (Planner.state.results) Planner.renderHedgeCoverageChart(Planner.els.hedgeCoverageCanvas, Planner.state.results);
     });
     Planner.els.frontierCanvas.addEventListener("mousemove", Planner.handleFrontierHover);
     Planner.els.frontierCanvas.addEventListener("mouseleave", () => {
@@ -236,8 +252,29 @@
   }
 
   async function loadMarketData() {
-    const response = await fetch("data/spx-annual-returns.json");
-    Planner.state.marketData = await response.json();
+    const [returnsResponse, impliedVolResponse] = await Promise.all([
+      fetch("data/spx-annual-returns.json"),
+      fetch("data/spx-annual-implied-vol.json")
+    ]);
+    const returnsData = await returnsResponse.json();
+    const impliedVolData = await impliedVolResponse.json();
+    if (!Array.isArray(returnsData.returns) || !returnsData.returns.length) {
+      throw new Error("Historical return data is missing.");
+    }
+    if (!Array.isArray(impliedVolData.observations) || !Number.isFinite(impliedVolData.fallbackImpliedVol)) {
+      throw new Error("Implied volatility data is missing.");
+    }
+    const impliedVolByYear = new Map(
+      impliedVolData.observations
+        .filter((row) => Number.isFinite(row.year) && Number.isFinite(row.impliedVol))
+        .map((row) => [row.year, row.impliedVol])
+    );
+    Planner.state.marketData = {
+      ...returnsData,
+      impliedVol: impliedVolData,
+      impliedVolByYear,
+      fallbackImpliedVol: impliedVolData.fallbackImpliedVol
+    };
     const years = Planner.state.marketData.returns.map((entry) => entry.year);
     Planner.els.dataSpanMetric.textContent = `${Math.min(...years)}-${Math.max(...years)}`;
   }
@@ -273,8 +310,8 @@
     const canRunFrontier = Boolean(
       Planner.state.marketData &&
       Planner.state.results &&
-      Planner.state.results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC &&
       Planner.state.results.dynamicPolicy &&
+      Planner.scenarioNeedsPolicy(Planner.state.results.scenario) &&
       !Planner.state.isDirty &&
       !Planner.state.isRunning
     );
@@ -299,6 +336,13 @@
     Planner.els.fixedBetaControl.hidden = isDynamicBeta;
     Planner.els.spxBeta.disabled = isDynamicBeta;
     Planner.els.spxBeta.required = !isDynamicBeta;
+  }
+
+  function updateHedgeControls() {
+    const hedgeEnabled = Boolean(Planner.els.hedgeEnabled.checked);
+    Planner.els.putStrikeControl.hidden = !hedgeEnabled;
+    Planner.els.putStrikeDistance.disabled = !hedgeEnabled;
+    Planner.els.putStrikeDistance.required = hedgeEnabled;
   }
 
   function showProgress() {
@@ -399,7 +443,9 @@
       netWorth: Planner.numberFromInput(Planner.els.netWorth),
       betaMode: Planner.normalizeBetaMode(Planner.els.betaMode.value),
       spxBeta: Planner.numberFromInput(Planner.els.spxBeta),
-      simulationCount: Planner.numberFromInput(Planner.els.simulationCount)
+      simulationCount: Planner.numberFromInput(Planner.els.simulationCount),
+      hedgeEnabled: Boolean(Planner.els.hedgeEnabled.checked),
+      putStrikeDistance: Planner.numberFromInput(Planner.els.putStrikeDistance)
     };
 
     if (!Number.isFinite(scenario.currentYear) || !Number.isFinite(scenario.deathYear)) {
@@ -430,6 +476,28 @@
     const simulationYearRows = scenario.simulationCount * planLength;
     if (simulationYearRows > Planner.MAX_SIMULATION_YEAR_ROWS) {
       throw new Error(`This run would create ${Planner.formatNumber(simulationYearRows)} detail rows. Reduce simulations or plan length below ${Planner.formatNumber(Planner.MAX_SIMULATION_YEAR_ROWS)} rows.`);
+    }
+    if (scenario.hedgeEnabled) {
+      if (!Number.isFinite(scenario.putStrikeDistance)) {
+        throw new Error("Enter a valid put strike distance.");
+      }
+      if (
+        scenario.putStrikeDistance < Planner.MIN_PUT_STRIKE_DISTANCE ||
+        scenario.putStrikeDistance > Planner.MAX_PUT_STRIKE_DISTANCE
+      ) {
+        throw new Error(
+          `Put strike distance must be between ${Planner.formatPercent(Planner.MIN_PUT_STRIKE_DISTANCE)} and ${Planner.formatPercent(Planner.MAX_PUT_STRIKE_DISTANCE)}.`
+        );
+      }
+      if (!Planner.state.marketData?.impliedVolByYear || !Number.isFinite(Planner.state.marketData.fallbackImpliedVol)) {
+        throw new Error("Implied volatility data is not loaded.");
+      }
+      scenario.impliedVolByYear = Planner.state.marketData.impliedVolByYear;
+      scenario.fallbackImpliedVol = Planner.state.marketData.fallbackImpliedVol;
+    } else {
+      scenario.putStrikeDistance = Planner.DEFAULT_PUT_STRIKE_DISTANCE;
+      scenario.impliedVolByYear = null;
+      scenario.fallbackImpliedVol = null;
     }
 
     scenario.income = readFlowRows(Planner.els.incomeRows, scenario);
@@ -513,8 +581,8 @@
     if (
       !Planner.state.marketData ||
       !results ||
-      results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC ||
       !results.dynamicPolicy ||
+      !Planner.scenarioNeedsPolicy(results.scenario) ||
       Planner.state.isDirty ||
       Planner.state.isRunning
     ) {
@@ -527,7 +595,7 @@
     Planner.state.frontierCancelRequested = false;
     Planner.state.frontierHover = null;
     results.dynamicPolicy.frontier = results.dynamicPolicy.frontier?.slice(0, 1) || [];
-    Planner.els.frontierSummary.textContent = "Calculating dynamic beta frontier: 0%.";
+    Planner.els.frontierSummary.textContent = "Calculating policy frontier: 0%.";
     Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
     updateFrontierRunState();
     await Planner.yieldToBrowser();
@@ -539,7 +607,7 @@
         (progress) => {
           const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
           if (Planner.state.frontierRunId !== frontierRunId) return;
-          Planner.els.frontierSummary.textContent = `Calculating dynamic beta frontier: ${percent}%.`;
+          Planner.els.frontierSummary.textContent = `Calculating policy frontier: ${percent}%.`;
         },
         () => (
           Planner.state.frontierRunId !== frontierRunId ||
@@ -548,7 +616,7 @@
         )
       );
       if (Planner.state.frontierRunId !== frontierRunId || Planner.state.results !== results) return;
-      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`;
+      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} policies; the red point is the main min-risk policy used for the simulation.`;
       Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
     } catch (error) {
       if (Planner.state.frontierRunId !== frontierRunId) return;
@@ -578,6 +646,7 @@
     markDirty,
     updateRunState,
     updateBetaModeControls,
+    updateHedgeControls,
     showProgress,
     hideProgress,
     setProgress,
