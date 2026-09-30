@@ -1,6 +1,6 @@
 (function (Planner) {
   function csvCell(value) {
-    const text = String(value);
+    const text = value === null || value === undefined ? "" : String(value);
     if (/[",\n]/.test(text)) {
       return `"${text.replaceAll('"', '""')}"`;
     }
@@ -8,9 +8,80 @@
   }
 
 
+  // Rows may be any iterable (including a generator), so large exports are built
+  // in chunks rather than as one giant string.
+  function downloadCsvFile(filename, headers, rows) {
+    const parts = [headers.map(csvCell).join(",")];
+    let chunk = [];
+    for (const row of rows) {
+      chunk.push(row.map(csvCell).join(","));
+      if (chunk.length === 5000) {
+        parts.push(`\n${chunk.join("\n")}`);
+        chunk = [];
+      }
+    }
+    if (chunk.length) parts.push(`\n${chunk.join("\n")}`);
+
+    const url = URL.createObjectURL(new Blob(parts, { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Revoking immediately can cancel the download before the browser reads the blob.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+
+  function populateSelect(select, items, { getValue, getLabel, previousValue, placeholder = null } = {}) {
+    if (placeholder || !items.length) {
+      const option = document.createElement("option");
+      option.value = placeholder?.value ?? "";
+      option.textContent = placeholder?.label ?? "None";
+      select.replaceChildren(option);
+      select.disabled = true;
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    const values = items.map((item, index) => String(getValue(item, index)));
+    items.forEach((item, index) => {
+      const option = document.createElement("option");
+      option.value = values[index];
+      option.textContent = getLabel(item, index);
+      fragment.appendChild(option);
+    });
+    select.replaceChildren(fragment);
+    select.disabled = false;
+
+    const nextValue = previousValue === null || previousValue === undefined ? values[0] : String(previousValue);
+    select.value = values.includes(nextValue) ? nextValue : values[0];
+  }
+
+
+  // Columns: { render(row) -> string, className? }. Rendered values are app-generated
+  // numbers and labels, never free-form user text.
+  function renderTableBody(tbody, columns, rows, emptyMessage, getRowClass = () => "") {
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td class="empty" colspan="${columns.length}">${emptyMessage}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map((row) => {
+      const rowClass = getRowClass(row);
+      const cells = columns.map((column) => {
+        const className = typeof column.className === "function" ? column.className(row) : column.className;
+        return className ? `<td class="${className}">${column.render(row)}</td>` : `<td>${column.render(row)}</td>`;
+      });
+      return `<tr${rowClass ? ` class="${rowClass}"` : ""}>${cells.join("")}</tr>`;
+    }).join("");
+  }
+
+
   function validatePlanYear(year, label) {
     if (!Number.isInteger(year) || year < Planner.MIN_PLAN_YEAR || year > Planner.MAX_PLAN_YEAR) {
-      throw new Error(`${label} must be between ${Planner.MIN_PLAN_YEAR} and ${Planner.MAX_PLAN_YEAR}.`);
+      throw new Error(`${label} must be a whole year between ${Planner.MIN_PLAN_YEAR} and ${Planner.MAX_PLAN_YEAR}.`);
     }
   }
 
@@ -30,6 +101,11 @@
 
   function range(start, end) {
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }
+
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
   }
 
 
@@ -57,6 +133,7 @@
   }
 
 
+  // mulberry32
   function createSeededRandom(seed) {
     let value = normalizeSeed(seed);
     return () => {
@@ -69,9 +146,9 @@
   }
 
 
-  function percentile(values, p) {
-    if (!values.length) return null;
-    const sorted = [...values].sort((a, b) => a - b);
+  // Linear-interpolated percentile of an already ascending-sorted array.
+  function percentileOfSorted(sorted, p) {
+    if (!sorted.length) return null;
     const index = (sorted.length - 1) * p;
     const lower = Math.floor(index);
     const upper = Math.ceil(index);
@@ -85,11 +162,41 @@
     let low = 0;
     let high = sortedValues.length;
     while (low < high) {
-      const mid = Math.floor((low + high) / 2);
+      const mid = (low + high) >>> 1;
       if (sortedValues[mid] <= value) low = mid + 1;
       else high = mid;
     }
     return (low - 1) / Math.max(1, sortedValues.length - 1);
+  }
+
+
+  // A round step (1, 2, 2.5, 5 x 10^n) giving roughly `count` intervals over `span`.
+  function niceStep(span, count) {
+    const raw = Math.max(Number.EPSILON, span) / Math.max(1, count);
+    const magnitude = 10 ** Math.floor(Math.log10(raw));
+    const normalized = raw / magnitude;
+    const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+    return factor * magnitude;
+  }
+
+
+  function niceTicks(min, max, count = 4, { integer = false } = {}) {
+    const upper = max > min ? max : min + 1;
+    let step = niceStep(upper - min, count);
+    if (integer) step = Math.max(1, Math.round(step));
+    const ticks = [];
+    for (let value = Math.ceil(min / step) * step; value <= upper + step * 1e-9; value += step) {
+      ticks.push(Number(value.toPrecision(12)));
+    }
+    return ticks;
+  }
+
+
+  // Zero-based axis rounded up to a nice maximum.
+  function niceZeroScale(max, count = 4) {
+    const step = niceStep(Math.max(max, Number.EPSILON), count);
+    const niceMax = Math.max(step, Math.ceil(max / step - 1e-9) * step);
+    return { max: niceMax, ticks: niceTicks(0, niceMax, Math.round(niceMax / step)) };
   }
 
 
@@ -98,10 +205,8 @@
     const dy = b.y - a.y;
     const lengthSquared = dx * dx + dy * dy;
     if (lengthSquared === 0) return Math.hypot(x - a.x, y - a.y);
-    const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared));
-    const projectionX = a.x + t * dx;
-    const projectionY = a.y + t * dy;
-    return Math.hypot(x - projectionX, y - projectionY);
+    const t = clamp(((x - a.x) * dx + (y - a.y) * dy) / lengthSquared, 0, 1);
+    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
   }
 
 
@@ -118,118 +223,10 @@
     }
     const ctx = canvas.getContext("2d");
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    return { width, height };
-  }
-
-
-  function clearCanvas(ctx, width, height) {
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#fcfdff";
-    ctx.fillRect(0, 0, width, height);
-  }
-
-
-  function downloadCsvFile(filename, headers, rows) {
-    const csv = [headers, ...rows]
-      .map((row) => row.map(csvCell).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-
-  function populateSelect(select, items, { getValue, getLabel, previousValue, placeholder = null } = {}) {
-    if (placeholder) {
-      const option = document.createElement("option");
-      option.value = placeholder.value ?? "";
-      option.textContent = placeholder.label;
-      select.replaceChildren(option);
-      select.disabled = Boolean(placeholder.disabled);
-      return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    items.forEach((item, index) => {
-      const option = document.createElement("option");
-      option.value = String(getValue(item, index));
-      option.textContent = getLabel(item, index);
-      fragment.appendChild(option);
-    });
-    select.replaceChildren(fragment);
-    select.disabled = false;
-
-    const fallbackValue = String(getValue(items[0], 0));
-    const nextValue = String(previousValue ?? fallbackValue);
-    select.value = items.some((item, index) => String(getValue(item, index)) === nextValue)
-      ? nextValue
-      : fallbackValue;
-  }
-
-
-  function renderTableBody(tbody, columns, rows, emptyMessage) {
-    if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="${columns.length}">${emptyMessage}</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = rows.map((row) => [
-      "<tr>",
-      ...columns.map((column) => `<td>${column.render(row)}</td>`),
-      "</tr>"
-    ].join("")).join("");
-  }
-
-
-  function getYearSpan(scenario) {
-    return { minYear: scenario.currentYear, maxYear: scenario.deathYear };
-  }
-
-
-  function yearToX(year, minYear, maxYear, padding, chartWidth) {
-    return padding.left + ((year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
-  }
-
-
-  function drawFloatingTooltip(ctx, lines, anchorX, anchorY, canvasWidth, canvasHeight, boxWidth) {
-    const boxHeight = 18 + lines.length * 20;
-    const x = Math.min(canvasWidth - boxWidth - 12, Math.max(12, anchorX + 14));
-    const y = Math.min(canvasHeight - boxHeight - 12, Math.max(12, anchorY - boxHeight - 12));
-
-    ctx.fillStyle = "rgba(26, 31, 46, 0.92)";
-    ctx.fillRect(x, y, boxWidth, boxHeight);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "13px system-ui";
-    ctx.textAlign = "left";
-    lines.forEach((line, index) => {
-      ctx.fillText(line, x + 12, y + 24 + index * 20);
-    });
-  }
-
-
-  function findNearestSegmentHit(hitAreas, x, y, threshold = 10) {
-    let nearest = null;
-    let nearestDistance = Infinity;
-    for (const area of hitAreas) {
-      for (let index = 1; index < area.points.length; index += 1) {
-        const distance = distanceToSegment(x, y, area.points[index - 1], area.points[index]);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearest = area;
-        }
-      }
-    }
-    return nearestDistance <= threshold ? nearest : null;
+    return { ctx, width, height };
   }
 
   Object.assign(Planner, {
-    csvCell,
     downloadCsvFile,
     populateSelect,
     renderTableBody,
@@ -237,18 +234,16 @@
     numberFromInput,
     yieldToBrowser,
     range,
+    clamp,
     randomIndex,
     generateSimulationSeed,
     normalizeSeed,
     createSeededRandom,
-    percentile,
+    percentileOfSorted,
     percentileRank,
+    niceTicks,
+    niceZeroScale,
     distanceToSegment,
-    fitCanvas,
-    clearCanvas,
-    getYearSpan,
-    yearToX,
-    drawFloatingTooltip,
-    findNearestSegmentHit
+    fitCanvas
   });
 })(window.Planner = window.Planner || {});

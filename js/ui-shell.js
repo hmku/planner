@@ -8,85 +8,46 @@
   }
 
 
-
-  function buildSectionHeader({ title, summaryId = null, summaryText = "" }) {
-    const header = cloneTemplate("sectionHeaderTemplate");
-    header.querySelector("h2").textContent = title;
-    const summary = header.querySelector("p");
-    if (summaryId) {
-      summary.id = summaryId;
-    }
-    if (summaryText) {
-      summary.textContent = summaryText;
-    } else {
-      summary.remove();
-    }
-    return header;
-  }
-
-
-
-  function buildPickerControl(labelText, selectId) {
-    const picker = cloneTemplate("pickerControlTemplate");
-    picker.querySelector("span").textContent = labelText;
-    picker.querySelector("select").id = selectId;
-    return picker;
-  }
-
-
-
-  function buildDownloadButton(buttonId, label) {
-    const button = cloneTemplate("downloadButtonTemplate");
-    button.id = buttonId;
-    button.setAttribute("aria-label", label);
-    button.title = label;
-    return button;
-  }
-
-
-
+  // Builds each [data-section-header] section's header from #sectionHeaderTemplate:
+  // title, optional summary, then toolbar = custom slot content, picker, download.
   function mountSectionHeaders() {
     document.querySelectorAll("[data-section-header]").forEach((section) => {
-      const header = buildSectionHeader({
-        title: section.dataset.title,
-        summaryId: section.dataset.summaryId || null,
-        summaryText: section.dataset.summaryText || ""
-      });
+      const { title, summaryId, summaryText, pickerId, pickerLabel, downloadId, downloadLabel } = section.dataset;
+      const header = cloneTemplate("sectionHeaderTemplate");
+      header.querySelector("h2").textContent = title;
+
+      const summary = header.querySelector("p");
+      if (summaryId) summary.id = summaryId;
+      if (summaryText) summary.textContent = summaryText;
+      else if (!summaryId) summary.remove();
+
       const toolbar = header.querySelector(".section-toolbar");
       const toolbarSlot = section.querySelector("[data-section-toolbar]");
       if (toolbarSlot) {
-        while (toolbarSlot.firstChild) {
-          toolbar.appendChild(toolbarSlot.firstChild);
-        }
+        toolbar.append(...toolbarSlot.childNodes);
         toolbarSlot.remove();
       }
-      if (section.dataset.pickerId) {
-        toolbar.appendChild(buildPickerControl(section.dataset.pickerLabel || "", section.dataset.pickerId));
+      if (pickerId) {
+        const picker = cloneTemplate("pickerControlTemplate");
+        picker.querySelector("span").textContent = pickerLabel || "";
+        picker.querySelector("select").id = pickerId;
+        toolbar.appendChild(picker);
       }
-      if (section.dataset.downloadId) {
-        const copy = header.querySelector(".section-header-copy");
-        const text = document.createElement("div");
-        text.className = "section-header-text";
-        text.append(copy.querySelector("h2"), copy.querySelector("p"));
-        copy.classList.add("section-header-copy-with-action");
-        copy.append(
-          buildDownloadButton(section.dataset.downloadId, section.dataset.downloadLabel || "Download CSV"),
-          text
-        );
+      if (downloadId) {
+        const button = cloneTemplate("downloadButtonTemplate");
+        const label = downloadLabel || "Download CSV";
+        button.id = downloadId;
+        button.setAttribute("aria-label", label);
+        button.title = label;
+        toolbar.appendChild(button);
       }
-      if (!toolbar.childElementCount) {
-        toolbar.remove();
-      }
+      if (!toolbar.childElementCount) toolbar.remove();
+
       section.insertBefore(header, section.firstChild);
     });
   }
 
-
   Object.assign(Planner, {
-    cloneTemplate,
-    buildSectionHeader,
-    buildPickerControl,
-    buildDownloadButton,
     mountSectionHeaders
   });
 })(window.Planner = window.Planner || {});

@@ -16,7 +16,7 @@
   }
 
   function formatAllFormattedInputs(root) {
-    root.querySelectorAll("[data-format]").forEach(formatInputValue);
+    root.querySelectorAll("[data-format]").forEach((input) => formatInputValue(input));
   }
 
   function formatInputValue(input, options = {}) {
@@ -95,45 +95,37 @@
     return value.length;
   }
 
+  const currencyFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const centsFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const compactCurrencyFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  const percentFormat = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
+  const betaFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+
+  function isMissing(value) {
+    return value === null || value === "" || !Number.isFinite(value);
+  }
+
   function formatCurrency(value) {
-    if (value === null || !Number.isFinite(value)) return "--";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0
-    }).format(value);
+    return isMissing(value) ? "--" : currencyFormat.format(value);
   }
 
   function formatInputCurrency(value) {
     const hasCents = Math.abs(value % 1) > 0.000001;
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: hasCents ? 2 : 0,
-      maximumFractionDigits: hasCents ? 2 : 0
-    }).format(value);
+    return (hasCents ? centsFormat : currencyFormat).format(value);
   }
 
   function formatCompactCurrency(value) {
-    if (value === null || !Number.isFinite(value)) return "--";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      notation: "compact",
-      maximumFractionDigits: 1
-    }).format(value);
+    return isMissing(value) ? "--" : compactCurrencyFormat.format(value);
   }
 
   function formatPercent(value) {
-    if (value === null || !Number.isFinite(value)) return "--";
-    return new Intl.NumberFormat("en-US", {
-      style: "percent",
-      maximumFractionDigits: 1
-    }).format(value);
+    return isMissing(value) ? "--" : percentFormat.format(value);
   }
 
+  // More precision for small probabilities, where 0.4% vs 0.04% matters.
   function formatPolicyRiskPercent(value) {
-    if (value === null || !Number.isFinite(value)) return "--";
+    if (isMissing(value)) return "--";
     const percent = value * 100;
     const absolutePercent = Math.abs(percent);
     const fractionDigits = absolutePercent > 0 && absolutePercent < 10
@@ -145,11 +137,7 @@
   }
 
   function formatBeta(value) {
-    if (value === null || !Number.isFinite(value)) return "--";
-    return new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    }).format(value);
+    return isMissing(value) ? "--" : betaFormat.format(value);
   }
 
   function formatShareNumber(value) {
@@ -158,22 +146,14 @@
   }
 
   function formatNumber(value) {
-    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+    return numberFormat.format(value);
   }
 
   Object.assign(Planner, {
     bindFormattedInputs,
     formatAllFormattedInputs,
-    formatInputValue,
-    formatInputWhileEditing,
-    formatEditableMoney,
-    formatEditableInteger,
-    formatDigitsWithCommas,
-    countDigits,
-    caretAfterDigitCount,
     formatShareNumber,
     formatCurrency,
-    formatInputCurrency,
     formatCompactCurrency,
     formatPercent,
     formatPolicyRiskPercent,

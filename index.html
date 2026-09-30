@@ -3,380 +3,383 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>Financial Runway Planner</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23256abf%27/%3E%3Cpath d=%27M7 22l6-7 5 4 7-9%27 fill=%27none%27 stroke=%27white%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <a class="site-home" href="https://harrisonku.com" aria-label="Back to Harrison Ku's website"><span>HK</span> Harrison Ku</a>
-    <main class="app-shell">
-      <section class="workspace" aria-label="Financial planning simulator">
-        <aside class="inputs-pane">
-          <div class="brand-row">
-            <div>
-              <h1>Financial Runway Planner</h1>
-              <p>Monte Carlo depletion years from historical returns.</p>
-            </div>
-            <div class="run-controls">
-              <div class="run-button-row">
-                <button id="runSimulation" class="primary-action" type="button" disabled>Run</button>
-                <button id="sharePlan" class="secondary-action share-action" type="button">Share</button>
-              </div>
-              <div id="runProgress" class="run-progress" role="progressbar" aria-label="Simulation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
-                <div id="runProgressBar"></div>
-              </div>
-              <span id="runProgressLabel" class="run-progress-label"></span>
-            </div>
-          </div>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="site-home" href="https://harrisonku.com" aria-label="Back to Harrison Ku's website">HK</a>
+        <div class="brand">
+          <h1>Financial Runway Planner</h1>
+          <p>Monte Carlo runway from historical S&amp;P 500 returns</p>
+        </div>
+        <div class="run-controls">
+          <p id="runStatus" class="run-status" role="status" aria-live="polite"></p>
+          <button id="sharePlan" class="button button-secondary" type="button">Share</button>
+          <button id="runSimulation" class="button button-primary" type="button" disabled>Run</button>
+        </div>
+      </div>
+      <div id="runProgress" class="run-progress" role="progressbar" aria-label="Simulation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+        <div id="runProgressBar"></div>
+      </div>
+    </header>
 
-          <form id="plannerForm">
-            <fieldset class="control-group">
-              <legend>Plan</legend>
-              <label>
+    <main class="workspace" aria-label="Financial planning simulator">
+      <aside class="inputs-pane">
+        <form id="plannerForm" novalidate>
+          <section class="card control-group" aria-labelledby="planHeading">
+            <h2 id="planHeading" class="group-title">Plan</h2>
+            <div class="field-grid">
+              <label class="field">
                 <span>Current year</span>
                 <input id="currentYear" name="currentYear" type="number" min="1900" max="2200" step="1" required>
               </label>
-              <label>
-                <span>Expected year of death</span>
+              <label class="field">
+                <span>Year of death</span>
                 <input id="deathYear" name="deathYear" type="number" min="1900" max="2200" step="1" required>
               </label>
-              <label>
+              <label class="field field-wide">
                 <span>Current net worth</span>
                 <input id="netWorth" name="netWorth" type="text" inputmode="decimal" data-format="money" autocomplete="off" required>
               </label>
-              <label>
+              <label class="field">
                 <span>Beta mode</span>
                 <select id="betaMode" name="betaMode">
-                  <option value="dynamic">Dynamic beta</option>
-                  <option value="fixed">Fixed beta</option>
+                  <option value="dynamic">Dynamic</option>
+                  <option value="fixed">Fixed</option>
                 </select>
               </label>
-              <label id="fixedBetaControl">
+              <label id="fixedBetaControl" class="field">
                 <span>SPX beta</span>
                 <input id="spxBeta" name="spxBeta" type="number" min="-3" max="3" step="0.05" required>
               </label>
-              <label>
+              <label class="field">
                 <span>Simulations</span>
                 <input id="simulationCount" name="simulationCount" type="text" inputmode="numeric" data-format="integer" autocomplete="off" required>
               </label>
-            </fieldset>
+            </div>
+          </section>
 
-            <section class="control-group" aria-labelledby="incomeHeading">
-              <div class="group-title-row">
-                <h2 id="incomeHeading" class="legend-label">Income</h2>
-                <button id="addIncome" class="secondary-action" type="button">Add</button>
-              </div>
-              <div id="incomeRows" class="flow-list"></div>
-            </section>
+          <section class="card control-group" aria-labelledby="incomeHeading">
+            <div class="group-title-row">
+              <h2 id="incomeHeading" class="group-title">Income</h2>
+              <button id="addIncome" class="button button-ghost button-small" type="button">+ Add</button>
+            </div>
+            <div id="incomeRows" class="flow-list"></div>
+          </section>
 
-            <section class="control-group" aria-labelledby="expenseHeading">
-              <div class="group-title-row">
-                <h2 id="expenseHeading" class="legend-label">Expenditures</h2>
-                <button id="addExpense" class="secondary-action" type="button">Add</button>
-              </div>
-              <div id="expenseRows" class="flow-list"></div>
-            </section>
-          </form>
-        </aside>
+          <section class="card control-group" aria-labelledby="expenseHeading">
+            <div class="group-title-row">
+              <h2 id="expenseHeading" class="group-title">Expenditures</h2>
+              <button id="addExpense" class="button button-ghost button-small" type="button">+ Add</button>
+            </div>
+            <div id="expenseRows" class="flow-list"></div>
+          </section>
+        </form>
+      </aside>
 
-        <section class="results-pane">
-          <div class="metrics-grid" aria-live="polite">
-            <article class="metric">
-              <span>Run-out risk</span>
-              <strong id="riskMetric">--</strong>
-            </article>
-            <article class="metric">
-              <span>Expected terminal wealth, current $</span>
-              <strong id="medianWealthMetric">--</strong>
-            </article>
-            <article class="metric">
-              <span id="currentBetaMetricLabel">Current SPX beta</span>
-              <strong id="currentBetaMetric">--</strong>
-            </article>
-            <article class="metric">
-              <span>Historical return span</span>
-              <strong id="dataSpanMetric">--</strong>
-            </article>
-          </div>
+      <section class="results-pane">
+        <div class="metrics-grid" aria-live="polite">
+          <article class="metric metric-risk">
+            <span class="metric-label">Run-out risk</span>
+            <strong id="riskMetric">--</strong>
+            <small id="riskMetricNote">Probability of depleting before death</small>
+          </article>
+          <article class="metric">
+            <span class="metric-label">Expected terminal wealth</span>
+            <strong id="terminalWealthMetric">--</strong>
+            <small id="terminalWealthMetricNote">Mean final wealth, current dollars</small>
+          </article>
+          <article class="metric">
+            <span id="currentBetaMetricLabel" class="metric-label">Current SPX beta</span>
+            <strong id="currentBetaMetric">--</strong>
+            <small id="currentBetaMetricNote">Allocation for the first plan year</small>
+          </article>
+          <article class="metric">
+            <span class="metric-label">Historical data</span>
+            <strong id="dataSpanMetric">--</strong>
+            <small id="dataSpanMetricNote">Annual returns sampled with replacement</small>
+          </article>
+        </div>
 
-          <nav class="page-nav" aria-label="Results views">
-            <button class="page-button active" type="button" data-page="overview">Overview</button>
-            <button class="page-button" type="button" data-page="details">Inspect Simulation</button>
-            <button class="page-button" type="button" data-page="policy">Inspect Beta Policy</button>
-            <button class="page-button" type="button" data-page="frontier">Dynamic Beta Frontier</button>
-            <button class="page-button" type="button" data-page="methodology">Methodology</button>
-          </nav>
+        <nav class="page-nav" aria-label="Results views">
+          <button class="page-button active" type="button" data-page="overview">Overview</button>
+          <button class="page-button" type="button" data-page="details">Simulation</button>
+          <button class="page-button" type="button" data-page="policy">Beta Policy</button>
+          <button class="page-button" type="button" data-page="frontier">Frontier</button>
+          <button class="page-button" type="button" data-page="methodology">Methodology</button>
+        </nav>
 
-          <div id="overviewPage" class="page-panel">
-            <section
-              class="content-section"
-              data-section-header
-              data-title="Current-Dollar Net Worth"
-              data-summary-id="netWorthSummary"
-              data-summary-text="Expected net worth and downsampled simulation paths."
-            >
-              <div data-section-toolbar>
-                <label class="zoom-control">
-                  <span>Y-axis cap</span>
-                  <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
-                  <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
+        <div id="overviewPage" class="page-panel">
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Current-dollar net worth"
+            data-summary-id="netWorthSummary"
+            data-summary-text="Expected net worth and downsampled simulation paths."
+          >
+            <div data-section-toolbar>
+              <label class="range-control">
+                <span>Y-axis cap</span>
+                <input id="netWorthZoom" type="range" min="50" max="100" step="1" value="90">
+                <output id="netWorthZoomLabel" for="netWorthZoom">90%</output>
+              </label>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="pathsCanvas" class="chart-tall" aria-label="Simulated current-dollar net worth paths"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Depletion year distribution"
+            data-summary-id="scenarioSummary"
+            data-summary-text="Run a simulation to see the distribution."
+          >
+            <div data-section-toolbar>
+              <label class="toggle">
+                <input id="showDepleted" type="checkbox" checked>
+                <span>Depleted only</span>
+              </label>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="distributionCanvas" class="chart-medium" aria-label="Probability distribution of years where money runs out"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="SPX beta over time"
+            data-summary-id="betaPathSummary"
+            data-summary-text="Average beta and downsampled simulation paths."
+          >
+            <div class="canvas-wrap">
+              <canvas id="betaCanvas" class="chart-short" aria-label="Simulated SPX beta paths over time"></canvas>
+            </div>
+          </section>
+        </div>
+
+        <div id="detailsPage" class="page-panel" hidden>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Inspect a simulation"
+            data-summary-id="selectedSimulationSummary"
+            data-summary-text="Run a simulation to inspect one path."
+            data-picker-label="Simulation"
+            data-picker-id="simulationSelect"
+            data-download-id="downloadCsv"
+            data-download-label="Download simulation CSV"
+          >
+            <div class="canvas-wrap">
+              <canvas id="selectedSimulationCanvas" class="chart-medium" aria-label="Selected simulation current-dollar net worth over time"></canvas>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plan year</th>
+                    <th>Sampled year</th>
+                    <th>Start wealth</th>
+                    <th>Income</th>
+                    <th>Expenses</th>
+                    <th>SPX return</th>
+                    <th>Risk-free</th>
+                    <th>SPX excess</th>
+                    <th>SPX beta</th>
+                    <th>Inflation</th>
+                    <th>SPX real</th>
+                    <th>Portfolio nominal</th>
+                    <th>Portfolio real</th>
+                    <th>End wealth</th>
+                    <th class="text">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="simulationPathTable">
+                  <tr><td class="empty" colspan="15">No results yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div id="policyPage" class="page-panel" hidden>
+          <section id="policyEmptyState" class="card empty-card">
+            <h2>No dynamic policy yet</h2>
+            <p>Set beta mode to Dynamic and run a simulation to inspect the year-by-wealth beta policy.</p>
+          </section>
+          <section
+            id="dynamicPolicySection"
+            class="card content-section"
+            hidden
+            data-section-header
+            data-title="Beta policy"
+            data-summary-id="dynamicPolicySummary"
+            data-summary-text="Run dynamic beta to inspect the policy."
+            data-picker-label="Plan year"
+            data-picker-id="policyYearSelect"
+            data-download-id="downloadPolicyCsv"
+            data-download-label="Download policy CSV"
+          >
+            <div class="subsection">
+              <div class="subsection-header">
+                <h3 id="policyBucketPlotTitle">Optimal SPX beta vs wealth</h3>
+                <label class="picker">
+                  <span>Y-axis</span>
+                  <select id="policyMetricSelect">
+                    <option value="beta">Optimal SPX beta</option>
+                    <option value="risk">Estimated depletion risk</option>
+                    <option value="terminalWealth">Expected terminal wealth</option>
+                  </select>
                 </label>
               </div>
               <div class="canvas-wrap">
-                <canvas id="pathsCanvas" width="980" height="420" aria-label="Simulated current-dollar net worth paths"></canvas>
+                <canvas id="dynamicPolicyCanvas" class="chart-short" aria-label="Visible wealth bucket policy plot"></canvas>
               </div>
-            </section>
-            <section
-              class="content-section"
-              data-section-header
-              data-title="SPX Beta Over Time"
-              data-summary-id="betaPathSummary"
-              data-summary-text="Average beta and downsampled simulation paths."
-            >
-              <div class="canvas-wrap">
-                <canvas id="betaCanvas" width="980" height="360" aria-label="Simulated SPX beta paths over time"></canvas>
-              </div>
-            </section>
-            <section
-              class="content-section"
-              data-section-header
-              data-title="Distribution of Depletion Years"
-              data-summary-id="scenarioSummary"
-              data-summary-text="Run a simulation to see the distribution."
-            >
-              <div data-section-toolbar>
-                <label class="inline-toggle">
-                  <input id="showDepleted" type="checkbox" checked>
-                  <span>Show depleted</span>
+            </div>
+            <div class="subsection">
+              <div class="subsection-header">
+                <h3>Beta alternatives</h3>
+                <label class="picker">
+                  <span>Wealth bucket</span>
+                  <select id="policyBucketSelect"></select>
                 </label>
               </div>
-              <div class="canvas-wrap">
-                <canvas id="distributionCanvas" width="980" height="420" aria-label="Probability distribution of years where money runs out"></canvas>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SPX beta</th>
+                      <th>Estimated depletion risk</th>
+                      <th>Expected terminal wealth</th>
+                      <th class="text">Choice</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dynamicPolicyActionTable">
+                    <tr><td class="empty" colspan="4">Run dynamic beta to inspect beta alternatives.</td></tr>
+                  </tbody>
+                </table>
               </div>
-            </section>
-          </div>
-
-          <div id="frontierPage" class="page-panel" hidden>
-            <section
-              class="content-section"
-              data-section-header
-              data-title="Dynamic Beta Frontier"
-              data-summary-id="frontierSummary"
-              data-summary-text="Run a dynamic beta simulation, then run the frontier."
-            >
-              <div data-section-toolbar>
-                <button id="runFrontier" class="secondary-action" type="button" disabled>Run Frontier</button>
-              </div>
-              <div class="canvas-wrap">
-                <canvas id="frontierCanvas" width="980" height="420" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
-              </div>
-            </section>
-          </div>
-
-          <div id="policyPage" class="page-panel" hidden>
-            <section
-              id="dynamicPolicySection"
-              class="content-section inspection-section"
-              hidden
-              data-section-header
-              data-title="Inspect Beta Policy"
-              data-summary-id="dynamicPolicySummary"
-              data-summary-text="Run dynamic beta to inspect the policy."
-              data-picker-label="Plan year"
-              data-picker-id="policyYearSelect"
-              data-download-id="downloadPolicyCsv"
-              data-download-label="Download policy CSV"
-            >
-              <div class="policy-subsection">
-                <div class="policy-subsection-header">
-                  <h3>Beta alternatives</h3>
-                  <label class="simulation-picker policy-bucket-picker">
-                    <span>Wealth bucket</span>
-                    <select id="policyBucketSelect"></select>
-                  </label>
-                </div>
-                <div class="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Optimal SPX beta</th>
-                        <th>Estimated depletion risk</th>
-                        <th>Expected terminal wealth</th>
-                        <th>Optimal choice</th>
-                      </tr>
-                    </thead>
-                    <tbody id="dynamicPolicyActionTable">
-                      <tr>
-                        <td colspan="4">Run dynamic beta to inspect beta alternatives.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div class="policy-subsection">
-                <div class="policy-subsection-header">
-                  <h3 id="policyBucketPlotTitle">Optimal SPX beta vs current wealth</h3>
-                  <label class="simulation-picker policy-metric-picker">
-                    <span>Plot y-axis</span>
-                    <select id="policyMetricSelect">
-                      <option value="beta">Optimal SPX beta</option>
-                      <option value="risk">Estimated depletion risk</option>
-                      <option value="terminalWealth">Expected terminal wealth</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="canvas-wrap">
-                  <canvas id="dynamicPolicyCanvas" class="policy-bucket-canvas" width="980" height="360" aria-label="Visible wealth bucket policy plot"></canvas>
-                </div>
-              </div>
-              <div class="policy-subsection policy-path-explorer">
-                <div class="policy-subsection-header">
+            </div>
+            <div class="subsection">
+              <div class="subsection-header">
+                <div>
                   <h3>Policy path explorer</h3>
                   <p id="policyPathSummary">Run dynamic beta to inspect a policy path.</p>
                 </div>
-                <div class="policy-path-controls">
-                  <label class="simulation-picker">
-                    <span>Override beta</span>
-                    <select id="policyPathBeta"></select>
-                  </label>
-                  <label class="simulation-picker">
-                    <span>Override years</span>
-                    <input id="policyPathYears" type="number" min="1" max="10" step="1" value="5">
-                  </label>
-                  <label class="simulation-picker">
-                    <span>Return assumption</span>
-                    <select id="policyPathReturnMode">
-                      <option value="expected">Expected year</option>
-                      <option value="p10">Bad year</option>
-                      <option value="median">Median year</option>
-                      <option value="p90">Good year</option>
-                      <option value="best">Best year</option>
-                      <option value="worst">Worst year</option>
-                      <option value="specific">Specific year</option>
-                    </select>
-                  </label>
-                  <label class="simulation-picker">
-                    <span>Historical year</span>
-                    <select id="policyPathReturnYear"></select>
-                  </label>
-                </div>
-                <div class="canvas-wrap">
-                  <canvas id="policyPathCanvas" class="policy-path-canvas" width="980" height="400" aria-label="Optimal SPX beta heatmap with explored path"></canvas>
-                </div>
-                <div class="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Plan year</th>
-                        <th>Start wealth</th>
-                        <th>Forced beta</th>
-                        <th>Sampled year</th>
-                        <th>SPX return</th>
-                        <th>Inflation</th>
-                        <th>End wealth</th>
-                        <th>Optimal SPX beta next</th>
-                        <th>Risk from node</th>
-                      </tr>
-                    </thead>
-                    <tbody id="policyPathTable">
-                      <tr>
-                        <td colspan="9">Run dynamic beta to inspect a policy path.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
               </div>
-            </section>
-          </div>
-
-          <div id="detailsPage" class="page-panel" hidden>
-            <section
-              class="content-section inspection-section"
-              data-section-header
-              data-title="Inspect Simulation"
-              data-summary-id="selectedSimulationSummary"
-              data-summary-text="Run a simulation to inspect one path."
-              data-picker-label="Simulation"
-              data-picker-id="simulationSelect"
-              data-download-id="downloadCsv"
-              data-download-label="Download simulation CSV"
-            >
+              <div class="control-row">
+                <label class="picker">
+                  <span>Override beta</span>
+                  <select id="policyPathBeta"></select>
+                </label>
+                <label class="picker">
+                  <span>Override years</span>
+                  <input id="policyPathYears" type="number" min="1" max="10" step="1" value="5">
+                </label>
+                <label class="picker">
+                  <span>Return assumption</span>
+                  <select id="policyPathReturnMode">
+                    <option value="expected">Expected year</option>
+                    <option value="p10">Bad year (p10)</option>
+                    <option value="median">Median year</option>
+                    <option value="p90">Good year (p90)</option>
+                    <option value="best">Best year</option>
+                    <option value="worst">Worst year</option>
+                    <option value="specific">Specific year</option>
+                  </select>
+                </label>
+                <label class="picker">
+                  <span>Historical year</span>
+                  <select id="policyPathReturnYear"></select>
+                </label>
+              </div>
               <div class="canvas-wrap">
-                <canvas id="selectedSimulationCanvas" class="detail-chart-canvas" width="980" height="340" aria-label="Selected simulation current-dollar net worth over time"></canvas>
+                <canvas id="policyPathCanvas" class="chart-tall" aria-label="Optimal SPX beta heatmap with explored path"></canvas>
               </div>
               <div class="table-wrap">
                 <table>
                   <thead>
                     <tr>
                       <th>Plan year</th>
-                      <th>Sampled year</th>
                       <th>Start wealth</th>
-                      <th>Income</th>
-                      <th>Expenses</th>
+                      <th>Forced beta</th>
+                      <th class="text">Sampled year</th>
                       <th>SPX return</th>
-                      <th>Risk-free</th>
-                      <th>SPX excess</th>
-                      <th>SPX beta used</th>
                       <th>Inflation</th>
-                      <th>SPX real return</th>
-                      <th>Portfolio nominal return</th>
-                      <th>Portfolio real return</th>
                       <th>End wealth</th>
-                      <th>Status</th>
+                      <th>Policy beta next</th>
+                      <th>Risk from node</th>
                     </tr>
                   </thead>
-                  <tbody id="simulationPathTable">
-                    <tr>
-                      <td colspan="15">No results yet.</td>
-                    </tr>
+                  <tbody id="policyPathTable">
+                    <tr><td class="empty" colspan="9">Run dynamic beta to inspect a policy path.</td></tr>
                   </tbody>
                 </table>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+        </div>
 
-          <div id="methodologyPage" class="page-panel methodology-page" hidden>
-            <section
-              class="content-section"
-              data-section-header
-              data-title="Methodology"
-              data-summary-text="How the simulator models returns, cash flows, and dynamic beta."
-            >
-              <div class="method-grid">
-                <article>
-                  <h3>Historical Data</h3>
-                  <p>Fixed-beta and dynamic-beta simulations sample one historical year at a time from 1950-2025. Dynamic beta chooses each year&apos;s beta before that year&apos;s return is drawn.</p>
-                </article>
-                <article>
-                  <h3>Return Model</h3>
-                  <p>Portfolio nominal return is the sampled T-bill return plus SPX beta times the sampled S&amp;P 500 excess return over T-bills, then converted into current dollars by dividing by that year&apos;s inflation factor. Dynamic beta chooses from 0.0 to 1.5 in 0.1 steps.</p>
-                </article>
-                <article>
-                  <h3>Dynamic Beta</h3>
-                  <p>Dynamic mode builds a backward dynamic-programming policy over plan year and current wealth. It uses a zero bucket plus 180 log-spaced positive wealth buckets from $10,000 to $1 trillion, picks the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. The Dynamic Beta Frontier tab can run a separate scenario-calibrated risk-penalty sweep by expected terminal wealth and run-out probability. Inspect Beta Policy shows per-beta alternatives, a visible wealth bucket plot through $1 billion, and a forced-beta path explorer.</p>
-                </article>
-                <article>
-                  <h3>Cash Flows</h3>
-                  <p>Income and expenditure amounts are treated as annual current-dollar flows. Start and end years can be fixed or tied to the plan&apos;s current year and expected year of death.</p>
-                </article>
-                <article>
-                  <h3>Timing</h3>
-                  <p>Within each simulated year, returns compound continuously and net cash flow is spread continuously through the year. Depletion occurs when current-dollar wealth reaches zero or below.</p>
-                </article>
-                <article>
-                  <h3>Charts</h3>
-                  <p>The depletion-year chart shows probability across all simulations. The overview charts show expected current-dollar wealth, average SPX beta, and downsampled paths for hover inspection. Dynamic-beta runs expose the scenario-level beta alternatives, visible wealth buckets, and recommended beta by year in Inspect Beta Policy.</p>
-                </article>
-                <article>
-                  <h3>Limits</h3>
-                  <p>The model is a historical bootstrap, not a forecast. It does not model taxes, account types, asset allocation beyond SPX beta, fees, changing spending behavior, sequence constraints, or valuation-based expected returns.</p>
-                </article>
-              </div>
-            </section>
-          </div>
-        </section>
+        <div id="frontierPage" class="page-panel" hidden>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Dynamic beta frontier"
+            data-summary-id="frontierSummary"
+            data-summary-text="Run a dynamic beta simulation, then run the frontier."
+          >
+            <div data-section-toolbar>
+              <button id="runFrontier" class="button button-secondary button-small" type="button" disabled>Run frontier</button>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="frontierCanvas" class="chart-tall" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
+            </div>
+          </section>
+        </div>
+
+        <div id="methodologyPage" class="page-panel" hidden>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Methodology"
+            data-summary-text="How the simulator models returns, cash flows, and dynamic beta."
+          >
+            <div class="method-grid">
+              <article>
+                <h3>Historical data</h3>
+                <p>Simulations sample one historical year at a time, with replacement, from <span data-data-span>the loaded history</span>. Each sampled year supplies an S&amp;P 500 total return, a 3-month T-bill return, and CPI inflation.</p>
+              </article>
+              <article>
+                <h3>Return model</h3>
+                <p>Portfolio nominal return is the T-bill return plus SPX beta times the S&amp;P 500 excess return over T-bills. It is converted to current dollars by dividing by that year&apos;s inflation factor.</p>
+              </article>
+              <article>
+                <h3>Dynamic beta</h3>
+                <p>Backward dynamic programming over plan year and wealth, using a zero bucket plus 180 log-spaced buckets from $10,000 to $1 trillion and betas from 0.0 to 1.5 in 0.1 steps. Each node picks the beta with the lowest estimated depletion risk, breaking ties by expected terminal wealth. The beta for a year is chosen before that year&apos;s return is drawn.</p>
+              </article>
+              <article>
+                <h3>Frontier</h3>
+                <p>The frontier re-solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
+              </article>
+              <article>
+                <h3>Cash flows</h3>
+                <p>Income and expenditures are annual current-dollar flows. Start and end years can be fixed or tied to the plan&apos;s current year and year of death.</p>
+              </article>
+              <article>
+                <h3>Timing</h3>
+                <p>Within each year, returns compound continuously and net cash flow arrives continuously. A path is depleted when current-dollar wealth reaches zero.</p>
+              </article>
+              <article>
+                <h3>Limits</h3>
+                <p>This is a historical bootstrap, not a forecast. It ignores taxes, account types, fees, allocation beyond SPX beta, spending adjustments, serial correlation between years, and valuation-based expected returns.</p>
+              </article>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
 
@@ -391,49 +394,46 @@
     </template>
 
     <template id="pickerControlTemplate">
-      <label class="simulation-picker">
+      <label class="picker">
         <span></span>
         <select></select>
       </label>
     </template>
 
     <template id="downloadButtonTemplate">
-      <button class="secondary-action icon-action" type="button">
+      <button class="button button-secondary button-small button-icon" type="button">
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
           <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 14.5h12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
         </svg>
+        <span>CSV</span>
       </button>
     </template>
 
     <template id="flowRowTemplate">
       <div class="flow-row">
-        <label>
-          <span>Name</span>
-          <input data-field="name" type="text" autocomplete="off">
-        </label>
-        <label>
-          <span>Annual amount</span>
-          <input data-field="amount" type="text" inputmode="decimal" data-format="money" autocomplete="off">
-        </label>
-        <label>
-          <span>Start</span>
-          <select data-field="startMode">
-            <option value="current">Current year</option>
-            <option value="death">Death year</option>
-            <option value="fixed">Fixed year</option>
-          </select>
-          <input data-field="startYear" type="number" min="1900" max="2200" step="1">
-        </label>
-        <label>
-          <span>End</span>
-          <select data-field="endMode">
-            <option value="death">Death year</option>
-            <option value="current">Current year</option>
-            <option value="fixed">Fixed year</option>
-          </select>
-          <input data-field="endYear" type="number" min="1900" max="2200" step="1">
-        </label>
-        <button class="remove-flow" type="button" aria-label="Remove cash flow">&times;</button>
+        <input class="flow-name" data-field="name" type="text" autocomplete="off" aria-label="Name" placeholder="Name">
+        <input class="flow-amount" data-field="amount" type="text" inputmode="decimal" data-format="money" autocomplete="off" aria-label="Annual amount" placeholder="$0">
+        <button class="remove-flow" type="button" aria-label="Remove cash flow">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path></svg>
+        </button>
+        <div class="flow-timing">
+          <div class="flow-bound">
+            <select data-field="startMode" aria-label="Start">
+              <option value="current">From now</option>
+              <option value="death">From death</option>
+              <option value="fixed">From year</option>
+            </select>
+            <input data-field="startYear" type="number" min="1900" max="2200" step="1" aria-label="Start year">
+          </div>
+          <div class="flow-bound">
+            <select data-field="endMode" aria-label="End">
+              <option value="death">Until death</option>
+              <option value="current">Until now</option>
+              <option value="fixed">Until year</option>
+            </select>
+            <input data-field="endYear" type="number" min="1900" max="2200" step="1" aria-label="End year">
+          </div>
+        </div>
       </div>
     </template>
 

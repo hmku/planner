@@ -4,16 +4,6 @@
     marketData: null,
     results: null,
     activePage: "overview",
-    hover: null,
-    pathHitAreas: [],
-    betaPathHitAreas: [],
-    frontierHover: null,
-    frontierHitPoints: [],
-    detailHover: null,
-    detailHitPoints: [],
-    policyBucketHover: null,
-    policyBucketHitPoints: [],
-    policyBucketPlot: null,
     isDirty: true,
     isRunning: false,
     cancelRequested: false,
@@ -21,76 +11,34 @@
     frontierCancelRequested: false,
     frontierRunId: 0,
     inputVersion: 0,
-    nextSimulationSeed: null,
-    shareStatusTimer: null
+    nextSimulationSeed: null
   };
   Planner.els = {};
 
+  const ELEMENT_IDS = [
+    "plannerForm", "runSimulation", "runProgress", "runProgressBar", "runStatus", "sharePlan",
+    "currentYear", "deathYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount",
+    "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate",
+    "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
+    "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote", "dataSpanMetric", "dataSpanMetricNote",
+    "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary", "runFrontier",
+    "netWorthZoom", "netWorthZoomLabel", "showDepleted",
+    "distributionCanvas", "pathsCanvas", "betaCanvas", "frontierCanvas", "selectedSimulationCanvas",
+    "simulationSelect", "simulationPathTable", "selectedSimulationSummary", "downloadCsv",
+    "policyEmptyState", "dynamicPolicySection", "dynamicPolicySummary", "policyYearSelect", "policyBucketSelect",
+    "policyBucketPlotTitle", "policyMetricSelect", "dynamicPolicyCanvas", "dynamicPolicyActionTable", "downloadPolicyCsv",
+    "policyPathSummary", "policyPathBeta", "policyPathYears", "policyPathReturnMode", "policyPathReturnYear",
+    "policyPathCanvas", "policyPathTable",
+    "overviewPage", "detailsPage", "policyPage", "frontierPage", "methodologyPage"
+  ];
+
   function cacheElements() {
-    Object.assign(Planner.els, {
-      form: document.querySelector("#plannerForm"),
-      runSimulation: document.querySelector("#runSimulation"),
-      runProgress: document.querySelector("#runProgress"),
-      runProgressBar: document.querySelector("#runProgressBar"),
-      runProgressLabel: document.querySelector("#runProgressLabel"),
-      currentYear: document.querySelector("#currentYear"),
-      deathYear: document.querySelector("#deathYear"),
-      netWorth: document.querySelector("#netWorth"),
-      betaMode: document.querySelector("#betaMode"),
-      fixedBetaControl: document.querySelector("#fixedBetaControl"),
-      spxBeta: document.querySelector("#spxBeta"),
-      simulationCount: document.querySelector("#simulationCount"),
-      incomeRows: document.querySelector("#incomeRows"),
-      expenseRows: document.querySelector("#expenseRows"),
-      addIncome: document.querySelector("#addIncome"),
-      addExpense: document.querySelector("#addExpense"),
-      sharePlan: document.querySelector("#sharePlan"),
-      downloadCsv: document.querySelector("#downloadCsv"),
-      template: document.querySelector("#flowRowTemplate"),
-      riskMetric: document.querySelector("#riskMetric"),
-      medianWealthMetric: document.querySelector("#medianWealthMetric"),
-      currentBetaMetricLabel: document.querySelector("#currentBetaMetricLabel"),
-      currentBetaMetric: document.querySelector("#currentBetaMetric"),
-      dataSpanMetric: document.querySelector("#dataSpanMetric"),
-      scenarioSummary: document.querySelector("#scenarioSummary"),
-      netWorthSummary: document.querySelector("#netWorthSummary"),
-      frontierSummary: document.querySelector("#frontierSummary"),
-      runFrontier: document.querySelector("#runFrontier"),
-      betaPathSummary: document.querySelector("#betaPathSummary"),
-      netWorthZoom: document.querySelector("#netWorthZoom"),
-      netWorthZoomLabel: document.querySelector("#netWorthZoomLabel"),
-      showDepleted: document.querySelector("#showDepleted"),
-      distributionCanvas: document.querySelector("#distributionCanvas"),
-      pathsCanvas: document.querySelector("#pathsCanvas"),
-      frontierCanvas: document.querySelector("#frontierCanvas"),
-      betaCanvas: document.querySelector("#betaCanvas"),
-      selectedSimulationCanvas: document.querySelector("#selectedSimulationCanvas"),
-      simulationSelect: document.querySelector("#simulationSelect"),
-      simulationPathTable: document.querySelector("#simulationPathTable"),
-      selectedSimulationSummary: document.querySelector("#selectedSimulationSummary"),
-      dynamicPolicySection: document.querySelector("#dynamicPolicySection"),
-      dynamicPolicySummary: document.querySelector("#dynamicPolicySummary"),
-      policyYearSelect: document.querySelector("#policyYearSelect"),
-      policyBucketSelect: document.querySelector("#policyBucketSelect"),
-      policyBucketPlotTitle: document.querySelector("#policyBucketPlotTitle"),
-      policyMetricSelect: document.querySelector("#policyMetricSelect"),
-      dynamicPolicyCanvas: document.querySelector("#dynamicPolicyCanvas"),
-      policyPathSummary: document.querySelector("#policyPathSummary"),
-      policyPathBeta: document.querySelector("#policyPathBeta"),
-      policyPathYears: document.querySelector("#policyPathYears"),
-      policyPathReturnMode: document.querySelector("#policyPathReturnMode"),
-      policyPathReturnYear: document.querySelector("#policyPathReturnYear"),
-      policyPathCanvas: document.querySelector("#policyPathCanvas"),
-      policyPathTable: document.querySelector("#policyPathTable"),
-      dynamicPolicyActionTable: document.querySelector("#dynamicPolicyActionTable"),
-      downloadPolicyCsv: document.querySelector("#downloadPolicyCsv"),
-      pageButtons: document.querySelectorAll("[data-page]"),
-      overviewPage: document.querySelector("#overviewPage"),
-      detailsPage: document.querySelector("#detailsPage"),
-      policyPage: document.querySelector("#policyPage"),
-      frontierPage: document.querySelector("#frontierPage"),
-      methodologyPage: document.querySelector("#methodologyPage")
+    ELEMENT_IDS.forEach((id) => {
+      const element = document.getElementById(id);
+      if (!element) throw new Error(`Missing element: #${id}`);
+      Planner.els[id] = element;
     });
+    Planner.els.pageButtons = document.querySelectorAll("[data-page]");
   }
 
   function setDefaults() {
@@ -99,7 +47,7 @@
     Planner.els.deathYear.value = currentYear + 60;
     Planner.els.netWorth.value = 100000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
-    Planner.els.spxBeta.value = 0.8;
+    Planner.els.spxBeta.value = Planner.DEFAULT_SPX_BETA;
     Planner.els.simulationCount.value = 50000;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
@@ -109,188 +57,140 @@
     updateBetaModeControls();
   }
 
+  function rerender(render) {
+    return () => {
+      if (Planner.state.results) render(Planner.state.results);
+    };
+  }
+
   function bindEvents() {
-    Planner.els.runSimulation.addEventListener("click", runSimulation);
-    Planner.els.runFrontier.addEventListener("click", runFrontier);
-    Planner.els.sharePlan.addEventListener("click", Planner.sharePlan);
-    Planner.els.form.addEventListener("submit", (event) => {
+    const { els } = Planner;
+    els.runSimulation.addEventListener("click", runSimulation);
+    els.runFrontier.addEventListener("click", runFrontier);
+    els.sharePlan.addEventListener("click", Planner.sharePlan);
+    els.plannerForm.addEventListener("submit", (event) => {
       event.preventDefault();
       runSimulation();
     });
-    Planner.els.form.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" || event.shiftKey) return;
+    // Enter in a field runs the plan; buttons keep their normal Enter behavior.
+    els.plannerForm.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.target.closest("button")) return;
       event.preventDefault();
       runSimulation();
     });
-    Planner.els.form.addEventListener("input", markDirty);
-    Planner.els.form.addEventListener("change", markDirty);
-    Planner.els.betaMode.addEventListener("change", updateBetaModeControls);
-    [Planner.els.currentYear, Planner.els.deathYear].forEach((input) => {
-      input.addEventListener("change", syncRelativeFlowYears);
-    });
-    Planner.els.addIncome.addEventListener("click", () => {
-      addFlowRow(Planner.els.incomeRows, {
-        name: "Income",
-        amount: 25000,
-        startMode: "current",
-        startYear: Number(Planner.els.currentYear.value),
-        endMode: "death",
-        endYear: Number(Planner.els.deathYear.value)
-      });
-      markDirty();
-    });
-    Planner.els.addExpense.addEventListener("click", () => {
-      addFlowRow(Planner.els.expenseRows, {
-        name: "Expense",
-        amount: 25000,
-        startMode: "current",
-        startYear: Number(Planner.els.currentYear.value),
-        endMode: "death",
-        endYear: Number(Planner.els.deathYear.value)
-      });
-      markDirty();
-    });
-    Planner.els.downloadCsv.addEventListener("click", Planner.downloadSimulationCsv);
-    Planner.els.downloadPolicyCsv.addEventListener("click", Planner.downloadPolicyCsv);
-    Planner.els.pageButtons.forEach((button) => {
+    els.plannerForm.addEventListener("input", markDirty);
+    els.plannerForm.addEventListener("change", markDirty);
+    els.betaMode.addEventListener("change", updateBetaModeControls);
+    els.addIncome.addEventListener("click", () => addNewFlow(els.incomeRows, "Income"));
+    els.addExpense.addEventListener("click", () => addNewFlow(els.expenseRows, "Expense"));
+
+    els.downloadCsv.addEventListener("click", Planner.downloadSimulationCsv);
+    els.downloadPolicyCsv.addEventListener("click", Planner.downloadPolicyCsv);
+    els.pageButtons.forEach((button) => {
       button.addEventListener("click", () => Planner.switchPage(button.dataset.page));
     });
-    Planner.els.pathsCanvas.addEventListener("mousemove", Planner.handlePathHover);
-    Planner.els.pathsCanvas.addEventListener("mouseleave", () => {
-      Planner.state.hover = null;
-      if (Planner.state.results) Planner.renderNetWorthChart(Planner.els.pathsCanvas, Planner.state.results);
-    });
-    Planner.els.betaCanvas.addEventListener("mousemove", Planner.handleBetaPathHover);
-    Planner.els.betaCanvas.addEventListener("mouseleave", () => {
-      Planner.state.hover = null;
-      if (Planner.state.results) Planner.renderBetaChart(Planner.els.betaCanvas, Planner.state.results);
-    });
-    Planner.els.frontierCanvas.addEventListener("mousemove", Planner.handleFrontierHover);
-    Planner.els.frontierCanvas.addEventListener("mouseleave", () => {
-      Planner.state.frontierHover = null;
-      if (Planner.state.results) Planner.renderFrontierChart(Planner.els.frontierCanvas, Planner.state.results);
-    });
-    Planner.els.selectedSimulationCanvas.addEventListener("mousemove", Planner.handleDetailChartHover);
-    Planner.els.selectedSimulationCanvas.addEventListener("mouseleave", () => {
-      Planner.state.detailHover = null;
-      if (Planner.state.results) Planner.renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
-    });
-    Planner.els.dynamicPolicyCanvas.addEventListener("mousemove", Planner.handlePolicyBucketHover);
-    Planner.els.dynamicPolicyCanvas.addEventListener("mouseleave", () => {
-      Planner.state.policyBucketHover = null;
-      if (Planner.state.results && Planner.state.policyBucketPlot) {
-        Planner.renderPolicyBucketPlot(
-          Planner.els.dynamicPolicyCanvas,
-          Planner.state.results,
-          Planner.state.policyBucketPlot.rows,
-          Planner.state.policyBucketPlot.metric,
-          Planner.state.policyBucketPlot.currentBucketIndex
-        );
-      }
-    });
-    Planner.els.netWorthZoom.addEventListener("input", () => {
+    Planner.bindChartHover();
+
+    els.netWorthZoom.addEventListener("input", () => {
       Planner.updateNetWorthZoomLabel();
-      if (Planner.state.results) Planner.renderNetWorthChart(Planner.els.pathsCanvas, Planner.state.results);
+      Planner.renderChart("netWorth");
     });
-    Planner.els.showDepleted.addEventListener("change", () => {
-      if (Planner.state.results) {
-        Planner.updateScenarioSummary(Planner.state.results);
-        Planner.renderDistributionChart(Planner.els.distributionCanvas, Planner.state.results);
-      }
+    els.showDepleted.addEventListener("change", rerender((results) => {
+      Planner.updateScenarioSummary(results);
+      Planner.renderChart("distribution");
+    }));
+    els.simulationSelect.addEventListener("change", rerender((results) => {
+      Planner.clearHover();
+      Planner.renderSimulationPathTable(results);
+      Planner.renderChart("detail");
+    }));
+    [els.policyYearSelect, els.policyBucketSelect, els.policyMetricSelect].forEach((select) => {
+      select.addEventListener("change", rerender((results) => {
+        Planner.clearHover();
+        Planner.renderDynamicPolicyTable(results);
+      }));
     });
-    Planner.els.simulationSelect.addEventListener("change", () => {
-      if (!Planner.state.results) return;
-      Planner.state.detailHover = null;
-      Planner.renderSimulationPathTable(Planner.state.results);
-      Planner.renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
+    [els.policyPathBeta, els.policyPathYears, els.policyPathReturnMode, els.policyPathReturnYear].forEach((input) => {
+      input.addEventListener("change", rerender(Planner.renderPolicyPathExplorer));
     });
-    Planner.els.policyYearSelect.addEventListener("change", () => {
-      Planner.state.policyBucketHover = null;
-      if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
-    });
-    Planner.els.policyBucketSelect.addEventListener("change", () => {
-      Planner.state.policyBucketHover = null;
-      if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
-    });
-    Planner.els.policyMetricSelect.addEventListener("change", () => {
-      Planner.state.policyBucketHover = null;
-      if (Planner.state.results) Planner.renderDynamicPolicyTable(Planner.state.results);
-    });
-    [
-      Planner.els.policyPathBeta,
-      Planner.els.policyPathYears,
-      Planner.els.policyPathReturnMode,
-      Planner.els.policyPathReturnYear
-    ].forEach((input) => {
-      input.addEventListener("input", () => {
-        if (Planner.state.results) Planner.renderPolicyPathExplorer(Planner.state.results);
-      });
-      input.addEventListener("change", () => {
-        if (Planner.state.results) Planner.renderPolicyPathExplorer(Planner.state.results);
-      });
-    });
+
+    let resizeFrame = null;
     window.addEventListener("resize", () => {
+      if (resizeFrame) return;
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = null;
+        if (Planner.state.results) Planner.renderCharts(Planner.state.results);
+      });
+    });
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      Planner.resetChartTheme();
       if (Planner.state.results) Planner.renderCharts(Planner.state.results);
     });
     Planner.updateNetWorthZoomLabel();
   }
 
   async function loadMarketData() {
-    const response = await fetch("data/spx-annual-returns.json");
-    Planner.state.marketData = await response.json();
+    try {
+      const response = await fetch("data/spx-annual-returns.json");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (!Array.isArray(data.returns) || !data.returns.length) throw new Error("no return rows");
+      Planner.state.marketData = data;
+    } catch (error) {
+      setStatus(`Could not load market data (${error.message}). Serve the app over HTTP and reload.`, "error");
+      return false;
+    }
     const years = Planner.state.marketData.returns.map((entry) => entry.year);
-    Planner.els.dataSpanMetric.textContent = `${Math.min(...years)}-${Math.max(...years)}`;
+    const span = `${Math.min(...years)}–${Math.max(...years)}`;
+    Planner.els.dataSpanMetric.textContent = span;
+    Planner.els.dataSpanMetricNote.textContent = `${years.length} annual observations`;
+    document.querySelectorAll("[data-data-span]").forEach((element) => {
+      element.textContent = span;
+    });
+    return true;
+  }
+
+  function setStatus(text, tone = "") {
+    Planner.els.runStatus.textContent = text;
+    Planner.els.runStatus.classList.toggle("is-error", tone === "error");
   }
 
   function markDirty() {
-    if (!Planner.state.isRunning) {
-      Planner.state.nextSimulationSeed = null;
-    }
-    if (Planner.state.isFrontierRunning) {
-      cancelFrontierRun();
-    }
-    if (!Planner.state.isDirty || Planner.state.isRunning) {
-      Planner.state.inputVersion += 1;
-    }
+    if (!Planner.state.isRunning) Planner.state.nextSimulationSeed = null;
+    if (Planner.state.isFrontierRunning) cancelFrontierRun();
+    Planner.state.inputVersion += 1;
     Planner.state.isDirty = true;
     updateRunState();
   }
 
   function updateRunState() {
-    const canRun = Boolean(Planner.state.marketData) && Planner.state.isDirty && !Planner.state.isRunning;
-    Planner.els.runSimulation.disabled = Planner.state.isRunning ? Planner.state.cancelRequested : !canRun;
-    Planner.els.sharePlan.disabled = Planner.state.isRunning;
-    Planner.els.runSimulation.textContent = Planner.state.cancelRequested
-      ? "Stopping"
-      : Planner.state.isRunning
-        ? "Stop"
-        : "Run";
-    Planner.els.runSimulation.classList.toggle("is-running", Planner.state.isRunning);
+    const { state, els } = Planner;
+    const canRun = Boolean(state.marketData) && state.isDirty && !state.isRunning;
+    els.runSimulation.disabled = state.isRunning ? state.cancelRequested : !canRun;
+    els.runSimulation.textContent = state.cancelRequested ? "Stopping" : state.isRunning ? "Stop" : "Run";
+    els.runSimulation.classList.toggle("is-running", state.isRunning);
+    els.sharePlan.disabled = state.isRunning || !state.marketData;
     updateFrontierRunState();
   }
 
+  function canRunFrontier() {
+    const { state } = Planner;
+    return Boolean(state.marketData && Planner.hasDynamicPolicy(state.results) && !state.isDirty && !state.isRunning);
+  }
+
   function updateFrontierRunState() {
-    const canRunFrontier = Boolean(
-      Planner.state.marketData &&
-      Planner.state.results &&
-      Planner.state.results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC &&
-      Planner.state.results.dynamicPolicy &&
-      !Planner.state.isDirty &&
-      !Planner.state.isRunning
-    );
-    Planner.els.runFrontier.disabled = Planner.state.isFrontierRunning
-      ? Planner.state.frontierCancelRequested
-      : !canRunFrontier;
-    Planner.els.runFrontier.textContent = Planner.state.isFrontierRunning
-      ? (Planner.state.frontierCancelRequested ? "Stopping" : "Stop")
-      : "Run Frontier";
-    Planner.els.runFrontier.classList.toggle("is-running", Planner.state.isFrontierRunning);
+    const { state, els } = Planner;
+    els.runFrontier.disabled = state.isFrontierRunning ? state.frontierCancelRequested : !canRunFrontier();
+    els.runFrontier.textContent = state.isFrontierRunning
+      ? (state.frontierCancelRequested ? "Stopping" : "Stop")
+      : "Run frontier";
+    els.runFrontier.classList.toggle("is-running", state.isFrontierRunning);
   }
 
   function cancelFrontierRun() {
     Planner.state.frontierRunId += 1;
-    Planner.state.frontierCancelRequested = true;
     Planner.state.isFrontierRunning = false;
+    Planner.state.frontierCancelRequested = false;
     updateFrontierRunState();
   }
 
@@ -298,92 +198,56 @@
     const isDynamicBeta = Planner.normalizeBetaMode(Planner.els.betaMode.value) === Planner.BETA_MODE_DYNAMIC;
     Planner.els.fixedBetaControl.hidden = isDynamicBeta;
     Planner.els.spxBeta.disabled = isDynamicBeta;
-    Planner.els.spxBeta.required = !isDynamicBeta;
-  }
-
-  function showProgress() {
-    Planner.els.runProgress.hidden = false;
-    setProgress(0);
-  }
-
-  function hideProgress() {
-    Planner.els.runProgress.hidden = true;
-    Planner.els.runProgressLabel.textContent = "";
-    setProgress(0);
   }
 
   function setProgress(value) {
-    const percent = Math.max(0, Math.min(100, Math.round(value * 100)));
+    const percent = Math.round(Planner.clamp(value, 0, 1) * 100);
     Planner.els.runProgressBar.style.width = `${percent}%`;
     Planner.els.runProgress.setAttribute("aria-valuenow", String(percent));
-    Planner.els.runProgressLabel.textContent = Planner.state.isRunning ? `${percent}%` : "";
+    if (Planner.state.isRunning && !Planner.state.cancelRequested) setStatus(`Simulating… ${percent}%`);
   }
 
-  function setProgressLabel(text) {
-    Planner.els.runProgressLabel.textContent = text;
-  }
+  // ---------- Cash flow rows ----------
 
-  function syncRelativeFlowYears() {
-    document.querySelectorAll(".flow-row").forEach(updateFlowYearInputs);
+  function addNewFlow(container, name) {
+    addFlowRow(container, {
+      name,
+      amount: 25000,
+      startMode: "current",
+      startYear: Number(Planner.els.currentYear.value),
+      endMode: "death",
+      endYear: Number(Planner.els.deathYear.value)
+    });
+    Planner.formatAllFormattedInputs(container.lastElementChild);
+    container.lastElementChild.querySelector('[data-field="name"]').focus();
+    markDirty();
   }
 
   function addFlowRow(container, flow) {
-    const node = Planner.els.template.content.firstElementChild.cloneNode(true);
-    node.querySelector('[data-field="name"]').value = flow.name;
-    node.querySelector('[data-field="amount"]').value = flow.amount;
-    node.querySelector('[data-field="startMode"]').value = flow.startMode || "current";
-    node.querySelector('[data-field="startYear"]').value = flow.startYear;
-    node.querySelector('[data-field="endMode"]').value = flow.endMode || "death";
-    node.querySelector('[data-field="endYear"]').value = flow.endYear;
+    const node = Planner.els.flowRowTemplate.content.firstElementChild.cloneNode(true);
+    const field = (name) => node.querySelector(`[data-field="${name}"]`);
+    field("name").value = flow.name;
+    field("amount").value = flow.amount;
+    field("startMode").value = flow.startMode || "current";
+    field("startYear").value = flow.startYear;
+    field("endMode").value = flow.endMode || "death";
+    field("endYear").value = flow.endYear;
     node.querySelector(".remove-flow").addEventListener("click", () => {
       node.remove();
       markDirty();
     });
+    [field("startMode"), field("endMode")].forEach((select) => {
+      select.addEventListener("change", () => updateFlowYearInputs(node));
+    });
     Planner.bindFormattedInputs(node);
     Planner.formatAllFormattedInputs(node);
-    node.querySelectorAll("input, select").forEach((field) => {
-      field.addEventListener("change", () => {
-        updateFlowYearInputs(node);
-        markDirty();
-      });
-    });
     updateFlowYearInputs(node);
     container.appendChild(node);
   }
 
   function updateFlowYearInputs(row) {
-    const startYear = row.querySelector('[data-field="startYear"]');
-    const endYear = row.querySelector('[data-field="endYear"]');
-    startYear.hidden = row.querySelector('[data-field="startMode"]').value !== "fixed";
-    endYear.hidden = row.querySelector('[data-field="endMode"]').value !== "fixed";
-  }
-
-  function readFlowRows(container, scenario) {
-    return [...container.querySelectorAll(".flow-row")]
-      .map((row) => {
-        const name = row.querySelector('[data-field="name"]').value.trim();
-        const startMode = row.querySelector('[data-field="startMode"]').value;
-        const endMode = row.querySelector('[data-field="endMode"]').value;
-        const startYear = resolveFlowYear(startMode, row.querySelector('[data-field="startYear"]'), scenario);
-        const endYear = resolveFlowYear(endMode, row.querySelector('[data-field="endYear"]'), scenario);
-        if (Number.isFinite(startYear)) Planner.validatePlanYear(startYear, `${name || "Cash flow"} start year`);
-        if (Number.isFinite(endYear)) Planner.validatePlanYear(endYear, `${name || "Cash flow"} end year`);
-        return {
-          name,
-          amount: Planner.numberFromInput(row.querySelector('[data-field="amount"]')),
-          startMode,
-          endMode,
-          startYear,
-          endYear
-        };
-      })
-      .filter((flow) => (
-        Number.isFinite(flow.amount) &&
-        Number.isFinite(flow.startYear) &&
-        Number.isFinite(flow.endYear) &&
-        flow.amount > 0 &&
-        flow.startYear <= flow.endYear
-      ));
+    row.querySelector('[data-field="startYear"]').hidden = row.querySelector('[data-field="startMode"]').value !== "fixed";
+    row.querySelector('[data-field="endYear"]').hidden = row.querySelector('[data-field="endMode"]').value !== "fixed";
   }
 
   function resolveFlowYear(mode, fixedInput, scenario) {
@@ -392,23 +256,47 @@
     return Planner.numberFromInput(fixedInput);
   }
 
+  // Rows with no positive amount, or that end before they start, contribute nothing
+  // and are skipped.
+  function readFlowRows(container, scenario) {
+    return [...container.querySelectorAll(".flow-row")]
+      .map((row) => {
+        const field = (name) => row.querySelector(`[data-field="${name}"]`);
+        const name = field("name").value.trim();
+        const startMode = field("startMode").value;
+        const endMode = field("endMode").value;
+        const startYear = resolveFlowYear(startMode, field("startYear"), scenario);
+        const endYear = resolveFlowYear(endMode, field("endYear"), scenario);
+        const label = name || "Cash flow";
+        if (startMode === "fixed") Planner.validatePlanYear(startYear, `${label} start year`);
+        if (endMode === "fixed") Planner.validatePlanYear(endYear, `${label} end year`);
+        return {
+          name,
+          amount: Planner.numberFromInput(field("amount")),
+          startMode,
+          endMode,
+          startYear,
+          endYear
+        };
+      })
+      .filter((flow) => Number.isFinite(flow.amount) && flow.amount > 0 && flow.startYear <= flow.endYear);
+  }
+
   function readScenario() {
+    const { els } = Planner;
     const scenario = {
-      currentYear: Planner.numberFromInput(Planner.els.currentYear),
-      deathYear: Planner.numberFromInput(Planner.els.deathYear),
-      netWorth: Planner.numberFromInput(Planner.els.netWorth),
-      betaMode: Planner.normalizeBetaMode(Planner.els.betaMode.value),
-      spxBeta: Planner.numberFromInput(Planner.els.spxBeta),
-      simulationCount: Planner.numberFromInput(Planner.els.simulationCount)
+      currentYear: Planner.numberFromInput(els.currentYear),
+      deathYear: Planner.numberFromInput(els.deathYear),
+      netWorth: Planner.numberFromInput(els.netWorth),
+      betaMode: Planner.normalizeBetaMode(els.betaMode.value),
+      spxBeta: Planner.numberFromInput(els.spxBeta),
+      simulationCount: Planner.numberFromInput(els.simulationCount)
     };
 
-    if (!Number.isFinite(scenario.currentYear) || !Number.isFinite(scenario.deathYear)) {
-      throw new Error("Enter valid plan years.");
-    }
     Planner.validatePlanYear(scenario.currentYear, "Current year");
-    Planner.validatePlanYear(scenario.deathYear, "Expected year of death");
+    Planner.validatePlanYear(scenario.deathYear, "Year of death");
     if (scenario.deathYear < scenario.currentYear) {
-      throw new Error("Expected year of death must be after the current year.");
+      throw new Error("Year of death must not be before the current year.");
     }
     const planLength = scenario.deathYear - scenario.currentYear + 1;
     if (planLength > Planner.MAX_PLAN_LENGTH_YEARS) {
@@ -417,8 +305,12 @@
     if (!Number.isFinite(scenario.netWorth) || scenario.netWorth < 0) {
       throw new Error("Enter a non-negative current net worth.");
     }
-    if (scenario.betaMode === Planner.BETA_MODE_FIXED && !Number.isFinite(scenario.spxBeta)) {
-      throw new Error("Enter a valid SPX beta.");
+    if (scenario.betaMode === Planner.BETA_MODE_FIXED) {
+      if (!Number.isFinite(scenario.spxBeta) || scenario.spxBeta < -3 || scenario.spxBeta > 3) {
+        throw new Error("Enter an SPX beta between -3 and 3.");
+      }
+    } else if (!Number.isFinite(scenario.spxBeta)) {
+      scenario.spxBeta = Planner.DEFAULT_SPX_BETA;
     }
     if (!Number.isFinite(scenario.simulationCount) || scenario.simulationCount < Planner.MIN_SIMULATION_COUNT) {
       throw new Error(`Run at least ${Planner.formatNumber(Planner.MIN_SIMULATION_COUNT)} simulations.`);
@@ -429,197 +321,149 @@
     }
     const simulationYearRows = scenario.simulationCount * planLength;
     if (simulationYearRows > Planner.MAX_SIMULATION_YEAR_ROWS) {
-      throw new Error(`This run would create ${Planner.formatNumber(simulationYearRows)} detail rows. Reduce simulations or plan length below ${Planner.formatNumber(Planner.MAX_SIMULATION_YEAR_ROWS)} rows.`);
+      throw new Error(`This run would create ${Planner.formatNumber(simulationYearRows)} simulation-years. Keep simulations × plan years under ${Planner.formatNumber(Planner.MAX_SIMULATION_YEAR_ROWS)}.`);
     }
 
-    scenario.income = readFlowRows(Planner.els.incomeRows, scenario);
-    scenario.expenses = readFlowRows(Planner.els.expenseRows, scenario);
+    scenario.income = readFlowRows(els.incomeRows, scenario);
+    scenario.expenses = readFlowRows(els.expenseRows, scenario);
     return scenario;
   }
 
+  // ---------- Runs ----------
+
   async function runSimulation() {
-    if (Planner.state.isRunning) {
-      requestSimulationCancel();
+    const { state, els } = Planner;
+    if (state.isRunning) {
+      state.cancelRequested = true;
+      setStatus("Stopping…");
+      updateRunState();
       return;
     }
-    if (!Planner.state.marketData || !Planner.state.isDirty) return;
+    if (!state.marketData || !state.isDirty) return;
 
-    const runVersion = Planner.state.inputVersion;
+    const runVersion = state.inputVersion;
     let scenario;
     try {
       scenario = readScenario();
     } catch (error) {
-      Planner.els.scenarioSummary.textContent = error.message;
-      Planner.state.isDirty = true;
-      updateRunState();
+      setStatus(error.message, "error");
       return;
     }
 
-    const seed = Number.isInteger(Planner.state.nextSimulationSeed)
-      ? Planner.state.nextSimulationSeed
-      : Planner.generateSimulationSeed();
-    Planner.state.nextSimulationSeed = null;
-    const random = Planner.createSeededRandom(seed);
-
-    Planner.state.isRunning = true;
-    Planner.state.cancelRequested = false;
-    if (Planner.state.isFrontierRunning) {
-      cancelFrontierRun();
-    } else {
-      Planner.state.frontierCancelRequested = false;
-    }
-    Planner.state.hover = null;
-    Planner.state.frontierHover = null;
-    Planner.state.detailHover = null;
-    Planner.state.policyBucketHover = null;
-    showProgress();
+    const seed = Number.isInteger(state.nextSimulationSeed) ? state.nextSimulationSeed : Planner.generateSimulationSeed();
+    state.nextSimulationSeed = null;
+    state.isRunning = true;
+    state.cancelRequested = false;
+    if (state.isFrontierRunning) cancelFrontierRun();
+    Planner.clearHover();
+    els.runProgress.hidden = false;
+    setProgress(0);
     updateRunState();
     await Planner.yieldToBrowser();
 
+    const startedAt = performance.now();
     try {
       const results = await Planner.simulateScenario(
         scenario,
-        Planner.state.marketData.returns,
-        random,
+        state.marketData.returns,
+        Planner.createSeededRandom(seed),
         setProgress,
-        () => Planner.state.cancelRequested
+        () => state.cancelRequested
       );
       results.seed = seed;
-      Planner.state.results = results;
-      Planner.state.isDirty = Planner.state.inputVersion !== runVersion;
+      state.results = results;
+      state.isDirty = state.inputVersion !== runVersion;
       Planner.updateShareUrl(scenario, seed);
       Planner.renderResults(results);
+      setStatus(`${Planner.formatNumber(scenario.simulationCount)} simulations in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
     } catch (error) {
-      Planner.els.scenarioSummary.textContent = Planner.isCancellationError(error)
-        ? "Simulation stopped. Fix the inputs and run again."
-        : error.message;
-      Planner.state.isDirty = true;
+      setStatus(Planner.isCancellationError(error) ? "Simulation stopped." : error.message, Planner.isCancellationError(error) ? "" : "error");
+      state.isDirty = true;
     } finally {
-      Planner.state.isRunning = false;
-      Planner.state.cancelRequested = false;
-      hideProgress();
+      state.isRunning = false;
+      state.cancelRequested = false;
+      els.runProgress.hidden = true;
       updateRunState();
     }
   }
 
   async function runFrontier() {
-    if (Planner.state.isFrontierRunning) {
-      Planner.state.frontierCancelRequested = true;
+    const { state, els } = Planner;
+    if (state.isFrontierRunning) {
+      state.frontierCancelRequested = true;
       updateFrontierRunState();
       return;
     }
+    if (!canRunFrontier()) return;
 
-    const results = Planner.state.results;
-    if (
-      !Planner.state.marketData ||
-      !results ||
-      results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC ||
-      !results.dynamicPolicy ||
-      Planner.state.isDirty ||
-      Planner.state.isRunning
-    ) {
-      return;
-    }
-
-    const frontierRunId = Planner.state.frontierRunId + 1;
-    Planner.state.frontierRunId = frontierRunId;
-    Planner.state.isFrontierRunning = true;
-    Planner.state.frontierCancelRequested = false;
-    Planner.state.frontierHover = null;
-    results.dynamicPolicy.frontier = results.dynamicPolicy.frontier?.slice(0, 1) || [];
-    Planner.els.frontierSummary.textContent = "Calculating dynamic beta frontier: 0%.";
-    Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
+    const results = state.results;
+    const frontierRunId = state.frontierRunId + 1;
+    const isCurrentRun = () => state.frontierRunId === frontierRunId && state.results === results;
+    state.frontierRunId = frontierRunId;
+    state.isFrontierRunning = true;
+    state.frontierCancelRequested = false;
+    Planner.clearHover();
+    results.dynamicPolicy.frontier = results.dynamicPolicy.frontier.slice(0, 1);
+    els.frontierSummary.textContent = "Calculating dynamic beta frontier: 0%.";
+    Planner.renderChart("frontier");
     updateFrontierRunState();
     await Planner.yieldToBrowser();
 
     try {
       await Planner.buildDynamicBetaFrontier(
         results,
-        Planner.state.marketData.returns,
+        state.marketData.returns,
         (progress) => {
-          const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
-          if (Planner.state.frontierRunId !== frontierRunId) return;
-          Planner.els.frontierSummary.textContent = `Calculating dynamic beta frontier: ${percent}%.`;
+          if (!isCurrentRun()) return;
+          els.frontierSummary.textContent = `Calculating dynamic beta frontier: ${Math.round(Planner.clamp(progress, 0, 1) * 100)}%.`;
         },
-        () => (
-          Planner.state.frontierRunId !== frontierRunId ||
-          Planner.state.frontierCancelRequested ||
-          Planner.state.results !== results
-        )
+        () => !isCurrentRun() || state.frontierCancelRequested
       );
-      if (Planner.state.frontierRunId !== frontierRunId || Planner.state.results !== results) return;
-      Planner.els.frontierSummary.textContent = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies; the red point is the main min-risk policy used for the simulation.`;
-      Planner.renderFrontierChart(Planner.els.frontierCanvas, results);
+      if (!isCurrentRun()) return;
+      Planner.updateFrontierSummary(results);
+      Planner.renderChart("frontier");
     } catch (error) {
-      if (Planner.state.frontierRunId !== frontierRunId) return;
-      Planner.els.frontierSummary.textContent = Planner.isCancellationError(error)
+      if (!isCurrentRun()) return;
+      els.frontierSummary.textContent = Planner.isCancellationError(error)
         ? "Frontier stopped."
         : `Frontier unavailable: ${error.message}`;
     } finally {
-      if (Planner.state.frontierRunId === frontierRunId) {
-        Planner.state.isFrontierRunning = false;
-        Planner.state.frontierCancelRequested = false;
+      if (state.frontierRunId === frontierRunId) {
+        state.isFrontierRunning = false;
+        state.frontierCancelRequested = false;
         updateFrontierRunState();
       }
     }
   }
 
-  function requestSimulationCancel() {
-    Planner.state.cancelRequested = true;
-    setProgressLabel("Stopping...");
-    updateRunState();
-  }
-
   Object.assign(Planner, {
-    cacheElements,
-    setDefaults,
-    bindEvents,
-    loadMarketData,
-    markDirty,
-    updateRunState,
+    setStatus,
     updateBetaModeControls,
-    showProgress,
-    hideProgress,
-    setProgress,
-    setProgressLabel,
-    syncRelativeFlowYears,
     addFlowRow,
-    updateFlowYearInputs,
-    readFlowRows,
-    resolveFlowYear,
-    readScenario,
-    runSimulation,
-    requestSimulationCancel
+    readScenario
   });
 
   document.addEventListener("DOMContentLoaded", async () => {
     Planner.mountSectionHeaders();
-    Planner.cacheElements();
-    Planner.setDefaults();
+    cacheElements();
+    setDefaults();
     const sharedPlan = Planner.applySharedPlanFromUrl();
-    Planner.bindEvents();
+    bindEvents();
     Planner.resetDetailsControls();
     Planner.switchPage(Planner.getPageFromUrl());
-    Planner.updateRunState();
-    await Planner.loadMarketData();
-    Planner.updateRunState();
-    if (sharedPlan && sharedPlan.error) {
-      Planner.els.scenarioSummary.textContent = sharedPlan.error;
-      Planner.markDirty();
-      return;
-    }
-    if (sharedPlan) {
+    updateRunState();
+    const loaded = await loadMarketData();
+    markDirty();
+    if (!loaded) return;
+
+    if (sharedPlan?.error) {
+      setStatus(sharedPlan.error, "error");
+    } else if (sharedPlan) {
       Planner.state.nextSimulationSeed = sharedPlan.seed;
-      Planner.state.isDirty = true;
-      Planner.updateRunState();
-      Planner.els.scenarioSummary.textContent = sharedPlan.autorun
-        ? "Shared plan loaded. Running simulation..."
-        : "Shared plan loaded. Click Run to simulate.";
-      if (sharedPlan.autorun) {
-        await Planner.runSimulation();
-      }
-      return;
+      setStatus("Shared plan loaded.");
+      await runSimulation();
+    } else {
+      setStatus("Adjust the plan, then press Run.");
     }
-    Planner.markDirty();
   });
 })(window.Planner = window.Planner || {});

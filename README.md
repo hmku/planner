@@ -5,22 +5,24 @@ A static browser-based financial planning simulator built around dynamic SPX-bet
 The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, annual income, and annual expenditures. It then shows:
 
 - probability of running out of money before the expected year of death
-- median final wealth in current dollars
+- expected (mean) terminal wealth in current dollars, with the median alongside
 - current SPX beta for the first plan year
 - historical return span used by the model
-- a depletion-year distribution
+- a depletion-year distribution (hover a bar for its probability)
 - simulated current-dollar net worth paths
 - simulated SPX beta paths
 - an on-demand dynamic-beta frontier comparing expected terminal wealth against run-out risk
-- an Inspect Simulation view for one selected simulation's net worth path and annual return/cash-flow rows
-- a scenario-level dynamic-beta policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer
+- a Simulation view for one selected simulation's net worth path and annual return/cash-flow rows
+- a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
 By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, and `50,000` simulations.
 
 ## How It Works
 
-The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database.
+The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
+
+To keep memory small, a run stores only the sampled historical year for each simulation-year (about 2 bytes each). The Simulation table, its chart, and the simulation CSV replay a simulation from those indices with the same arithmetic as the run, so the numbers match exactly. The simulation CSV covers every simulation-year, so large runs produce very large files (roughly 700 MB at the default 50,000 simulations over 61 years); lower the simulation count when you need a manageable export.
 
 Fixed-beta and dynamic-beta simulations sample one historical year at a time with replacement. Dynamic beta chooses the beta for a simulation year before that year's sampled return is drawn. Portfolio nominal return is modeled as:
 
@@ -30,7 +32,7 @@ T-bill return + SPX beta * (S&P 500 return - T-bill return)
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
-Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. After a dynamic run completes, the Dynamic Beta Frontier tab can run a separate risk/wealth frontier from scenario-calibrated risk-penalty policies; the frontier plots expected terminal wealth against run-out probability and shows each point's current recommended SPX beta on hover. Inspect Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level minimum-risk policy in Inspect Beta Policy: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
+Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. After a dynamic run completes, the Frontier tab can run a separate risk/wealth frontier from scenario-calibrated risk-penalty policies; the frontier plots expected terminal wealth against run-out probability and shows each point's current recommended SPX beta on hover. Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level minimum-risk policy in the Beta Policy tab: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
 
 ## Sharing Plans
 

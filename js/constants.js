@@ -8,6 +8,7 @@ Planner.MIN_SIMULATION_COUNT = 100;
 Planner.MAX_SIMULATION_COUNT = 200000;
 Planner.MAX_SIMULATION_YEAR_ROWS = 12000000;
 Planner.MAX_SHARED_FLOWS = 100;
+Planner.DEFAULT_SPX_BETA = 0.8;
 Planner.BETA_MODE_FIXED = "fixed";
 Planner.BETA_MODE_DYNAMIC = "dynamic";
 Planner.PAGE_IDS = ["overview", "details", "policy", "frontier", "methodology"];

@@ -15,16 +15,16 @@ There is no package manager, build pipeline, framework, backend, or test runner 
 ### JavaScript modules (load order matters)
 
 1. `js/constants.js` — limits, defaults, beta-mode constants
-2. `js/util.js` — CSV export, select/table helpers, math, canvas sizing, chart geometry
+2. `js/util.js` — CSV export (chunked, accepts generators), select/table helpers, math, nice axis ticks, canvas sizing
 3. `js/format.js` — display formatting and money/integer inputs
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
-5. `js/simulation.js` — Monte Carlo engine and dynamic-beta policy
-6. `js/charts.js` — canvas charts and hover handling
-7. `js/results.js` — metrics, inspection tables, CSV downloads, tab switching
+5. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy
+6. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
+7. `js/results.js` — metrics, inspection tables, policy views, CSV downloads, tab switching
 8. `js/share.js` — share-link encode/decode
 9. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
 
-Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, `drawDownsampledPaths`, etc.) instead of copying UI or chart logic into a single file.
+Each module exports only what other modules use. Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, and the chart primitives in `charts.js` such as `beginChart`, `drawYAxis`, `drawXAxis`, `drawLegend`, `drawTooltip`) instead of copying UI or chart logic.
 
 ## Main Runtime Flow
 
@@ -36,19 +36,22 @@ The simulation path is:
 2. `readScenario()`
 3. `simulateScenario()`
 4. `renderResults()`
-5. `renderSimulationSelect()`, `renderSimulationPathTable()`, and `renderCharts()`
+5. `renderSimulationSelect()`, `renderSimulationPathTable()`, `renderDynamicPolicyControls()`, and `renderCharts()`
 
-The Overview tab uses `renderDistributionChart()` and `renderNetWorthChart()`.
+`renderCharts(results)` draws every chart registered in `CHARTS` for the active page; `renderChart(key)` redraws one. Chart render functions take only `results` and read any control values from `Planner.els`.
 
-The Details tab uses `renderSelectedSimulationChart()` and `renderSimulationPathTable()`. The `#simulationSelect` dropdown controls both the selected net worth plot and the annual rows table.
+The Simulation tab (`details` page id) uses the `detail` chart and `renderSimulationPathTable()`. The `#simulationSelect` dropdown controls both the selected net worth plot and the annual rows table.
 
 ## Important Implementation Details
 
 - Default inputs are set in `setDefaults()`.
 - SPX beta currently defaults to `0.8`.
 - Share links use the `p` query parameter to store compact current plan inputs plus a seeded simulation value; shared links restore inputs and auto-run after market data loads.
-- Simulation rows are stored in `simulationYearRowsBySimulation` so the Details tab can inspect one simulation without recomputing.
-- Result panels share one section shell: add `data-section-header` on a `.content-section`, optionally `data-summary-id`, `data-summary-text`, `data-picker-id`, `data-picker-label`, `data-download-id`, and `data-download-label`. Custom toolbar controls go in a `[data-section-toolbar]` slot. `mountSectionHeaders()` builds every header from `#sectionHeaderTemplate` on load.
+- Runs store only `sampledRowIndexes` (one historical-row index per simulation-year). `getSimulationYearRows(results, simulation)` replays a simulation's annual rows deterministically; keep its arithmetic in lockstep with `simulateScenario()`.
+- Keep the random-number call order in `simulateScenario()` stable (one draw per active year, then the reservoir draw); share links depend on it.
+- Colors live in CSS custom properties; canvas code reads `--chart-*` tokens through `chartTheme()`. Do not hardcode colors in JS.
+- Status and validation messages go to `#runStatus` via `Planner.setStatus(text, tone)`.
+- Result panels share one section shell: add `data-section-header` on a `.card.content-section`, optionally `data-summary-id`, `data-summary-text`, `data-picker-id`, `data-picker-label`, `data-download-id`, and `data-download-label`. Custom toolbar controls go in a `[data-section-toolbar]` slot. `mountSectionHeaders()` builds every header from `#sectionHeaderTemplate` on load; the toolbar holds slot content, then the picker, then the CSV button.
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
 - The Details dropdown only lists downsampled inspection paths, not every simulation.
@@ -77,11 +80,12 @@ Manual smoke test:
 - Top metric values stay inside their cards, including large median wealth values.
 - Overview charts render and resize correctly.
 - Click `Share`; the copied URL restores the same inputs and reruns with the seeded paths.
-- Switch to Details.
+- Switch to Simulation.
 - The simulation dropdown, CSV button, selected simulation chart, and annual rows table are in one visual section.
 - Changing the selected simulation updates both the chart and table.
 - CSV download creates simulation-year rows.
 - Switch to Methodology and back to verify tab state still renders.
+- Check dark mode (OS preference) and a ~390px-wide viewport.
 
 Command-line checks available in the current environment:
 
@@ -91,7 +95,7 @@ for f in js/*.js app.js; do node --check "$f"; done
 git diff --stat
 ```
 
-At the time this file was written, the environment did not have a headless Chrome binary installed, so browser smoke tests had to be manual.
+Some environments have Playwright and Chromium available (for example `NODE_PATH=$(npm root -g)` with a global `playwright`), which lets you script the smoke test headlessly. Very large simulation CSV exports can be canceled by headless Chromium's blob limits; test exports with a smaller simulation count.
 
 ## Cursor Cloud specific instructions
 
@@ -117,10 +121,9 @@ for f in js/*.js app.js; do node --check "$f"; done
 
 ### Browser testing
 
-Cloud agents can run the manual smoke test via the `computerUse` subagent against `http://127.0.0.1:8000/`. Default runs use 50,000 simulations, so the first **Run** may take several seconds while the progress bar advances.
+Cloud agents can run the manual smoke test via the `computerUse` subagent against `http://127.0.0.1:8000/`. Default runs use 50,000 simulations and take a few seconds while the progress bar advances.
 
 ### Gotchas
 
 - Opening `index.html` via `file://` fails because the market-data JSON fetch requires HTTP.
-- Google Fonts load from CDN; offline environments may fall back to system fonts without breaking functionality.
 - Start the HTTP server from the repository root, not from a subdirectory.

@@ -1,1202 +1,926 @@
 (function (Planner) {
-  function beginChart(canvas) {
-    const size = Planner.fitCanvas(canvas);
-    const ctx = canvas.getContext("2d");
-    Planner.clearCanvas(ctx, size.width, size.height);
-    return { ctx, width: size.width, height: size.height };
+  // ---------- Theme ----------
+
+  let themeCache = null;
+
+  function parseHex(hex) {
+    const value = hex.replace("#", "");
+    return [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16));
   }
 
-
-  function drawExpectedSeries(ctx, series, padding, chartWidth, chartHeight, minYear, maxYear, maxValue, getValue) {
-    ctx.beginPath();
-    ctx.strokeStyle = "#4f46e5";
-    ctx.lineWidth = 3;
-    let started = false;
-    series.forEach((point) => {
-      const value = getValue(point);
-      if (!Number.isFinite(value)) return;
-      const x = Planner.yearToX(point.year, minYear, maxYear, padding, chartWidth);
-      const y = padding.top + chartHeight - (value / Math.max(1, maxValue)) * chartHeight;
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
+  function chartTheme() {
+    if (themeCache) return themeCache;
+    const style = getComputedStyle(document.documentElement);
+    const token = (name) => style.getPropertyValue(name).trim();
+    themeCache = {
+      fontFamily: token("--font-sans") || "system-ui, sans-serif",
+      surface: token("--chart-surface"),
+      grid: token("--chart-grid"),
+      axis: token("--chart-axis"),
+      ink: token("--chart-ink"),
+      text: token("--chart-text"),
+      muted: token("--chart-muted"),
+      series: token("--chart-series"),
+      seriesStrong: token("--chart-series-strong"),
+      path: token("--chart-path"),
+      highlight: token("--chart-highlight"),
+      critical: token("--chart-critical"),
+      positive: token("--chart-positive"),
+      tooltipBg: token("--chart-tooltip-bg"),
+      tooltipInk: token("--chart-tooltip-ink"),
+      ramp: token("--chart-ramp").split(",").map((stop) => parseHex(stop.trim()))
+    };
+    return themeCache;
   }
 
-
-  function drawDownsampledPaths(ctx, hitAreas, paths, padding, chartWidth, chartHeight, minYear, maxYear, maxValue, getPathPoints, getPointValue, hoverIndex) {
-    paths.forEach((path, index) => {
-      const points = (getPathPoints(path) || [])
-        .map((point) => {
-          const value = getPointValue(point);
-          if (!Number.isFinite(value)) return null;
-          return {
-            x: Planner.yearToX(point.year, minYear, maxYear, padding, chartWidth),
-            y: padding.top + chartHeight - (value / Math.max(1, maxValue)) * chartHeight,
-            year: point.year,
-            wealth: point.wealth,
-            beta: point.beta
-          };
-        })
-        .filter(Boolean);
-      if (points.length < 2) return;
-
-      hitAreas.push({ path, index, points });
-      const highlighted = hoverIndex === index;
-      ctx.beginPath();
-      ctx.strokeStyle = highlighted ? "rgba(225, 29, 72, 0.95)" : "rgba(14, 165, 233, 0.18)";
-      ctx.lineWidth = highlighted ? 3 : 1;
-      points.forEach((point, pointIndex) => {
-        if (pointIndex === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      });
-      ctx.stroke();
-    });
+  function resetChartTheme() {
+    themeCache = null;
   }
 
-
-  function handleSeriesChartHover(event, canvas, pageName, hitAreas, renderChart) {
-    if (!Planner.state.results || Planner.state.activePage !== pageName) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const nearest = Planner.findNearestSegmentHit(hitAreas, x, y);
-    const nextHover = nearest ? { ...nearest, x, y } : null;
-    const currentIndex = Planner.state.hover ? Planner.state.hover.index : null;
-    const nextIndex = nextHover ? nextHover.index : null;
-
-    if (currentIndex !== nextIndex || nextHover) {
-      Planner.state.hover = nextHover;
-      renderChart(canvas, Planner.state.results);
-    }
+  function rampColor(ramp, t) {
+    const position = Planner.clamp(t, 0, 1) * (ramp.length - 1);
+    const index = Math.min(ramp.length - 2, Math.floor(position));
+    const local = position - index;
+    const [r, g, b] = ramp[index].map((channel, i) => Math.round(channel + (ramp[index + 1][i] - channel) * local));
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
-  function renderCharts(results) {
-    if (Planner.state.activePage === "overview") {
-      renderDistributionChart(Planner.els.distributionCanvas, results);
-      renderNetWorthChart(Planner.els.pathsCanvas, results);
-      renderBetaChart(Planner.els.betaCanvas, results);
-      return;
-    }
-    if (Planner.state.activePage === "details") {
-      renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, results);
-    }
-    if (Planner.state.activePage === "policy") {
-      if (Planner.renderDynamicPolicyTable) Planner.renderDynamicPolicyTable(results);
-      renderPolicyPathChart(Planner.els.policyPathCanvas, results, results.policyPathExplorer);
-    }
-    if (Planner.state.activePage === "frontier") {
-      renderFrontierChart(Planner.els.frontierCanvas, results);
-    }
+  function font(frame, size = 12, weight = 400) {
+    return `${weight} ${size}px ${frame.theme.fontFamily}`;
   }
 
+  // ---------- Frame, scales, and primitives ----------
 
-
-  function renderDistributionChart(canvas, results) {
-    const size = Planner.fitCanvas(canvas);
-    const ctx = canvas.getContext("2d");
-    const width = size.width;
-    const height = size.height;
-    Planner.clearCanvas(ctx, width, height);
-
-    const padding = { top: 28, right: 24, bottom: 72, left: 70 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const showDepleted = Planner.els.showDepleted.checked;
-    const rows = showDepleted
-      ? results.depletedDistribution
-      : [...results.depletedDistribution, { label: "Not depleted", count: results.notDepletedCount, isNotDepleted: true }];
-
-    drawAxes(ctx, padding, width, height, "Probability");
-    if (!rows.length) {
-      drawEmptyState(ctx, width, height, "No simulated paths depleted before the expected year of death.");
-      return;
-    }
-
-    const maxProbability = Math.max(...rows.map((row) => row.count / results.scenario.simulationCount), 0.01);
-    const barGap = 3;
-    const barWidth = Math.max(3, chartWidth / rows.length - barGap);
-
-    rows.forEach((row, index) => {
-      const probability = row.count / results.scenario.simulationCount;
-      const x = padding.left + index * (chartWidth / rows.length);
-      const barHeight = (probability / maxProbability) * chartHeight;
-      const y = padding.top + chartHeight - barHeight;
-      ctx.fillStyle = row.isNotDepleted ? "#4f46e5" : "#0ea5e9";
-      ctx.fillRect(x, y, barWidth, barHeight);
-
-      const shouldLabel = row.isNotDepleted || index === 0 || index === rows.length - 1 || index % Math.ceil(rows.length / 8) === 0;
-      if (shouldLabel) {
-        ctx.save();
-        ctx.translate(x + barWidth / 2, height - 48);
-        ctx.rotate(-Math.PI / 5);
-        ctx.fillStyle = "#6b7280";
-        ctx.font = "12px system-ui";
-        ctx.textAlign = "right";
-        ctx.fillText(row.label, 0, 0);
-        ctx.restore();
-      }
-    });
-
-    drawYProbabilityLabels(ctx, padding, chartHeight, maxProbability);
+  function beginChart(canvas, padding) {
+    const { ctx, width, height } = Planner.fitCanvas(canvas);
+    const theme = chartTheme();
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = theme.surface;
+    ctx.fillRect(0, 0, width, height);
+    // Narrow charts put the legend on its own row below the axis title.
+    const compact = width < 560;
+    const left = padding.left;
+    const top = padding.top + (compact ? 20 : 0);
+    const right = Math.max(left + 1, width - padding.right);
+    const bottom = Math.max(top + 1, height - padding.bottom);
+    return { ctx, theme, width, height, compact, left, top, right, bottom, plotWidth: right - left, plotHeight: bottom - top };
   }
 
-
-
-  function renderNetWorthChart(canvas, results) {
-    const { ctx, width, height } = beginChart(canvas);
-    Planner.state.pathHitAreas = [];
-
-    const padding = { top: 28, right: 72, bottom: 54, left: 82 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const maxWealth = getNetWorthYAxisMax(results);
-    const { minYear, maxYear } = Planner.getYearSpan(results.scenario);
-    const hoverIndex = Planner.state.hover ? Planner.state.hover.index : null;
-
-    drawAxes(ctx, padding, width, height, "Current-dollar net worth");
-    drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);
-    drawEndingPercentileLabels(ctx, results, padding, chartHeight, width, maxWealth);
-    drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    drawDownsampledPaths(
-      ctx,
-      Planner.state.pathHitAreas,
-      results.visualPaths,
-      padding,
-      chartWidth,
-      chartHeight,
-      minYear,
-      maxYear,
-      maxWealth,
-      (path) => path.points,
-      (point) => point.wealth,
-      hoverIndex
-    );
-    drawExpectedSeries(
-      ctx,
-      results.expectedPath,
-      padding,
-      chartWidth,
-      chartHeight,
-      minYear,
-      maxYear,
-      maxWealth,
-      (point) => point.wealth
-    );
-    ctx.restore();
-    drawChartLegend(ctx, width, padding);
-    if (Planner.state.hover) drawPathTooltip(ctx, Planner.state.hover, width, height);
+  function linearScale(domainMin, domainMax, rangeMin, rangeMax) {
+    const span = domainMax - domainMin || 1;
+    return (value) => rangeMin + ((value - domainMin) / span) * (rangeMax - rangeMin);
   }
 
-
-
-  function renderBetaChart(canvas, results) {
-    const { ctx, width, height } = beginChart(canvas);
-    Planner.state.betaPathHitAreas = [];
-
-    const padding = { top: 28, right: 36, bottom: 54, left: 70 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const { minYear, maxYear } = Planner.getYearSpan(results.scenario);
-    const maxBeta = Math.max(1.5, results.scenario.spxBeta || 0, ...Planner.DYNAMIC_BETA_VALUES);
-    const hoverIndex = Planner.state.hover ? Planner.state.hover.index : null;
-
-    Planner.els.betaPathSummary.textContent = results.scenario.betaMode === Planner.BETA_MODE_DYNAMIC
-      ? "Average recommended beta and downsampled simulation beta paths."
-      : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)} across every active path.`;
-
-    drawAxes(ctx, padding, width, height, "SPX beta");
-    drawYBetaLabels(ctx, padding, chartHeight, maxBeta);
-    drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    drawDownsampledPaths(
-      ctx,
-      Planner.state.betaPathHitAreas,
-      results.visualPaths,
-      padding,
-      chartWidth,
-      chartHeight,
-      minYear,
-      maxYear,
-      maxBeta,
-      (path) => path.betaPoints,
-      (point) => point.beta,
-      hoverIndex
-    );
-    drawExpectedSeries(
-      ctx,
-      results.expectedBetaPath,
-      padding,
-      chartWidth,
-      chartHeight,
-      minYear,
-      maxYear,
-      maxBeta,
-      (point) => point.beta
-    );
-    ctx.restore();
-    drawBetaChartLegend(ctx, width, padding);
-    if (Planner.state.hover) drawBetaPathTooltip(ctx, Planner.state.hover, width, height);
-  }
-
-
-
-  function renderFrontierChart(canvas, results) {
-    const { ctx, width, height } = beginChart(canvas);
-    Planner.state.frontierHitPoints = [];
-    const rows = results.dynamicPolicy?.frontier || [];
-    if (results.scenario.betaMode !== Planner.BETA_MODE_DYNAMIC || !rows.length) {
-      Planner.state.frontierHover = null;
-      drawEmptyState(ctx, width, height, "Run dynamic beta to compare risk and expected wealth policies.");
-      return;
-    }
-
-    const padding = { top: 28, right: 36, bottom: 58, left: 86 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const riskScale = paddedScale(rows.map((row) => row.depletionRisk), 0, 1, 0.08);
-    const wealthScale = paddedScale(rows.map((row) => row.expectedTerminalWealth), 0, Number.POSITIVE_INFINITY, 0.08);
-
-    drawAxes(ctx, padding, width, height, "Expected terminal wealth");
-    drawFrontierYLabels(ctx, padding, chartHeight, wealthScale);
-    drawFrontierXLabels(ctx, padding, chartWidth, height, riskScale);
-
-    const points = rows.map((row) => ({
-      row,
-      x: valueToScaledX(row.depletionRisk, padding, chartWidth, riskScale),
-      y: valueToScaledY(row.expectedTerminalWealth, padding, chartHeight, wealthScale)
-    }));
-    Planner.state.frontierHitPoints = points;
-
-    const hoverLabel = Planner.state.frontierHover?.point?.row.label;
-    const hoverPoint = hoverLabel
-      ? points.find((point) => point.row.label === hoverLabel)
-      : null;
-    if (hoverPoint) {
-      Planner.state.frontierHover.point = hoverPoint;
-    } else {
-      Planner.state.frontierHover = null;
-    }
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    ctx.strokeStyle = "#4f46e5";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    points.forEach((point, index) => {
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
-    ctx.stroke();
-
-    points.forEach((point) => {
-      ctx.fillStyle = point.row.isMinRisk ? "#e11d48" : "#4f46e5";
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, point.row.isMinRisk ? 5 : 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
-
-    if (Planner.state.frontierHover) drawCrosshairPoint(ctx, Planner.state.frontierHover.point, padding, chartWidth, chartHeight);
-    ctx.restore();
-
-    drawFrontierLegend(ctx, width, padding);
-    if (Planner.state.frontierHover) drawFrontierTooltip(ctx, Planner.state.frontierHover, width, height);
-  }
-
-
-
-  function renderSelectedSimulationChart(canvas, results) {
-    const size = Planner.fitCanvas(canvas);
-    const ctx = canvas.getContext("2d");
-    const width = size.width;
-    const height = size.height;
-    Planner.clearCanvas(ctx, width, height);
-
-    const selectedSimulation = Number(Planner.els.simulationSelect.value) || 1;
-    const rows = results.simulationYearRowsBySimulation.get(selectedSimulation) || [];
-    const summary = results.simulationRows.find((row) => row.simulation === selectedSimulation);
-    if (!rows.length) {
-      Planner.els.selectedSimulationSummary.textContent = "No rows for this simulation.";
-      Planner.state.detailHitPoints = [];
-      drawEmptyState(ctx, width, height, "No rows for this simulation.");
-      return;
-    }
-
-    const padding = { top: 28, right: 24, bottom: 54, left: 82 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const minYear = results.scenario.currentYear;
-    const maxYear = results.scenario.deathYear;
-    const maxWealth = Math.max(
-      1,
-      ...rows.flatMap((row) => [row.startingWealth, row.endingWealth])
-    );
-    const points = rows.map((row) => ({
-      year: row.year,
-      wealth: row.endingWealth,
-      depletedThisYear: row.depletedThisYear
-    }));
-    Planner.state.detailHitPoints = points.map((point) => ({
-      year: point.year,
-      wealth: point.wealth,
-      x: padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth,
-      y: padding.top + chartHeight - (point.wealth / maxWealth) * chartHeight
-    }));
-
-    const finalWealth = summary ? summary.terminalWealth : rows[rows.length - 1].endingWealth;
-    const status = summary && summary.failureYear ? `Depleted in ${summary.failureYear}` : "Not depleted";
-    Planner.els.selectedSimulationSummary.textContent = `Sim ${Planner.formatNumber(selectedSimulation)} · ${Planner.formatCurrency(finalWealth)} · ${status.toLowerCase()}`;
-
-    drawAxes(ctx, padding, width, height, "Current-dollar net worth");
-    drawYMoneyLabels(ctx, padding, chartHeight, maxWealth);
-    drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    ctx.beginPath();
-    ctx.strokeStyle = "#4f46e5";
-    ctx.lineWidth = 3;
-    points.forEach((point, index) => {
-      const x = padding.left + ((point.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
-      const y = padding.top + chartHeight - (point.wealth / maxWealth) * chartHeight;
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    const depletionPoint = points.find((point) => point.depletedThisYear);
-    if (depletionPoint) {
-      const x = padding.left + ((depletionPoint.year - minYear) / Math.max(1, maxYear - minYear)) * chartWidth;
-      const y = padding.top + chartHeight - (depletionPoint.wealth / maxWealth) * chartHeight;
-      ctx.fillStyle = "#e11d48";
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-
-    if (Planner.state.detailHover) {
-      drawDetailHover(ctx, Planner.state.detailHover, padding, width, height);
-    }
-  }
-
-
-
-  function renderPolicyPathChart(canvas, results, explorer) {
-    const { ctx, width, height } = beginChart(canvas);
-    if (!results.dynamicPolicy || !explorer) {
-      drawEmptyState(ctx, width, height, "Run dynamic beta to inspect a policy path.");
-      return;
-    }
-
-    const policy = results.dynamicPolicy;
-    const visibleBuckets = policy.wealthBuckets
-      .map((wealth, bucketIndex) => ({ wealth, bucketIndex }))
-      .filter((bucket) => (
-        bucket.wealth > 0 && bucket.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET
-      ));
-    if (!visibleBuckets.length) {
-      drawEmptyState(ctx, width, height, "No visible wealth buckets for this policy.");
-      return;
-    }
-
-    const padding = { top: 34, right: 118, bottom: 58, left: 88 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const yearCount = results.years.length;
-    const cellWidth = chartWidth / Math.max(1, yearCount);
-    const cellHeight = chartHeight / visibleBuckets.length;
-    const minWealth = visibleBuckets[0].wealth;
-    const maxWealth = visibleBuckets[visibleBuckets.length - 1].wealth;
-
-    drawAxes(ctx, padding, width, height, "Wealth bucket");
-    drawXYearLabels(ctx, padding, chartWidth, height, results.scenario.currentYear, results.scenario.deathYear);
-    drawPolicyWealthLabels(ctx, padding, chartHeight, minWealth, maxWealth);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    results.years.forEach((year, yearIndex) => {
-      const policyRow = policy.policyByYear[yearIndex] || [];
-      visibleBuckets.forEach((bucket, visibleIndex) => {
-        const beta = policyRow[bucket.bucketIndex] ?? 0;
-        const x = padding.left + yearIndex * cellWidth;
-        const y = padding.top + chartHeight - (visibleIndex + 1) * cellHeight;
-        ctx.fillStyle = policyBetaColor(beta);
-        ctx.fillRect(x, y, Math.ceil(cellWidth) + 0.5, Math.ceil(cellHeight) + 0.5);
-      });
-    });
-
-    drawPolicyPathOverlay(ctx, explorer, results, padding, chartWidth, chartHeight, minWealth, maxWealth, cellWidth);
-    ctx.restore();
-    drawPolicyLegend(ctx, width, padding);
-  }
-
-
-
-  function renderPolicyBucketPlot(canvas, results, rows, metric, currentBucketIndex) {
-    const { ctx, width, height } = beginChart(canvas);
-    Planner.state.policyBucketHitPoints = [];
-    Planner.state.policyBucketPlot = { rows, metric, currentBucketIndex };
-    const plotRows = rows.filter((row) => row.wealth > 0);
-    if (!plotRows.length) {
-      Planner.state.policyBucketHover = null;
-      drawEmptyState(ctx, width, height, "No visible wealth buckets for this year.");
-      return;
-    }
-
-    const padding = { top: 34, right: 34, bottom: 62, left: 86 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const minWealth = plotRows[0].wealth;
-    const maxWealth = plotRows[plotRows.length - 1].wealth;
-    const yScale = getPolicyMetricScale(plotRows, metric);
-
-    drawAxes(ctx, padding, width, height, getPolicyMetricLabel(metric));
-    drawPolicyBucketXLabels(ctx, padding, chartWidth, height, minWealth, maxWealth);
-    drawPolicyMetricYLabels(ctx, padding, chartHeight, yScale, metric);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-
-    const points = plotRows.map((row) => ({
-      row,
-      x: policyWealthToX(row.wealth, padding, chartWidth, minWealth, maxWealth),
-      y: policyMetricToY(getPolicyMetricValue(row, metric), padding, chartHeight, yScale)
-    }));
-    Planner.state.policyBucketHitPoints = points;
-
-    const hoverBucketIndex = Planner.state.policyBucketHover?.point?.row.bucketIndex;
-    const hoverPoint = Number.isFinite(hoverBucketIndex)
-      ? points.find((point) => point.row.bucketIndex === hoverBucketIndex)
-      : null;
-    if (hoverPoint) {
-      Planner.state.policyBucketHover.point = hoverPoint;
-    } else {
-      Planner.state.policyBucketHover = null;
-    }
-
-    ctx.strokeStyle = "#4f46e5";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    points.forEach((point, index) => {
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
-    ctx.stroke();
-
-    points.forEach((point) => {
-      ctx.fillStyle = "#4f46e5";
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth);
-    if (Planner.state.policyBucketHover) drawCrosshairPoint(ctx, Planner.state.policyBucketHover.point, padding, chartWidth, chartHeight);
-    ctx.restore();
-    if (Planner.state.policyBucketHover) drawPolicyBucketTooltip(ctx, Planner.state.policyBucketHover, width, height);
-  }
-
-
-
-  function drawCurrentWealthMarker(ctx, results, points, currentBucketIndex, padding, chartWidth, chartHeight, minWealth, maxWealth) {
-    const currentWealth = results.scenario.netWorth;
-    if (currentWealth < minWealth || currentWealth > maxWealth) return;
-
-    const x = policyWealthToX(currentWealth, padding, chartWidth, minWealth, maxWealth);
-    ctx.save();
-    ctx.strokeStyle = "rgba(249, 115, 22, 0.9)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(x, padding.top);
-    ctx.lineTo(x, padding.top + chartHeight);
-    ctx.stroke();
-    ctx.restore();
-
-    if (Number.isFinite(currentBucketIndex)) {
-      const markerPoint = points.find((point) => point.row.bucketIndex === currentBucketIndex);
-      if (markerPoint) {
-        ctx.fillStyle = "#f97316";
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(markerPoint.x, markerPoint.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-
-    ctx.fillStyle = "#f97316";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = x > padding.left + chartWidth - 96 ? "right" : "left";
-    ctx.fillText("Current wealth", x + (ctx.textAlign === "right" ? -8 : 8), padding.top + 16);
-  }
-
-
-
-  function policyWealthToX(wealth, padding, chartWidth, minWealth, maxWealth) {
-    const clampedWealth = Math.max(minWealth, Math.min(maxWealth, wealth));
-    const t = (Math.log(clampedWealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
-    return padding.left + t * chartWidth;
-  }
-
-
-
-  function policyMetricToY(value, padding, chartHeight, scale) {
-    if (scale.log) {
-      if (value <= 0) return padding.top + chartHeight;
-      const clampedValue = Math.max(scale.min, Math.min(scale.max, value));
-      const t = (Math.log(clampedValue) - Math.log(scale.min)) / Math.max(0.000001, Math.log(scale.max) - Math.log(scale.min));
-      return padding.top + chartHeight - t * chartHeight;
-    }
-    return padding.top + chartHeight - (value / Math.max(0.000001, scale.max)) * chartHeight;
-  }
-
-
-
-  function getPolicyMetricValue(row, metric) {
-    if (metric === "risk") return row.estimatedDepletionRisk;
-    if (metric === "terminalWealth") return row.expectedTerminalWealth;
-    return row.beta;
-  }
-
-
-
-  function getPolicyMetricScale(rows, metric) {
-    if (metric === "beta") return { min: 0, max: Math.max(1.5, ...rows.map((row) => row.beta || 0)), log: false };
-    const maxValue = Math.max(...rows.map((row) => getPolicyMetricValue(row, metric) || 0));
-    if (metric === "risk") return { min: 0, max: Math.max(0.01, maxValue), log: false };
-    const positiveValues = rows
-      .map((row) => getPolicyMetricValue(row, metric))
-      .filter((value) => Number.isFinite(value) && value > 0);
-    const minValue = Math.min(...positiveValues);
-    return {
-      min: Number.isFinite(minValue) ? minValue : 1,
-      max: Math.max(1, maxValue),
-      log: true
+  function logScale(domainMin, domainMax, rangeMin, rangeMax) {
+    const logMin = Math.log(domainMin);
+    const logSpan = Math.log(domainMax) - logMin || 1;
+    return (value) => {
+      const clamped = Planner.clamp(value, domainMin, domainMax);
+      return rangeMin + ((Math.log(clamped) - logMin) / logSpan) * (rangeMax - rangeMin);
     };
   }
 
-
-
-  function getPolicyMetricLabel(metric) {
-    if (metric === "risk") return "Estimated depletion risk";
-    if (metric === "terminalWealth") return "Expected terminal wealth";
-    return "Optimal SPX beta";
-  }
-
-
-
-  function formatPolicyMetricValue(value, metric) {
-    if (metric === "risk") return Planner.formatPolicyRiskPercent(value);
-    if (metric === "terminalWealth") return Planner.formatCompactCurrency(value);
-    return Planner.formatBeta(value);
-  }
-
-
-
-  function drawPolicyBucketXLabels(ctx, padding, chartWidth, height, minWealth, maxWealth) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "center";
-    [minWealth, 100000, 1000000, 10000000, 100000000, maxWealth].forEach((wealth) => {
-      if (wealth < minWealth || wealth > maxWealth) return;
-      const x = policyWealthToX(wealth, padding, chartWidth, minWealth, maxWealth);
-      ctx.fillText(Planner.formatCompactCurrency(wealth), x, height - 24);
-    });
-  }
-
-
-
-  function drawPolicyMetricYLabels(ctx, padding, chartHeight, scale, metric) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    const values = scale.log
-      ? logScaleLabelValues(scale.min, scale.max)
-      : [0, 0.25, 0.5, 0.75, 1].map((share) => scale.max * share);
-    values.forEach((value) => {
-      const y = policyMetricToY(value, padding, chartHeight, scale);
-      ctx.fillText(formatPolicyMetricValue(value, metric), padding.left - 10, y + 4);
-    });
-  }
-
-
-
-  function logScaleLabelValues(minValue, maxValue) {
-    if (maxValue <= minValue) return [minValue];
-    const values = [];
-    for (let i = 0; i <= 4; i += 1) {
-      const t = i / 4;
-      values.push(Math.exp(Math.log(minValue) + (Math.log(maxValue) - Math.log(minValue)) * t));
+  function logTicks(min, max) {
+    const ticks = [];
+    for (let power = Math.ceil(Math.log10(min)); 10 ** power <= max * (1 + 1e-9); power += 1) {
+      ticks.push(10 ** power);
     }
-    return values;
+    return ticks.length >= 2 ? ticks : [min, max];
   }
 
+  function paddedScale(values, minLimit, maxLimit, paddingShare) {
+    const finiteValues = values.filter(Number.isFinite);
+    const minValue = finiteValues.length ? Math.min(...finiteValues) : minLimit;
+    const maxValue = finiteValues.length ? Math.max(...finiteValues) : minLimit + 1;
+    const span = maxValue - minValue > 1e-9 ? maxValue - minValue : Math.max(1e-6, Math.abs(maxValue || 1));
+    const min = Math.max(minLimit, minValue - span * paddingShare);
+    const max = Math.min(maxLimit, maxValue + span * paddingShare);
+    return { min, max: max > min ? max : min + 1e-6 };
+  }
 
+  function withPlotClip(frame, draw) {
+    const { ctx } = frame;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(frame.left, frame.top - 1, frame.plotWidth, frame.plotHeight + 2);
+    ctx.clip();
+    draw();
+    ctx.restore();
+  }
 
-  function drawPolicyPathOverlay(ctx, explorer, results, padding, chartWidth, chartHeight, minWealth, maxWealth, cellWidth) {
-    const points = explorer.points.map((point) => {
-      const yearIndex = Math.max(0, Math.min(results.years.length - 1, point.year - results.scenario.currentYear));
-      return {
-        x: padding.left + yearIndex * cellWidth + cellWidth / 2,
-        y: policyWealthToY(point.wealth, padding, chartHeight, minWealth, maxWealth),
-        year: point.year,
-        wealth: point.wealth
-      };
-    });
-    if (!points.length) return;
-
-    ctx.lineWidth = 4;
+  function strokePolyline(ctx, points, color, width) {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.beginPath();
     points.forEach((point, index) => {
       if (index === 0) ctx.moveTo(point.x, point.y);
       else ctx.lineTo(point.x, point.y);
     });
     ctx.stroke();
+  }
 
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = "#f97316";
+  function drawDot(frame, x, y, radius, color) {
+    const { ctx } = frame;
     ctx.beginPath();
-    points.forEach((point, index) => {
-      if (index === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    });
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = frame.theme.surface;
     ctx.stroke();
+  }
 
-    points.forEach((point, index) => {
-      ctx.fillStyle = index === 0 ? "#1a1f2e" : "#f97316";
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
+  function fillRoundedTop(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height);
+    ctx.beginPath();
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.lineTo(x + width - r, y);
+    ctx.arcTo(x + width, y, x + width, y + r, r);
+    ctx.lineTo(x + width, y + height);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawYAxis(frame, ticks, yOf, format) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 11.5);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ticks.forEach((tick) => {
+      const y = Math.round(yOf(tick)) + 0.5;
+      if (y < frame.top - 1 || y > frame.bottom + 1) return;
+      ctx.strokeStyle = theme.grid;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, index === points.length - 1 ? 5 : 4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(frame.left, y);
+      ctx.lineTo(frame.right, y);
       ctx.stroke();
+      ctx.fillStyle = theme.muted;
+      ctx.fillText(format(tick), frame.left - 8, y);
+    });
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function drawXAxis(frame, ticks, xOf, format) {
+    const { ctx, theme } = frame;
+    ctx.strokeStyle = theme.axis;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(frame.left, Math.round(frame.bottom) + 0.5);
+    ctx.lineTo(frame.right, Math.round(frame.bottom) + 0.5);
+    ctx.stroke();
+
+    ctx.font = font(frame, 11.5);
+    ctx.fillStyle = theme.muted;
+    ctx.textAlign = "center";
+    ticks.forEach((tick) => {
+      const x = xOf(tick);
+      if (x < frame.left - 1 || x > frame.right + 1) return;
+      ctx.fillText(format(tick), x, frame.bottom + 18);
     });
   }
 
-
-
-  function policyWealthToY(wealth, padding, chartHeight, minWealth, maxWealth) {
-    if (wealth <= 0) return padding.top + chartHeight;
-    const clampedWealth = Math.max(minWealth, Math.min(maxWealth, wealth));
-    const t = (Math.log(clampedWealth) - Math.log(minWealth)) / Math.max(0.000001, Math.log(maxWealth) - Math.log(minWealth));
-    return padding.top + chartHeight - t * chartHeight;
+  function yearTicks(minYear, maxYear, plotWidth) {
+    const count = Math.max(3, Math.min(8, Math.floor(plotWidth / 80)));
+    return Planner.niceTicks(minYear, maxYear, count, { integer: true });
   }
 
-
-
-  function policyBetaColor(beta) {
-    const t = Math.max(0, Math.min(1, beta / 1.5));
-    const hue = 205 - t * 175;
-    const saturation = 68 + t * 8;
-    const lightness = 86 - t * 28;
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  function drawAxisTitle(frame, text) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 12, 500);
+    ctx.fillStyle = theme.text;
+    ctx.textAlign = "left";
+    ctx.fillText(text, frame.left - Math.min(frame.left - 8, 56), 16);
   }
 
-
-
-  function drawPolicyWealthLabels(ctx, padding, chartHeight, minWealth, maxWealth) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
+  function drawXAxisTitle(frame, text) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 12, 500);
+    ctx.fillStyle = theme.text;
     ctx.textAlign = "right";
-    [minWealth, 100000, 1000000, 10000000, 100000000, maxWealth].forEach((wealth) => {
-      if (wealth < minWealth || wealth > maxWealth) return;
-      const y = policyWealthToY(wealth, padding, chartHeight, minWealth, maxWealth);
-      ctx.fillText(Planner.formatCompactCurrency(wealth), padding.left - 10, y + 4);
+    ctx.fillText(text, frame.right, frame.height - 6);
+  }
+
+  // Items: { label, color, shape: "line" | "dot" | "ramp", ramp? }. Right-aligned.
+  function drawLegend(frame, items) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 12);
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    const y = frame.compact ? 35 : 15;
+    let x = frame.right;
+    [...items].reverse().forEach((item) => {
+      const labelWidth = ctx.measureText(item.label).width;
+      const swatchWidth = item.shape === "ramp" ? 44 : item.shape === "dot" ? 10 : 16;
+      x -= labelWidth;
+      ctx.fillStyle = theme.text;
+      ctx.fillText(item.label, x, y);
+      x -= 6 + swatchWidth;
+      if (item.shape === "dot") {
+        ctx.beginPath();
+        ctx.arc(x + 5, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = item.color;
+        ctx.fill();
+      } else if (item.shape === "ramp") {
+        const gradient = ctx.createLinearGradient(x, 0, x + swatchWidth, 0);
+        item.ramp.forEach((_, index) => {
+          const t = index / (item.ramp.length - 1);
+          gradient.addColorStop(t, rampColor(item.ramp, t));
+        });
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y - 5, swatchWidth, 10);
+      } else {
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x + 1, y);
+        ctx.lineTo(x + swatchWidth - 1, y);
+        ctx.stroke();
+      }
+      x -= 18;
+    });
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function drawEmptyState(frame, message) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 13);
+    ctx.fillStyle = theme.muted;
+    ctx.textAlign = "center";
+    ctx.fillText(message, frame.width / 2, frame.height / 2);
+  }
+
+  function drawTooltip(frame, anchorX, anchorY, title, lines) {
+    const { ctx, theme } = frame;
+    const padding = 10;
+    const lineHeight = 18;
+    ctx.font = font(frame, 12.5, 600);
+    let boxWidth = ctx.measureText(title).width;
+    ctx.font = font(frame, 12.5);
+    lines.forEach((line) => {
+      boxWidth = Math.max(boxWidth, ctx.measureText(line).width);
+    });
+    boxWidth += padding * 2;
+    const boxHeight = padding * 2 + lineHeight * (lines.length + 1) - 4;
+
+    let x = anchorX + 14;
+    if (x + boxWidth > frame.width - 6) x = anchorX - 14 - boxWidth;
+    x = Planner.clamp(x, 6, Math.max(6, frame.width - boxWidth - 6));
+    const y = Planner.clamp(anchorY - boxHeight - 10, 6, Math.max(6, frame.height - boxHeight - 6));
+
+    ctx.fillStyle = theme.tooltipBg;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, boxWidth, boxHeight, 6);
+    else ctx.rect(x, y, boxWidth, boxHeight);
+    ctx.fill();
+
+    ctx.fillStyle = theme.tooltipInk;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = font(frame, 12.5, 600);
+    ctx.fillText(title, x + padding, y + padding);
+    ctx.font = font(frame, 12.5);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x + padding, y + padding + lineHeight * (index + 1));
+    });
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function drawCrosshair(frame, x, y) {
+    const { ctx, theme } = frame;
+    ctx.save();
+    ctx.strokeStyle = theme.axis;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, frame.top);
+    ctx.lineTo(x, frame.bottom);
+    if (Number.isFinite(y)) {
+      ctx.moveTo(frame.left, y);
+      ctx.lineTo(frame.right, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- Hover ----------
+
+  const hoverByChart = {};
+  const hitMetaByChart = {};
+  let pendingHoverRender = null;
+
+  // Keeps the hovered item stable across re-renders by matching its key.
+  function resolveHover(chartKey, items) {
+    const hover = hoverByChart[chartKey];
+    if (!hover) return null;
+    const item = items.find((candidate) => candidate.key === hover.item.key);
+    if (!item) {
+      hoverByChart[chartKey] = null;
+      return null;
+    }
+    hover.item = item;
+    return hover;
+  }
+
+  function clearHover() {
+    Object.keys(hoverByChart).forEach((key) => {
+      hoverByChart[key] = null;
     });
   }
 
-
-
-  function drawPolicyLegend(ctx, width, padding) {
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#f97316";
-    ctx.fillText("Forced path", width - padding.right, 18);
-    ctx.fillStyle = "#6b7280";
-    ctx.fillText("Color: recommended beta", width - padding.right - 96, 18);
+  function findNearestPath(meta, x, y) {
+    let nearest = null;
+    let nearestDistance = 10;
+    for (const item of meta.items) {
+      for (let index = 1; index < item.points.length; index += 1) {
+        const distance = Planner.distanceToSegment(x, y, item.points[index - 1], item.points[index]);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = item;
+        }
+      }
+    }
+    return nearest;
   }
 
+  function findNearestPoint(meta, x, y) {
+    let nearest = null;
+    let nearestDistance = 24;
+    for (const item of meta.items) {
+      const distance = Math.hypot(x - item.x, y - item.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = item;
+      }
+    }
+    return nearest;
+  }
 
+  function findNearestX(meta, x, y) {
+    if (!meta.frame || y < meta.frame.top - 8 || y > meta.frame.bottom + 8) return null;
+    if (x < meta.frame.left - 12 || x > meta.frame.right + 12) return null;
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const item of meta.items) {
+      const distance = Math.abs(x - item.x);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = item;
+      }
+    }
+    return nearest;
+  }
+
+  function findBar(meta, x, y) {
+    if (!meta.frame || y < meta.frame.top || y > meta.frame.bottom) return null;
+    return meta.items.find((item) => x >= item.x0 && x <= item.x1) || null;
+  }
+
+  function findCell(meta, x, y) {
+    return meta.lookup ? meta.lookup(x, y) : null;
+  }
+
+  const CHARTS = {
+    netWorth: { canvas: "pathsCanvas", page: "overview", render: renderNetWorthChart, find: findNearestPath },
+    distribution: { canvas: "distributionCanvas", page: "overview", render: renderDistributionChart, find: findBar },
+    beta: { canvas: "betaCanvas", page: "overview", render: renderBetaChart, find: findNearestPath },
+    detail: { canvas: "selectedSimulationCanvas", page: "details", render: renderSelectedSimulationChart, find: findNearestX },
+    policyBucket: { canvas: "dynamicPolicyCanvas", page: "policy", render: renderPolicyBucketChart, find: findNearestX },
+    policyPath: { canvas: "policyPathCanvas", page: "policy", render: renderPolicyPathChart, find: findCell },
+    frontier: { canvas: "frontierCanvas", page: "frontier", render: renderFrontierChart, find: findNearestPoint }
+  };
+
+  function renderChart(chartKey) {
+    const results = Planner.state.results;
+    if (results) CHARTS[chartKey].render(results);
+  }
+
+  function scheduleHoverRender(chartKey) {
+    if (pendingHoverRender) return;
+    pendingHoverRender = window.requestAnimationFrame(() => {
+      pendingHoverRender = null;
+      renderChart(chartKey);
+    });
+  }
+
+  function bindChartHover() {
+    Object.entries(CHARTS).forEach(([chartKey, chart]) => {
+      const canvas = Planner.els[chart.canvas];
+      canvas.addEventListener("mousemove", (event) => {
+        const meta = hitMetaByChart[chartKey];
+        if (!Planner.state.results || Planner.state.activePage !== chart.page || !meta) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const item = chart.find(meta, x, y);
+        if (!item && !hoverByChart[chartKey]) return;
+        hoverByChart[chartKey] = item ? { item, x, y } : null;
+        scheduleHoverRender(chartKey);
+      });
+      canvas.addEventListener("mouseleave", () => {
+        if (!hoverByChart[chartKey]) return;
+        hoverByChart[chartKey] = null;
+        renderChart(chartKey);
+      });
+    });
+  }
+
+  function renderCharts(results) {
+    Object.values(CHARTS).forEach((chart) => {
+      if (chart.page === Planner.state.activePage) chart.render(results);
+    });
+  }
+
+  // ---------- Overview: net worth ----------
 
   function getNetWorthYAxisMax(results) {
     const percentileCap = Number(Planner.els.netWorthZoom.value) / 100;
-    const visualMax = Math.max(
-      results.scenario.netWorth,
-      ...results.expectedPath.map((point) => point.wealth),
-      ...results.visualPaths.flatMap((path) => path.points.map((point) => point.wealth))
-    );
-
-    if (percentileCap >= 1) return visualMax;
-    const cap = Planner.percentile(results.terminalWealthSorted, percentileCap);
-    return Math.max(results.scenario.netWorth, cap || 1, 1);
-  }
-
-
-
-  function updateNetWorthZoomLabel() {
-    const value = Number(Planner.els.netWorthZoom.value);
-    Planner.els.netWorthZoomLabel.textContent = value >= 100 ? "100%" : `${value}%`;
-  }
-
-
-
-  function drawChartLegend(ctx, width, padding) {
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#4f46e5";
-    ctx.fillText("Expected net worth", width - padding.right, 18);
-    ctx.fillStyle = "#0ea5e9";
-    ctx.fillText(`Downsampled paths (${Planner.MAX_VISUAL_PATHS} max)`, width - padding.right - 150, 18);
-  }
-
-
-
-  function drawBetaChartLegend(ctx, width, padding) {
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#4f46e5";
-    ctx.fillText("Average beta", width - padding.right, 18);
-    ctx.fillStyle = "#0ea5e9";
-    ctx.fillText(`Downsampled paths (${Planner.MAX_VISUAL_PATHS} max)`, width - padding.right - 118, 18);
-  }
-
-
-
-  function drawFrontierLegend(ctx, width, padding) {
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#e11d48";
-    ctx.fillText("Main min-risk policy", width - padding.right, 18);
-    ctx.fillStyle = "#4f46e5";
-    ctx.fillText("Risk-penalty policies", width - padding.right - 138, 18);
-  }
-
-
-
-  function drawPathTooltip(ctx, hover, width, height) {
-    Planner.drawFloatingTooltip(ctx, [
-      `Ending: ${Planner.formatCurrency(hover.path.terminalWealth)}`,
-      `Ending rank: ${Planner.formatPercent(hover.path.endingPercentile)}`,
-      `Avg real SPX return: ${Planner.formatPercent(hover.path.averageRealSpxReturn)}`,
-      hover.path.failureYear ? `Depleted: ${hover.path.failureYear}` : "Not depleted"
-    ], hover.x, hover.y, width, height, 218);
-  }
-
-
-
-  function drawBetaPathTooltip(ctx, hover, width, height) {
-    Planner.drawFloatingTooltip(ctx, [
-      `Simulation: ${Planner.formatNumber(hover.path.simulation)}`,
-      `Ending: ${Planner.formatCurrency(hover.path.terminalWealth)}`,
-      hover.path.failureYear ? `Depleted: ${hover.path.failureYear}` : "Not depleted"
-    ], hover.x, hover.y, width, height, 218);
-  }
-
-
-
-  function drawDetailHover(ctx, hover, padding, width, height) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(79, 70, 229, 0.35)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(hover.point.x, padding.top);
-    ctx.lineTo(hover.point.x, height - padding.bottom);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.fillStyle = "#4f46e5";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(hover.point.x, hover.point.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    drawDetailPointTooltip(ctx, hover, width, height);
-  }
-
-
-
-  function drawDetailPointTooltip(ctx, hover, width, height) {
-    Planner.drawFloatingTooltip(ctx, [
-      `Year: ${hover.point.year}`,
-      `Net worth: ${Planner.formatCurrency(hover.point.wealth)}`
-    ], hover.x, hover.y, width, height, 196);
-  }
-
-
-
-  function drawCrosshairPoint(ctx, point, padding, chartWidth, chartHeight) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(79, 70, 229, 0.28)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(point.x, padding.top);
-    ctx.lineTo(point.x, padding.top + chartHeight);
-    ctx.moveTo(padding.left, point.y);
-    ctx.lineTo(padding.left + chartWidth, point.y);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.fillStyle = "#e11d48";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-
-
-  function drawFrontierTooltip(ctx, hover, width, height) {
-    const row = hover.point.row;
-    Planner.drawFloatingTooltip(ctx, [
-      row.label,
-      `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
-      `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
-      `Current beta: ${Planner.formatBeta(row.currentBeta)}`
-    ], hover.x, hover.y, width, height, 252);
-  }
-
-
-
-  function drawPolicyBucketTooltip(ctx, hover, width, height) {
-    const row = hover.point.row;
-    Planner.drawFloatingTooltip(ctx, [
-      `Wealth: ${Planner.formatCurrency(row.wealth)}`,
-      `Optimal beta: ${Planner.formatBeta(row.beta)}`,
-      `Depletion risk: ${Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk)}`,
-      `Expected terminal: ${Planner.formatCompactCurrency(row.expectedTerminalWealth)}`
-    ], hover.x, hover.y, width, height, 238);
-  }
-
-
-
-  function handlePathHover(event) {
-    handleSeriesChartHover(
-      event,
-      Planner.els.pathsCanvas,
-      "overview",
-      Planner.state.pathHitAreas,
-      renderNetWorthChart
-    );
-  }
-
-
-
-  function handleBetaPathHover(event) {
-    handleSeriesChartHover(
-      event,
-      Planner.els.betaCanvas,
-      "overview",
-      Planner.state.betaPathHitAreas,
-      renderBetaChart
-    );
-  }
-
-
-
-  function handleFrontierHover(event) {
-    if (!Planner.state.results || Planner.state.activePage !== "frontier") return;
-
-    const rect = Planner.els.frontierCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const nearest = findNearestPointOnPolyline(Planner.state.frontierHitPoints, x, y);
-    const nextHover = nearest ? { point: nearest, x, y } : null;
-    const currentLabel = Planner.state.frontierHover?.point?.row.label ?? null;
-    const nextLabel = nextHover?.point?.row.label ?? null;
-
-    if (currentLabel !== nextLabel || nextHover) {
-      Planner.state.frontierHover = nextHover;
-      renderFrontierChart(Planner.els.frontierCanvas, Planner.state.results);
-    }
-  }
-
-
-
-  function handleDetailChartHover(event) {
-    if (!Planner.state.results || Planner.state.activePage !== "details") return;
-
-    const rect = Planner.els.selectedSimulationCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const nearest = findNearestPointOnPolyline(Planner.state.detailHitPoints, x, y);
-    const nextHover = nearest ? { point: nearest, x, y } : null;
-    const currentYear = Planner.state.detailHover ? Planner.state.detailHover.point.year : null;
-    const nextYear = nextHover ? nextHover.point.year : null;
-
-    if (currentYear !== nextYear || nextHover) {
-      Planner.state.detailHover = nextHover;
-      renderSelectedSimulationChart(Planner.els.selectedSimulationCanvas, Planner.state.results);
-    }
-  }
-
-
-
-  function handlePolicyBucketHover(event) {
-    if (!Planner.state.results || Planner.state.activePage !== "policy" || !Planner.state.policyBucketPlot) return;
-
-    const rect = Planner.els.dynamicPolicyCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const nearest = findNearestPointOnPolyline(Planner.state.policyBucketHitPoints, x, y);
-    const nextHover = nearest ? { point: nearest, x, y } : null;
-    const currentBucket = Planner.state.policyBucketHover?.point?.row.bucketIndex ?? null;
-    const nextBucket = nextHover?.point?.row.bucketIndex ?? null;
-
-    if (currentBucket !== nextBucket || nextHover) {
-      Planner.state.policyBucketHover = nextHover;
-      Planner.renderPolicyBucketPlot(
-        Planner.els.dynamicPolicyCanvas,
-        Planner.state.results,
-        Planner.state.policyBucketPlot.rows,
-        Planner.state.policyBucketPlot.metric,
-        Planner.state.policyBucketPlot.currentBucketIndex
+    if (percentileCap >= 1) {
+      return Math.max(
+        1,
+        results.scenario.netWorth,
+        ...results.expectedPath.map((point) => point.wealth),
+        ...results.visualPaths.flatMap((path) => path.points.map((point) => point.wealth))
       );
     }
+    const cap = Planner.percentileOfSorted(results.terminalWealthSorted, percentileCap);
+    return Math.max(1, results.scenario.netWorth, cap || 0);
   }
 
-
-
-  function findNearestPointOnPolyline(points, x, y) {
-    if (!points.length) return null;
-
-    let nearest = null;
-    let nearestDistance = Infinity;
-    for (const point of points) {
-      const distance = Math.hypot(x - point.x, y - point.y);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = point;
-      }
-    }
-
-    for (let i = 1; i < points.length; i += 1) {
-      const distance = Planner.distanceToSegment(x, y, points[i - 1], points[i]);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        const distA = Math.hypot(x - points[i - 1].x, y - points[i - 1].y);
-        const distB = Math.hypot(x - points[i].x, y - points[i].y);
-        nearest = distA <= distB ? points[i - 1] : points[i];
-      }
-    }
-
-    return nearestDistance <= 18 ? nearest : null;
+  function updateNetWorthZoomLabel() {
+    Planner.els.netWorthZoomLabel.textContent = `${Number(Planner.els.netWorthZoom.value)}%`;
   }
 
+  function renderNetWorthChart(results) {
+    const frame = beginChart(Planner.els.pathsCanvas, { top: 36, right: 64, bottom: 30, left: 60 });
+    const { ctx, theme } = frame;
+    const { years } = results;
+    const yScale = Planner.niceZeroScale(getNetWorthYAxisMax(results), 5);
+    const xOf = linearScale(years[0], years[years.length - 1], frame.left, frame.right);
+    const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
 
+    drawAxisTitle(frame, "Net worth (current $)");
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+    drawXAxis(frame, yearTicks(years[0], years[years.length - 1], frame.plotWidth), xOf, String);
+    drawEndingPercentileLabels(frame, results, yOf, yScale.max);
 
-  function drawAxes(ctx, padding, width, height, yTitle) {
-    ctx.strokeStyle = "#dfe3ee";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top);
-    ctx.lineTo(padding.left, height - padding.bottom);
-    ctx.lineTo(width - padding.right, height - padding.bottom);
-    ctx.stroke();
+    const items = results.visualPaths.map((path) => ({
+      key: path.simulation,
+      path,
+      points: path.points.map((point) => ({ x: xOf(point.year), y: yOf(point.wealth) }))
+    }));
+    hitMetaByChart.netWorth = { items };
+    const hover = resolveHover("netWorth", items);
+    const expected = results.expectedPath.map((point) => ({ x: xOf(point.year), y: yOf(point.wealth) }));
 
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
+    withPlotClip(frame, () => {
+      items.forEach((item) => strokePolyline(ctx, item.points, theme.path, 1));
+      strokePolyline(ctx, expected, theme.seriesStrong, 2.5);
+      if (hover) strokePolyline(ctx, hover.item.points, theme.highlight, 2);
+    });
+
+    drawLegend(frame, [
+      { label: "Expected", color: theme.seriesStrong, shape: "line" },
+      { label: `${results.visualPaths.length} sample paths`, color: theme.series, shape: "line" }
+    ]);
+    if (hover) {
+      const path = hover.item.path;
+      drawTooltip(frame, hover.x, hover.y, `Simulation #${Planner.formatNumber(path.simulation)}`, [
+        `Ending wealth: ${Planner.formatCurrency(path.terminalWealth)}`,
+        `Ending percentile: ${Planner.formatPercent(path.endingPercentile)}`,
+        `Avg real SPX return: ${Planner.formatPercent(path.averageRealSpxReturn)}`,
+        path.failureYear ? `Depleted in ${path.failureYear}` : "Not depleted"
+      ]);
+    }
+  }
+
+  function drawEndingPercentileLabels(frame, results, yOf, maxWealth) {
+    const { ctx, theme } = frame;
+    ctx.font = font(frame, 11.5);
     ctx.textAlign = "left";
-    ctx.fillText(yTitle, padding.left, 16);
-  }
-
-
-
-  function drawEmptyState(ctx, width, height, message) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "14px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(message, width / 2, height / 2);
-  }
-
-
-
-  function drawYProbabilityLabels(ctx, padding, chartHeight, maxProbability) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    for (let i = 0; i <= 4; i += 1) {
-      const value = (maxProbability / 4) * i;
-      const y = padding.top + chartHeight - (chartHeight / 4) * i;
-      ctx.fillText(Planner.formatPercent(value), padding.left - 10, y + 4);
-    }
-  }
-
-
-
-  function drawYMoneyLabels(ctx, padding, chartHeight, maxWealth) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    for (let i = 0; i <= 4; i += 1) {
-      const value = (maxWealth / 4) * i;
-      const y = padding.top + chartHeight - (chartHeight / 4) * i;
-      ctx.fillText(Planner.formatCompactCurrency(value), padding.left - 10, y + 4);
-    }
-  }
-
-
-
-  function drawYBetaLabels(ctx, padding, chartHeight, maxBeta) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    for (let i = 0; i <= 3; i += 1) {
-      const value = (maxBeta / 3) * i;
-      const y = padding.top + chartHeight - (chartHeight / 3) * i;
-      ctx.fillText(Planner.formatBeta(value), padding.left - 10, y + 4);
-    }
-  }
-
-
-
-  function drawFrontierYLabels(ctx, padding, chartHeight, scale) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "right";
-    for (let i = 0; i <= 4; i += 1) {
-      const value = scale.min + ((scale.max - scale.min) / 4) * i;
-      const y = valueToScaledY(value, padding, chartHeight, scale);
-      ctx.fillText(Planner.formatCompactCurrency(value), padding.left - 10, y + 4);
-    }
-  }
-
-
-
-  function drawFrontierXLabels(ctx, padding, chartWidth, height, scale) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "center";
-    for (let i = 0; i <= 4; i += 1) {
-      const value = scale.min + ((scale.max - scale.min) / 4) * i;
-      const x = valueToScaledX(value, padding, chartWidth, scale);
-      ctx.fillText(Planner.formatPolicyRiskPercent(value), x, height - 24);
-    }
-    ctx.textAlign = "right";
-    ctx.fillText("Run-out risk", padding.left + chartWidth, height - 8);
-  }
-
-
-
-  function paddedScale(values, minLimit, maxLimit, paddingShare) {
-    const finiteValues = values.filter((value) => Number.isFinite(value));
-    const minValue = finiteValues.length ? Math.min(...finiteValues) : minLimit;
-    const maxValue = finiteValues.length ? Math.max(...finiteValues) : minLimit + 1;
-    const span = Math.max(0.000001, maxValue - minValue);
-    const padding = span * paddingShare;
-    let min = Math.max(minLimit, minValue - padding);
-    let max = Math.min(maxLimit, maxValue + padding);
-    if (max - min < 0.000001) {
-      const fallbackPadding = Math.max(0.000001, Math.abs(maxValue || 1) * paddingShare);
-      min = Math.max(minLimit, minValue - fallbackPadding);
-      max = Math.min(maxLimit, maxValue + fallbackPadding);
-    }
-    if (max <= min) max = min + 0.000001;
-    return { min, max };
-  }
-
-
-
-  function valueToScaledX(value, padding, chartWidth, scale) {
-    return padding.left + ((value - scale.min) / Math.max(0.000001, scale.max - scale.min)) * chartWidth;
-  }
-
-
-
-  function valueToScaledY(value, padding, chartHeight, scale) {
-    return padding.top + chartHeight - ((value - scale.min) / Math.max(0.000001, scale.max - scale.min)) * chartHeight;
-  }
-
-
-
-  function drawEndingPercentileLabels(ctx, results, padding, chartHeight, width, maxWealth) {
-    const percentiles = [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "left";
-    ctx.fillText("Ending rank", width - padding.right + 10, 16);
+    ctx.fillStyle = theme.text;
+    ctx.fillText("End pctl", frame.right + 10, frame.top - 8);
+    ctx.fillStyle = theme.muted;
     let lastY = Infinity;
-    percentiles.forEach((p) => {
-      const wealth = Planner.percentile(results.terminalWealthSorted, p) || 0;
+    [0.25, 0.5, 0.75, 0.9, 0.95, 0.99].forEach((p) => {
+      const wealth = Planner.percentileOfSorted(results.terminalWealthSorted, p) || 0;
       if (wealth > maxWealth) return;
-      const y = padding.top + chartHeight - (wealth / Math.max(1, maxWealth)) * chartHeight;
-      if (lastY - y < 18) return;
-      ctx.fillText(Planner.formatPercent(p), width - padding.right + 10, y + 4);
+      const y = yOf(wealth);
+      if (lastY - y < 16 || y < frame.top + 4) return;
+      ctx.fillText(`p${Math.round(p * 100)}`, frame.right + 10, y + 4);
       lastY = y;
     });
   }
 
+  // ---------- Overview: beta ----------
 
+  function renderBetaChart(results) {
+    const frame = beginChart(Planner.els.betaCanvas, { top: 36, right: 24, bottom: 30, left: 60 });
+    const { ctx, theme } = frame;
+    const { years, scenario } = results;
+    const isFixed = scenario.betaMode !== Planner.BETA_MODE_DYNAMIC;
+    const minBeta = Math.min(0, scenario.spxBeta || 0);
+    const maxBeta = Math.max(1.5, scenario.spxBeta || 0);
+    const ticks = Planner.niceTicks(minBeta, maxBeta, 3);
+    const yOf = linearScale(ticks[0], ticks[ticks.length - 1], frame.bottom, frame.top);
+    const xOf = linearScale(years[0], years[years.length - 1], frame.left, frame.right);
 
-  function drawXYearLabels(ctx, padding, chartWidth, height, minYear, maxYear) {
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px system-ui";
-    ctx.textAlign = "center";
-    for (let i = 0; i <= 4; i += 1) {
-      const year = Math.round(minYear + ((maxYear - minYear) / 4) * i);
-      const x = padding.left + (chartWidth / 4) * i;
-      ctx.fillText(String(year), x, height - 24);
+    Planner.els.betaPathSummary.textContent = isFixed
+      ? `Fixed beta ${Planner.formatBeta(scenario.spxBeta)} on every active path.`
+      : "Average recommended beta across active paths, with downsampled simulation paths.";
+
+    drawAxisTitle(frame, "SPX beta");
+    drawYAxis(frame, ticks, yOf, Planner.formatBeta);
+    drawXAxis(frame, yearTicks(years[0], years[years.length - 1], frame.plotWidth), xOf, String);
+
+    const items = results.visualPaths.map((path) => ({
+      key: path.simulation,
+      path,
+      points: path.betaPoints
+        .filter((point) => Number.isFinite(point.beta))
+        .map((point) => ({ x: xOf(point.year), y: yOf(point.beta) }))
+    }));
+    hitMetaByChart.beta = { items };
+    const hover = resolveHover("beta", items);
+    const expected = results.expectedBetaPath
+      .filter((point) => Number.isFinite(point.beta))
+      .map((point) => ({ x: xOf(point.year), y: yOf(point.beta) }));
+
+    withPlotClip(frame, () => {
+      items.forEach((item) => strokePolyline(ctx, item.points, theme.path, 1));
+      strokePolyline(ctx, expected, theme.seriesStrong, 2.5);
+      if (hover) strokePolyline(ctx, hover.item.points, theme.highlight, 2);
+    });
+
+    drawLegend(frame, [
+      { label: "Average", color: theme.seriesStrong, shape: "line" },
+      { label: `${results.visualPaths.length} sample paths`, color: theme.series, shape: "line" }
+    ]);
+    if (hover) {
+      const path = hover.item.path;
+      drawTooltip(frame, hover.x, hover.y, `Simulation #${Planner.formatNumber(path.simulation)}`, [
+        `Ending wealth: ${Planner.formatCurrency(path.terminalWealth)}`,
+        path.failureYear ? `Depleted in ${path.failureYear}` : "Not depleted"
+      ]);
     }
   }
 
+  // ---------- Overview: depletion distribution ----------
+
+  function renderDistributionChart(results) {
+    const frame = beginChart(Planner.els.distributionCanvas, { top: 36, right: 24, bottom: 30, left: 60 });
+    const { ctx, theme } = frame;
+    const total = results.scenario.simulationCount;
+    const rows = Planner.els.showDepleted.checked
+      ? results.depletedDistribution
+      : [...results.depletedDistribution, { label: "Not depleted", count: results.notDepletedCount, isNotDepleted: true }];
+
+    drawAxisTitle(frame, "Probability");
+    hitMetaByChart.distribution = { items: [], frame };
+    if (!rows.length) {
+      drawEmptyState(frame, "No simulated paths depleted before the year of death.");
+      return;
+    }
+
+    const yScale = Planner.niceZeroScale(Math.max(...rows.map((row) => row.count / total), 0.001), 4);
+    const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatPercent);
+
+    const band = frame.plotWidth / rows.length;
+    const gap = band > 6 ? 2 : 0;
+    const items = rows.map((row, index) => ({
+      key: row.label,
+      row,
+      probability: row.count / total,
+      x0: frame.left + index * band,
+      x1: frame.left + (index + 1) * band
+    }));
+    hitMetaByChart.distribution.items = items;
+    const hover = resolveHover("distribution", items);
+
+    items.forEach((item) => {
+      const y = yOf(item.probability);
+      const baseColor = item.row.isNotDepleted ? theme.positive : theme.series;
+      ctx.fillStyle = hover && hover.item === item ? theme.seriesStrong : baseColor;
+      fillRoundedTop(ctx, item.x0 + gap / 2, y, Math.max(1, band - gap), frame.bottom - y, 3);
+    });
+
+    ctx.font = font(frame, 11.5);
+    const labelEvery = Math.max(1, Math.ceil(44 / band));
+    drawXAxis(
+      frame,
+      items.filter((item, index) => item.row.isNotDepleted || index % labelEvery === 0),
+      (item) => (item.x0 + item.x1) / 2,
+      (item) => item.row.label
+    );
+
+    if (hover) {
+      const { row, probability } = hover.item;
+      drawTooltip(frame, hover.x, hover.y, row.isNotDepleted ? "Not depleted" : `Depleted in ${row.label}`, [
+        `Probability: ${Planner.formatPolicyRiskPercent(probability)}`,
+        `${Planner.formatNumber(row.count)} of ${Planner.formatNumber(total)} paths`
+      ]);
+    }
+  }
+
+  // ---------- Simulation detail ----------
+
+  function renderSelectedSimulationChart(results) {
+    const frame = beginChart(Planner.els.selectedSimulationCanvas, { top: 36, right: 24, bottom: 30, left: 60 });
+    const { ctx, theme } = frame;
+    const rows = Planner.getSelectedSimulationRows(results);
+    hitMetaByChart.detail = { items: [], frame };
+    if (!rows.length) {
+      drawEmptyState(frame, "No rows for this simulation.");
+      return;
+    }
+
+    const { years } = results;
+    const yScale = Planner.niceZeroScale(Math.max(1, ...rows.flatMap((row) => [row.startingWealth, row.endingWealth])), 4);
+    const xOf = linearScale(years[0], years[years.length - 1], frame.left, frame.right);
+    const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
+
+    drawAxisTitle(frame, "Net worth (current $)");
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+    drawXAxis(frame, yearTicks(years[0], years[years.length - 1], frame.plotWidth), xOf, String);
+
+    const items = rows.map((row) => ({ key: row.year, row, x: xOf(row.year), y: yOf(row.endingWealth) }));
+    hitMetaByChart.detail.items = items;
+    const hover = resolveHover("detail", items);
+    const depletion = items.find((item) => item.row.depletedThisYear);
+
+    withPlotClip(frame, () => {
+      ctx.beginPath();
+      ctx.moveTo(items[0].x, frame.bottom);
+      items.forEach((item) => ctx.lineTo(item.x, item.y));
+      ctx.lineTo(items[items.length - 1].x, frame.bottom);
+      ctx.closePath();
+      ctx.fillStyle = theme.path;
+      ctx.fill();
+      strokePolyline(ctx, items, theme.series, 2);
+    });
+    if (depletion) drawDot(frame, depletion.x, depletion.y, 5, theme.critical);
+
+    if (hover) {
+      const { row } = hover.item;
+      drawCrosshair(frame, hover.item.x, null);
+      drawDot(frame, hover.item.x, hover.item.y, 5, theme.series);
+      const lines = [`End wealth: ${Planner.formatCurrency(row.endingWealth)}`];
+      if (row.historicalReturnYear) {
+        lines.push(`Sampled ${row.historicalReturnYear}: SPX ${Planner.formatPercent(row.nominalSpxReturn)}`);
+        lines.push(`Beta ${Planner.formatBeta(row.spxBetaUsed)} · real ${Planner.formatPercent(row.portfolioRealReturn)}`);
+      }
+      if (row.depletedThisYear) lines.push("Depleted this year");
+      drawTooltip(frame, hover.item.x, hover.item.y, String(row.year), lines);
+    }
+  }
+
+  // ---------- Beta policy: wealth bucket plot ----------
+
+  const POLICY_METRICS = {
+    beta: { label: "Optimal SPX beta", value: (row) => row.beta, format: Planner.formatBeta },
+    risk: { label: "Estimated depletion risk", value: (row) => row.estimatedDepletionRisk, format: Planner.formatPolicyRiskPercent },
+    terminalWealth: { label: "Expected terminal wealth", value: (row) => row.expectedTerminalWealth, format: Planner.formatCompactCurrency }
+  };
+
+  function getPolicyMetric(metric) {
+    return POLICY_METRICS[metric] || POLICY_METRICS.beta;
+  }
+
+  function renderPolicyBucketChart(results) {
+    const frame = beginChart(Planner.els.dynamicPolicyCanvas, { top: 36, right: 24, bottom: 30, left: 64 });
+    const { ctx, theme } = frame;
+    const view = results.dynamicPolicy ? Planner.getPolicyBucketView(results) : null;
+    const rows = view ? view.rows.filter((row) => row.wealth > 0) : [];
+    hitMetaByChart.policyBucket = { items: [], frame };
+    if (!rows.length) {
+      drawEmptyState(frame, "No visible wealth buckets for this year.");
+      return;
+    }
+
+    const metric = getPolicyMetric(view.metric);
+    const values = rows.map(metric.value);
+    let yOf;
+    let yTicks;
+    if (view.metric === "terminalWealth") {
+      const positive = values.filter((value) => value > 0);
+      const min = positive.length ? Math.min(...positive) : 1;
+      const max = Math.max(min * 10, ...values);
+      yOf = logScale(min, max, frame.bottom, frame.top);
+      yTicks = logTicks(min, max);
+    } else {
+      const scale = Planner.niceZeroScale(Math.max(view.metric === "beta" ? 1.5 : 0.01, ...values), 4);
+      yOf = linearScale(0, scale.max, frame.bottom, frame.top);
+      yTicks = scale.ticks;
+    }
+    const minWealth = rows[0].wealth;
+    const maxWealth = rows[rows.length - 1].wealth;
+    const xOf = logScale(minWealth, maxWealth, frame.left, frame.right);
+
+    drawAxisTitle(frame, metric.label);
+    drawYAxis(frame, yTicks, yOf, metric.format);
+    drawXAxis(frame, logTicks(minWealth, maxWealth), xOf, Planner.formatCompactCurrency);
+
+    const items = rows.map((row, index) => ({ key: row.bucketIndex, row, x: xOf(row.wealth), y: yOf(Math.max(0, values[index])) }));
+    hitMetaByChart.policyBucket.items = items;
+    const hover = resolveHover("policyBucket", items);
+
+    withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
+
+    const netWorth = results.scenario.netWorth;
+    if (view.isCurrentYear && netWorth >= minWealth && netWorth <= maxWealth) {
+      const x = xOf(netWorth);
+      ctx.save();
+      ctx.strokeStyle = theme.highlight;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, frame.top);
+      ctx.lineTo(x, frame.bottom);
+      ctx.stroke();
+      ctx.restore();
+      const marker = items.find((item) => item.row.bucketIndex === view.currentBucketIndex);
+      if (marker) drawDot(frame, marker.x, marker.y, 5, theme.highlight);
+      ctx.font = font(frame, 12, 500);
+      ctx.fillStyle = theme.text;
+      const alignRight = x > frame.right - 110;
+      ctx.textAlign = alignRight ? "right" : "left";
+      ctx.fillText("Current wealth", x + (alignRight ? -8 : 8), frame.top + 12);
+    }
+
+    if (hover) {
+      const { row } = hover.item;
+      drawCrosshair(frame, hover.item.x, hover.item.y);
+      drawDot(frame, hover.item.x, hover.item.y, 5, theme.series);
+      drawTooltip(frame, hover.item.x, hover.item.y, `Wealth ${Planner.formatCurrency(row.wealth)}`, [
+        `Optimal beta: ${Planner.formatBeta(row.beta)}`,
+        `Depletion risk: ${Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk)}`,
+        `Expected terminal: ${Planner.formatCompactCurrency(row.expectedTerminalWealth)}`
+      ]);
+    }
+  }
+
+  // ---------- Beta policy: heatmap with forced path ----------
+
+  function renderPolicyPathChart(results) {
+    const frame = beginChart(Planner.els.policyPathCanvas, { top: 36, right: 24, bottom: 30, left: 64 });
+    const { ctx, theme } = frame;
+    const policy = results.dynamicPolicy;
+    const explorer = results.policyPathExplorer;
+    hitMetaByChart.policyPath = {};
+    if (!policy || !explorer) {
+      drawEmptyState(frame, "Run dynamic beta to inspect a policy path.");
+      return;
+    }
+
+    const buckets = policy.wealthBuckets
+      .map((wealth, bucketIndex) => ({ wealth, bucketIndex }))
+      .filter((bucket) => bucket.wealth > 0 && bucket.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET);
+    if (!buckets.length) {
+      drawEmptyState(frame, "No visible wealth buckets for this policy.");
+      return;
+    }
+
+    const { years } = results;
+    const cellWidth = frame.plotWidth / years.length;
+    const cellHeight = frame.plotHeight / buckets.length;
+    const minWealth = buckets[0].wealth;
+    const maxWealth = buckets[buckets.length - 1].wealth;
+    const maxBeta = Math.max(...policy.betaValues);
+    // Buckets are log-spaced, so wealth maps to a fractional bucket position.
+    const bucketPosition = logScale(minWealth, maxWealth, 0, buckets.length - 1);
+    const yOfWealth = (wealth) => (wealth <= 0 ? frame.bottom : frame.bottom - (bucketPosition(wealth) + 0.5) * cellHeight);
+    const xOfYearIndex = (yearIndex) => frame.left + (yearIndex + 0.5) * cellWidth;
+
+    drawAxisTitle(frame, "Wealth");
+    years.forEach((year, yearIndex) => {
+      const policyRow = policy.policyByYear[yearIndex] || [];
+      buckets.forEach((bucket, visibleIndex) => {
+        ctx.fillStyle = rampColor(theme.ramp, (policyRow[bucket.bucketIndex] ?? 0) / maxBeta);
+        ctx.fillRect(
+          frame.left + yearIndex * cellWidth,
+          frame.bottom - (visibleIndex + 1) * cellHeight,
+          cellWidth + 0.6,
+          cellHeight + 0.6
+        );
+      });
+    });
+    drawYAxis(frame, logTicks(minWealth, maxWealth), yOfWealth, Planner.formatCompactCurrency);
+    drawXAxis(
+      frame,
+      yearTicks(years[0], years[years.length - 1], frame.plotWidth),
+      (year) => xOfYearIndex(year - years[0]),
+      String
+    );
+
+    const pathPoints = explorer.points.map((point) => ({
+      x: xOfYearIndex(Planner.clamp(point.year - years[0], 0, years.length - 1)),
+      y: yOfWealth(point.wealth)
+    }));
+    withPlotClip(frame, () => {
+      strokePolyline(ctx, pathPoints, theme.surface, 5);
+      strokePolyline(ctx, pathPoints, theme.highlight, 2.5);
+    });
+    pathPoints.forEach((point, index) => {
+      drawDot(frame, point.x, point.y, index === pathPoints.length - 1 ? 5 : 4, index === 0 ? theme.ink : theme.highlight);
+    });
+
+    hitMetaByChart.policyPath.lookup = (x, y) => {
+      if (x < frame.left || x > frame.right || y < frame.top || y > frame.bottom) return null;
+      const yearIndex = Math.min(years.length - 1, Math.floor((x - frame.left) / cellWidth));
+      const visibleIndex = Math.min(buckets.length - 1, Math.floor((frame.bottom - y) / cellHeight));
+      const bucket = buckets[visibleIndex];
+      return {
+        key: `${yearIndex}:${bucket.bucketIndex}`,
+        yearIndex,
+        bucket,
+        visibleIndex
+      };
+    };
+    const hover = hoverByChart.policyPath;
+    if (hover) {
+      const { yearIndex, bucket, visibleIndex } = hover.item;
+      ctx.strokeStyle = theme.ink;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(
+        frame.left + yearIndex * cellWidth,
+        frame.bottom - (visibleIndex + 1) * cellHeight,
+        cellWidth,
+        cellHeight
+      );
+      drawTooltip(frame, hover.x, hover.y, String(years[yearIndex]), [
+        `Wealth ≈ ${Planner.formatCurrency(bucket.wealth)}`,
+        `Policy beta: ${Planner.formatBeta(policy.policyByYear[yearIndex]?.[bucket.bucketIndex])}`,
+        `Depletion risk: ${Planner.formatPolicyRiskPercent(policy.valueByYear[yearIndex]?.[bucket.bucketIndex])}`
+      ]);
+    }
+
+    drawLegend(frame, [
+      { label: "Forced path", color: theme.highlight, shape: "line" },
+      { label: `Beta 0–${Planner.formatBeta(maxBeta)}`, ramp: theme.ramp, shape: "ramp" }
+    ]);
+  }
+
+  // ---------- Frontier ----------
+
+  function renderFrontierChart(results) {
+    const frame = beginChart(Planner.els.frontierCanvas, { top: 36, right: 24, bottom: 44, left: 64 });
+    const { ctx, theme } = frame;
+    const rows = results.dynamicPolicy?.frontier || [];
+    hitMetaByChart.frontier = { items: [] };
+    if (!rows.length) {
+      drawEmptyState(frame, "Run dynamic beta to compare risk and expected wealth policies.");
+      return;
+    }
+
+    const riskScale = paddedScale(rows.map((row) => row.depletionRisk), 0, 1, 0.08);
+    const wealthScale = paddedScale(rows.map((row) => row.expectedTerminalWealth), 0, Number.POSITIVE_INFINITY, 0.08);
+    const xOf = linearScale(riskScale.min, riskScale.max, frame.left, frame.right);
+    const yOf = linearScale(wealthScale.min, wealthScale.max, frame.bottom, frame.top);
+
+    drawAxisTitle(frame, "Expected terminal wealth");
+    drawYAxis(frame, Planner.niceTicks(wealthScale.min, wealthScale.max, 4), yOf, Planner.formatCompactCurrency);
+    drawXAxis(frame, Planner.niceTicks(riskScale.min, riskScale.max, 5), xOf, Planner.formatPolicyRiskPercent);
+    drawXAxisTitle(frame, "Run-out risk");
+
+    const items = rows.map((row) => ({ key: row.label, row, x: xOf(row.depletionRisk), y: yOf(row.expectedTerminalWealth) }));
+    hitMetaByChart.frontier.items = items;
+    const hover = resolveHover("frontier", items);
+
+    withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
+    items.forEach((item) => {
+      drawDot(frame, item.x, item.y, item.row.isMinRisk ? 5.5 : 4.5, item.row.isMinRisk ? theme.critical : theme.series);
+    });
+
+    drawLegend(frame, [
+      { label: "Min-risk policy (simulated)", color: theme.critical, shape: "dot" },
+      { label: "Risk-penalty policies", color: theme.series, shape: "dot" }
+    ]);
+    if (hover) {
+      const { row } = hover.item;
+      drawCrosshair(frame, hover.item.x, hover.item.y);
+      drawDot(frame, hover.item.x, hover.item.y, 6, row.isMinRisk ? theme.critical : theme.series);
+      drawTooltip(frame, hover.item.x, hover.item.y, row.label, [
+        `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
+        `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
+        `Current beta: ${Planner.formatBeta(row.currentBeta)}`
+      ]);
+    }
+  }
 
   Object.assign(Planner, {
+    resetChartTheme,
+    bindChartHover,
+    clearHover,
     renderCharts,
-    renderDistributionChart,
-    renderNetWorthChart,
-    renderFrontierChart,
-    renderBetaChart,
-    renderSelectedSimulationChart,
-    renderPolicyBucketPlot,
-    renderPolicyPathChart,
-    getNetWorthYAxisMax,
-    updateNetWorthZoomLabel,
-    handlePathHover,
-    handleBetaPathHover,
-    handleFrontierHover,
-    handleDetailChartHover,
-    handlePolicyBucketHover
+    renderChart,
+    getPolicyMetric,
+    updateNetWorthZoomLabel
   });
 })(window.Planner = window.Planner || {});
