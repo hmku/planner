@@ -83,7 +83,7 @@ Manual smoke test:
 - Switch to Simulation.
 - The simulation dropdown, CSV button, selected simulation chart, and annual rows table are in one visual section.
 - Changing the selected simulation updates both the chart and table.
-- CSV download creates simulation-year rows.
+- CSV download creates simulation-year rows for the sampled inspection paths (up to 200 paths × plan years).
 - Switch to Methodology and back to verify tab state still renders.
 - Check dark mode (OS preference) and a ~390px-wide viewport.
 
@@ -95,7 +95,7 @@ for f in js/*.js app.js; do node --check "$f"; done
 git diff --stat
 ```
 
-Some environments have Playwright and Chromium available (for example `NODE_PATH=$(npm root -g)` with a global `playwright`), which lets you script the smoke test headlessly. Very large simulation CSV exports can be canceled by headless Chromium's blob limits; test exports with a smaller simulation count.
+Some environments have Playwright and Chromium available (for example `NODE_PATH=$(npm root -g)` with a global `playwright`), which lets you script the smoke test headlessly.
 
 ## Cursor Cloud specific instructions
 

@@ -408,10 +408,13 @@
 
   // ---------- CSV ----------
 
+  // Exports the sampled inspection paths (the ones in the Simulation picker), in
+  // picker order, rather than every simulation-year of the run.
   function downloadSimulationCsv() {
     const results = Planner.state.results;
     if (!results) return;
     const headers = [
+      "inspection_rank",
       "simulation",
       "year",
       "historical_return_year",
@@ -435,9 +438,11 @@
       "ending_percentile"
     ];
     function* rows() {
-      for (const summary of results.simulationRows) {
-        for (const row of Planner.getSimulationYearRows(results, summary.simulation)) {
+      for (const [index, path] of results.inspectionPaths.entries()) {
+        const summary = results.simulationRows[path.simulation - 1];
+        for (const row of Planner.getSimulationYearRows(results, path.simulation)) {
           yield [
+            index + 1,
             row.simulation,
             row.year,
             row.historicalReturnYear,
@@ -463,7 +468,7 @@
         }
       }
     }
-    Planner.downloadCsvFile(`financial-planner-simulations-${Date.now()}.csv`, headers, rows());
+    Planner.downloadCsvFile(`financial-planner-sampled-paths-${Date.now()}.csv`, headers, rows());
   }
 
 

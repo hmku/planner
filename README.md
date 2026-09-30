@@ -12,7 +12,7 @@ The planner lets you enter plan years, current net worth, beta mode, SPX beta, s
 - simulated current-dollar net worth paths
 - simulated SPX beta paths
 - an on-demand dynamic-beta frontier comparing expected terminal wealth against run-out risk
-- a Simulation view for one selected simulation's net worth path and annual return/cash-flow rows
+- a Simulation view for one selected simulation's net worth path and annual return/cash-flow rows, with a CSV of all sampled paths
 - a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
@@ -22,7 +22,7 @@ By default, the app starts with the current year, an expected year of death 60 y
 
 The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
 
-To keep memory small, a run stores only the sampled historical year for each simulation-year (about 2 bytes each). The Simulation table, its chart, and the simulation CSV replay a simulation from those indices with the same arithmetic as the run, so the numbers match exactly. The simulation CSV covers every simulation-year, so large runs produce very large files (roughly 700 MB at the default 50,000 simulations over 61 years); lower the simulation count when you need a manageable export.
+To keep memory small, a run stores only the sampled historical year for each simulation-year (about 2 bytes each). The Simulation table, its chart, and the simulation CSV replay a simulation from those indices with the same arithmetic as the run, so the numbers match exactly. The simulation CSV exports the annual rows of the sampled inspection paths (up to 200, the same paths listed in the Simulation picker, in picker order with an `inspection_rank` column), so it stays small regardless of the simulation count.
 
 Fixed-beta and dynamic-beta simulations sample one historical year at a time with replacement. Dynamic beta chooses the beta for a simulation year before that year's sampled return is drawn. Portfolio nominal return is modeled as:
 
