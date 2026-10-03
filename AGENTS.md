@@ -139,7 +139,7 @@ for f in js/*.js app.js; do node --check "$f"; done
 
 ### Browser testing
 
-Cloud agents can run the manual smoke test via the `computerUse` subagent against `http://127.0.0.1:8000/`. Default runs use 50,000 simulations and take a few seconds while the progress bar advances.
+Cloud agents can run the manual smoke test via the `computerUse` subagent against `http://127.0.0.1:8000/`. Default runs use 10,000 simulations and take a couple of seconds while the progress bar advances.
 
 ### Gotchas
 

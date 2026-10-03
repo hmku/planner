@@ -3,6 +3,9 @@
   // inputs carry a data-ls path into it (kid rows use data-kid-field), and every
   // change regenerates the line items, section totals, and the Spending view.
 
+  // allItems includes lines moved to manual rows (listed so they can be
+  // restored); currentItems is what the plan actually spends.
+  let allItems = [];
   let currentItems = [];
 
   function card() {
@@ -124,10 +127,17 @@
     return parts.join(" · ") || "$0";
   }
 
+  function describeCategory(category, years) {
+    const items = currentItems.filter((item) => item.category === category);
+    if (!items.length && allItems.some((item) => item.category === category && item.isDetached)) {
+      return "Moved to other expenditures";
+    }
+    return describeAmounts(items, years);
+  }
+
   function updateSummaries(years) {
     const lifestyle = Planner.state.lifestyle;
     const root = card();
-    const byCategory = (category) => currentItems.filter((item) => item.category === category);
     root.querySelectorAll("[data-ls-section]").forEach((section) => {
       const amount = section.querySelector(".ls-section-amount");
       const key = section.dataset.lsSection;
@@ -136,9 +146,9 @@
         amount.textContent = `${lifestyle.adults === 1 ? "1 adult" : "2 adults"}, ${tier.label.replace(/ \(.*\)$/, "").toLowerCase()}`;
       } else if (key === "kids") {
         const count = lifestyle.kids.length;
-        amount.textContent = count ? `${count} · ${describeAmounts(byCategory("kids"), years)}` : "None";
+        amount.textContent = count ? `${count} · ${describeCategory("kids", years)}` : "None";
       } else {
-        amount.textContent = describeAmounts(byCategory(key), years);
+        amount.textContent = describeCategory(key, years);
       }
     });
 
@@ -169,7 +179,7 @@
 
   function renderItems() {
     const template = document.getElementById("lifestyleItemTemplate");
-    const groups = Planner.groupLifestyleItems(currentItems);
+    const groups = Planner.groupLifestyleItems(allItems);
     card().querySelectorAll("[data-ls-items]").forEach((container) => {
       const rows = groups.filter((group) => group.category === container.dataset.lsItems).map((group) => {
         const row = template.content.firstElementChild.cloneNode(true);
@@ -178,6 +188,13 @@
         row.querySelector(".ls-item-name").title = group.name;
         row.querySelector(".ls-item-years").textContent = group.oneTime ? `${group.yearsLabel}, one time` : group.yearsLabel;
         const amount = row.querySelector(".ls-item-amount");
+        if (group.isDetached) {
+          row.classList.add("is-detached");
+          row.querySelector(".ls-item-years").textContent = "Moved to other expenditures";
+          [amount, row.querySelector(".ls-item-reset"), row.querySelector(".ls-item-detach")].forEach((element) => element.remove());
+          return row;
+        }
+        row.querySelector(".ls-item-restore").remove();
         amount.value = group.amount;
         amount.setAttribute("aria-label", `${group.name} ${group.oneTime ? "amount" : "per year"}`);
         amount.classList.toggle("is-overridden", group.isOverridden);
@@ -195,7 +212,10 @@
   // keepItemRows while a line-item amount is being typed so its input survives.
   function refreshLifestyle({ keepItemRows = false } = {}) {
     const years = readPlanYears();
-    currentItems = years ? Planner.buildLifestyleItems(Planner.state.lifestyle, years.currentYear, years.deathYear) : [];
+    allItems = years
+      ? Planner.buildLifestyleItems(Planner.state.lifestyle, years.currentYear, years.deathYear, { includeDetached: true })
+      : [];
+    currentItems = allItems.filter((item) => !item.isDetached);
     updateConditionalFields();
     if (!keepItemRows) renderItems();
     updateSummaries(years);
@@ -265,6 +285,9 @@
       } else if (event.target.closest(".ls-item-detach")) {
         detachItem(key);
         onChange();
+      } else if (event.target.closest(".ls-item-restore")) {
+        restoreItem(key);
+        onChange();
       }
     });
   }
@@ -285,11 +308,22 @@
         startMode: "fixed",
         startYear: item.startYear,
         endMode: "fixed",
-        endYear: item.endYear
+        endYear: item.endYear,
+        lifestyleKey: key
       });
     });
     delete lifestyle.overrides[key];
     if (!lifestyle.detached.includes(key)) lifestyle.detached.push(key);
+  }
+
+  // Brings a moved line back into the builder and drops its manual copies, if
+  // they're still there, so it isn't counted twice.
+  function restoreItem(key) {
+    const lifestyle = Planner.state.lifestyle;
+    lifestyle.detached = lifestyle.detached.filter((detachedKey) => detachedKey !== key);
+    Planner.els.expenseRows.querySelectorAll(".flow-row").forEach((row) => {
+      if (row.dataset.lifestyleKey === key) row.remove();
+    });
   }
 
   function initLifestyleBuilder(onChange) {

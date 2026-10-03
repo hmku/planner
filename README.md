@@ -14,7 +14,7 @@ The planner lets you enter plan years, current net worth, beta mode, SPX beta, s
 - a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
 - saved plans and an autosaved draft in the browser, plus shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
-By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, `50,000` simulations, `$200,000` of take-home pay through 2045, and a lifestyle-builder default of a couple renting for `$5,000`/month in a very-high-cost area with comfortable everyday spending and modest economy travel.
+By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, `10,000` simulations, `$200,000` of take-home pay through 2045, and a lifestyle-builder default of a couple renting for `$5,000`/month in a very-high-cost area with comfortable everyday spending and modest economy travel.
 
 ## Lifestyle Builder
 
@@ -28,7 +28,7 @@ The Lifestyle card turns a described lifestyle into dated annual expenses in tod
 - **Everyday living**: modest, comfortable, affluent, or lavish, itemized into groceries, dining, cars, utilities, and personal spending.
 - **Health**: employer coverage (no cost) until a chosen year, then private insurance, then Medicare at 65.
 
-Every generated line shows its amount and years. Typing a new amount overrides that line (reset restores the preset), and the move-out button turns a line into a manual expenditure row with fixed years and stops generating it. Taxes and above-inflation cost growth (for example tuition) are not modeled; mortgage payments are held flat in today's dollars, which is conservative. Lifestyle lines are added to the scenario's expenditures along with the manual rows, tagged with a category for the Spending view.
+Every generated line shows its amount and years. Typing a new amount overrides that line (reset restores the preset), and the move-out button turns a line into a manual expenditure row with fixed years and stops generating it. Moved lines stay listed in their section with a Restore button, which brings the line back and removes its manual copy if it's still there. Taxes and above-inflation cost growth (for example tuition) are not modeled; mortgage payments are held flat in today's dollars, which is conservative. Lifestyle lines are added to the scenario's expenditures along with the manual rows, tagged with a category for the Spending view.
 
 ## Saving Plans
 

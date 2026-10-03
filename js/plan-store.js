@@ -31,7 +31,8 @@
         startMode: field("startMode").value,
         startYear: numberOrNull(field("startYear")),
         endMode: field("endMode").value,
-        endYear: numberOrNull(field("endYear"))
+        endYear: numberOrNull(field("endYear")),
+        lifestyleKey: row.dataset.lifestyleKey
       };
     });
   }
@@ -58,6 +59,10 @@
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
 
+  function isLifestyleKey(value) {
+    return typeof value === "string" && /^[A-Za-z0-9.:_-]{1,40}$/.test(value);
+  }
+
   function normalizeFlows(flows) {
     return (Array.isArray(flows) ? flows : [])
       .slice(0, Planner.MAX_SHARED_FLOWS)
@@ -68,7 +73,8 @@
         startMode: FLOW_MODES.includes(flow.startMode) ? flow.startMode : "current",
         startYear: finiteOrNull(flow.startYear),
         endMode: FLOW_MODES.includes(flow.endMode) ? flow.endMode : "death",
-        endYear: finiteOrNull(flow.endYear)
+        endYear: finiteOrNull(flow.endYear),
+        ...(isLifestyleKey(flow.lifestyleKey) ? { lifestyleKey: flow.lifestyleKey } : {})
       }));
   }
 

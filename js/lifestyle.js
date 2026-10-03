@@ -297,10 +297,11 @@
   }
 
   // Returns items. Each item: { key, category, name, amount,
-  // presetAmount, isOverridden, oneTime, startYear, endYear }, clipped to the plan
-  // window. Items sharing a key (for example household help before kids and after
-  // they leave) share one override.
-  function buildLifestyleItems(lifestyle, currentYear, deathYear) {
+  // presetAmount, isOverridden, isDetached, oneTime, startYear, endYear }, clipped
+  // to the plan window. Items sharing a key (for example household help before
+  // kids and after they leave) share one override. Lines moved to manual rows are
+  // left out unless includeDetached is set (the builder lists them to restore).
+  function buildLifestyleItems(lifestyle, currentYear, deathYear, { includeDetached = false } = {}) {
     const items = [];
     if (!lifestyle || !lifestyle.enabled) return items;
     if (!Number.isInteger(currentYear) || !Number.isInteger(deathYear) || deathYear < currentYear) return items;
@@ -312,7 +313,8 @@
     const num = (value) => (Number.isFinite(value) ? value : 0);
 
     function add(key, category, name, presetAmount, startYear, endYear, options = {}) {
-      if (detached.has(key)) return;
+      const isDetached = detached.has(key);
+      if (isDetached && !includeDetached) return;
       if (!Number.isFinite(startYear) || !Number.isFinite(endYear)) return;
       const start = Math.max(startYear, currentYear);
       const end = Math.min(endYear, deathYear);
@@ -321,7 +323,7 @@
       const preset = Math.round(presetAmount);
       const amount = isOverridden ? overrides[key] : preset;
       if (!(amount > 0) && !isOverridden) return;
-      items.push({ key, category, name, amount, presetAmount: preset, isOverridden, oneTime: Boolean(options.oneTime), startYear: start, endYear: end });
+      items.push({ key, category, name, amount, presetAmount: preset, isOverridden, isDetached, oneTime: Boolean(options.oneTime), startYear: start, endYear: end });
     }
 
     const adults = lifestyle.adults === 1 ? 1 : 2;
@@ -465,7 +467,7 @@
   // Lifestyle items as scenario cash flows (fixed years).
   function lifestyleItemsToFlows(items) {
     return items
-      .filter((item) => item.amount > 0)
+      .filter((item) => item.amount > 0 && !item.isDetached)
       .map((item) => ({
         name: item.name,
         amount: item.amount,

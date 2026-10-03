@@ -50,7 +50,7 @@
     Planner.els.netWorth.value = 100000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = Planner.DEFAULT_SPX_BETA;
-    Planner.els.simulationCount.value = 50000;
+    Planner.els.simulationCount.value = 10000;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
     Planner.DEFAULT_EXPENSES.forEach((flow) => addFlowRow(Planner.els.expenseRows, flow));
@@ -238,6 +238,9 @@
     field("startYear").value = flow.startYear;
     field("endMode").value = flow.endMode || "death";
     field("endYear").value = flow.endYear;
+    // Rows moved out of the lifestyle builder remember their line, so restoring
+    // the line can remove them.
+    if (flow.lifestyleKey) node.dataset.lifestyleKey = flow.lifestyleKey;
     node.querySelector(".remove-flow").addEventListener("click", () => {
       node.remove();
       noteEdit();

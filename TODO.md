@@ -21,12 +21,15 @@ when they ship.
 - Revisit prices periodically (tuition, fares, charter rates); they live in `js/lifestyle.js`.
 
 ### App
+- Speed up the dynamic-beta policy and frontier solve (about 2s of a default run on desktop, much longer on phones, regardless of simulation count): run it in a Web Worker so the page stays responsive, and/or coarsen the wealth grid.
 - Native App Store / Play Store builds (for example a Capacitor wrapper) if the installable web app isn't enough.
 - Sync saved plans across devices (saved plans currently live only in one browser; the installed iPhone app has storage separate from Safari).
 - Automated browser smoke tests: default load, run, tab switching, inspected simulation, CSV download, lifestyle builder, save/restore, share links.
 
 ## Done
 
+- Lines moved out of the lifestyle builder can be restored (Restore button; removes the manual copy so nothing double counts).
+- Default simulation count lowered from 50,000 to 10,000 for faster runs.
 - Installable mobile app (PWA): manifest, home-screen icons, offline support via a service worker, safe-area layout, native share sheet on phones.
 - Saved plans: autosaved draft in localStorage plus named saves (Save button, Saved plans menu).
 - Share links v2: full plan state (including the lifestyle builder) as compressed JSON; address bar follows edits; v1 links still open.
