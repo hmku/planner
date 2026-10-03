@@ -927,16 +927,23 @@
 
   // ---------- Overview: how much you need ----------
 
-  // 1-2-5 ticks across a log range, so short spans still get labels.
-  function logTicks125(min, max) {
-    const ticks = [];
-    for (let power = Math.floor(Math.log10(min)); 10 ** power <= max; power += 1) {
-      [1, 2, 5].forEach((step) => {
-        const tick = step * 10 ** power;
-        if (tick >= min && tick <= max) ticks.push(tick);
-      });
+  // Ticks for a log axis: the coarsest of powers of ten, 1-2-5, or a finer
+  // 1-1.5-2-3-5-7 set that puts at least three ticks in range, so a zoomed
+  // span inside one decade still gets labels.
+  function logAxisTicks(min, max) {
+    const stepSets = [[1], [1, 2, 5], [1, 1.5, 2, 3, 5, 7]];
+    let ticks = [];
+    for (const steps of stepSets) {
+      ticks = [];
+      for (let power = Math.floor(Math.log10(min)); 10 ** power <= max; power += 1) {
+        steps.forEach((step) => {
+          const tick = step * 10 ** power;
+          if (tick >= min && tick <= max) ticks.push(tick);
+        });
+      }
+      if (ticks.length >= 3) break;
     }
-    return ticks.length > 6 ? ticks.filter((tick) => /^1/.test(String(tick))) : ticks;
+    return ticks;
   }
 
   // Run-out risk by starting net worth (from per-path survival thresholds),
@@ -980,7 +987,7 @@
     drawAxisTitle(frame, "Run-out risk (log scale)");
     drawYAxis(frame, [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1], yOf, riskLabel);
     // Keep labels at least ~52px apart so narrow screens don't run them together.
-    const xTicks = logTicks125(minWealth, maxWealth).reduce((kept, tick) => {
+    const xTicks = logAxisTicks(minWealth, maxWealth).reduce((kept, tick) => {
       if (!kept.length || xOf(tick) - xOf(kept[kept.length - 1]) >= 52) kept.push(tick);
       return kept;
     }, []);
@@ -989,42 +996,37 @@
 
     withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
 
-    // Labeled points: dot plus "$X at 1%", placed to the right unless that
-    // would run off the plot.
-    ctx.font = font(frame, 12, 600);
-    ctx.textBaseline = "middle";
-    labels.forEach((point) => {
-      const x = xOf(point.wealth);
-      const y = yOf(point.risk);
-      drawDot(frame, x, y, 5, theme.highlight);
-      const label = `${Planner.formatCompactCurrency(point.wealth)} for ${riskLabel(point.risk)}`;
-      const width = ctx.measureText(label).width;
-      const toLeft = x + 10 + width > frame.right;
-      ctx.fillStyle = theme.ink;
-      ctx.textAlign = toLeft ? "right" : "left";
-      ctx.fillText(label, toLeft ? x - 10 : x + 10, y - 12);
-    });
-
-    // You: on the curve when in range, otherwise an arrow at the edge.
+    // Points carry no labels (the summary lists the amounts); hovering or
+    // tapping near one shows its details.
     const yourRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
-    const youText = `You: ${Planner.formatCompactCurrency(scenario.netWorth)}, ${Planner.formatPolicyRiskPercent(yourRisk)}`;
-    ctx.font = font(frame, 12, 600);
-    ctx.fillStyle = theme.text;
-    if (scenario.netWorth >= minWealth && scenario.netWorth <= maxWealth && yourRisk >= minRisk && yourRisk <= maxRisk) {
-      const x = xOf(scenario.netWorth);
-      const y = yOf(yourRisk);
-      drawDot(frame, x, y, 5.5, theme.seriesStrong);
-      ctx.fillStyle = theme.text;
-      const toLeft = x + 10 + ctx.measureText(youText).width > frame.right;
-      ctx.textAlign = toLeft ? "right" : "left";
-      ctx.fillText(youText, toLeft ? x - 10 : x + 10, y + 14);
-    } else {
-      // The curve runs top-left to bottom-right, so the opposite corners are free.
-      const below = scenario.netWorth < minWealth || yourRisk > maxRisk;
-      ctx.textAlign = below ? "left" : "right";
-      ctx.fillText(below ? `◂ ${youText}` : `${youText} ▸`, below ? frame.left + 6 : frame.right - 6, below ? frame.bottom - 12 : frame.top + 10);
+    const youInRange = scenario.netWorth >= minWealth && scenario.netWorth <= maxWealth && yourRisk >= minRisk && yourRisk <= maxRisk;
+    const points = labels.map((point) => ({ ...point, kind: "needed", x: xOf(point.wealth), y: yOf(point.risk) }));
+    if (youInRange) {
+      points.push({ kind: "you", wealth: scenario.netWorth, risk: yourRisk, x: xOf(scenario.netWorth), y: yOf(yourRisk) });
     }
-    ctx.textBaseline = "alphabetic";
+    const hoveredPoint = hover
+      ? points.reduce((best, point) => {
+        const distance = Math.hypot(point.x - hover.x, point.y - hover.y);
+        return distance < 22 && (!best || distance < best.distance) ? { point, distance } : best;
+      }, null)?.point
+      : null;
+
+    points.forEach((point) => {
+      const radius = point === hoveredPoint ? 7 : 5.5;
+      drawDot(frame, point.x, point.y, radius, point.kind === "you" ? theme.seriesStrong : theme.highlight);
+    });
+    if (!youInRange) {
+      // Off the zoomed range: a short note in the free corner (the curve runs
+      // top-left to bottom-right).
+      const below = scenario.netWorth < minWealth || yourRisk > maxRisk;
+      ctx.font = font(frame, 12, 600);
+      ctx.fillStyle = theme.text;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = below ? "left" : "right";
+      const youText = `You: ${Planner.formatCompactCurrency(scenario.netWorth)}, ${Planner.formatPolicyRiskPercent(yourRisk)} risk`;
+      ctx.fillText(below ? `◂ ${youText}` : `${youText} ▸`, below ? frame.left + 6 : frame.right - 6, below ? frame.bottom - 12 : frame.top + 10);
+      ctx.textBaseline = "alphabetic";
+    }
 
     drawLegend(frame, [
       { label: "Run-out risk", color: theme.series, shape: "line" },
@@ -1032,7 +1034,19 @@
       { label: "You", color: theme.seriesStrong, shape: "dot" }
     ]);
 
-    if (hover) {
+    if (hoveredPoint) {
+      const gap = hoveredPoint.wealth - scenario.netWorth;
+      const lines = hoveredPoint.kind === "you"
+        ? [`Run-out risk: ${Planner.formatPolicyRiskPercent(hoveredPoint.risk)}`]
+        : [
+          `Starting net worth: ${Planner.formatCompactCurrency(hoveredPoint.wealth)}`,
+          gap > 0 ? `${Planner.formatCompactCurrency(gap)} more than you have` : `${Planner.formatCompactCurrency(-gap)} less than you have`
+        ];
+      const title = hoveredPoint.kind === "you"
+        ? `You: ${Planner.formatCompactCurrency(hoveredPoint.wealth)}`
+        : `${riskLabel(hoveredPoint.risk)} run-out risk`;
+      drawTooltip(frame, hoveredPoint.x, hoveredPoint.y, title, lines);
+    } else if (hover) {
       drawCrosshair(frame, hover.item.x, hover.item.y);
       drawDot(frame, hover.item.x, hover.item.y, 4.5, theme.series);
       drawTooltip(frame, hover.item.x, hover.item.y, `Start with ${Planner.formatCompactCurrency(hover.item.wealth)}`, [

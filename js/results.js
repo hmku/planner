@@ -75,7 +75,7 @@
     const yourRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
     return `Starting net worth needed with ${policyText}. ${steps.join(" · ")}. ` +
       `Your ${Planner.formatCompactCurrency(scenario.netWorth)} has a ${Planner.formatPolicyRiskPercent(yourRisk)} risk ` +
-      `(from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths).`;
+      `(from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths). Hover or tap a point for details.`;
   }
 
 

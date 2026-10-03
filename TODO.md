@@ -28,6 +28,7 @@ when they ship.
 
 ## Done
 
+- How much you need chart: dots without labels (hover or tap for details) and finer ticks on zoomed axes.
 - Tax on withdrawals: editable plan setting (default 15%) that grosses up spending income doesn't cover; shown in the Spending view, Simulation table, and CSV.
 - How much you need is the third Overview pane, labels the net worth needed for 10%, 5%, 1%, and 0.1% risk on a zoomed log-risk chart (no dropdown), and uses 20,000 paths; the metric card shows the 1% amount.
 - How much you need: needed starting net worth for a 1%–20% run-out risk (metric card and Overview chart), from per-path survival thresholds.
