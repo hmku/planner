@@ -170,7 +170,7 @@
     if (peak.amount > now * 1.02) total.append(`, peaking at ${Planner.formatCompactCurrency(peak.amount)} in ${peak.year}`);
     total.append(". ");
     total.append(
-      linkButton("See spending", () => Planner.switchPage("spending")),
+      linkButton("See spending", () => showPageAt("spending", document.querySelector(".page-nav"))),
       " · ",
       linkButton("Assumptions", showLifestyleAssumptions)
     );
@@ -186,8 +186,18 @@
   }
 
   function showLifestyleAssumptions() {
-    Planner.switchPage("methodology");
-    Planner.els.lifestyleAssumptionsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    showPageAt("methodology", Planner.els.lifestyleAssumptionsSection);
+  }
+
+  // Switches tabs and, if the target isn't already in view, scrolls it to just
+  // below the sticky top bar. On narrow screens the results sit below the
+  // inputs, so switching alone would leave the new tab off screen.
+  function showPageAt(page, target) {
+    Planner.switchPage(page);
+    const topBarHeight = document.querySelector(".topbar").offsetHeight;
+    const rectTop = target.getBoundingClientRect().top;
+    if (rectTop >= topBarHeight && rectTop < window.innerHeight * 0.6) return;
+    window.scrollTo({ top: Math.max(0, rectTop + window.scrollY - topBarHeight - 12), behavior: "smooth" });
   }
 
   // ---------- Assumptions tables (Methodology tab) ----------

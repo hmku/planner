@@ -1210,10 +1210,6 @@ td.empty {
   white-space: normal;
 }
 
-#lifestyleAssumptionsSection {
-  scroll-margin-top: 90px;
-}
-
 @media (max-width: 640px) {
   .assumption-grid {
     grid-template-columns: minmax(0, 1fr);
