@@ -48,6 +48,7 @@
 
   --radius: 12px;
   --radius-sm: 8px;
+  --control-font-sm: 13px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -303,6 +304,41 @@ button {
   height: 16px;
 }
 
+/* Square icon-only button (remove, delete, reset, move). */
+.icon-button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+/* Removes or deletes something. */
+.icon-button-danger:not(:disabled):hover {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+
 /* ---------- Layout ---------- */
 
 .workspace {
@@ -431,6 +467,21 @@ select:disabled {
   opacity: 0.55;
 }
 
+/* Compact controls (cash-flow rows, pickers, kid rows, line items): one size
+   everywhere. The font token goes to 16px on touch screens (see below). */
+.flow-bound select,
+.flow-bound input,
+.picker select,
+.picker input,
+.kid-row select,
+.kid-born input,
+.ls-item-amount {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: var(--control-font-sm);
+}
+
 input[type="number"] {
   -moz-appearance: textfield;
 }
@@ -479,28 +530,6 @@ input[type="checkbox"] {
   text-align: right;
 }
 
-.remove-flow {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-}
-
-.remove-flow svg {
-  width: 16px;
-  height: 16px;
-}
-
-.remove-flow:hover {
-  background: var(--critical-soft);
-  color: var(--critical);
-}
-
 .flow-timing {
   display: grid;
   grid-column: 1 / -1;
@@ -512,14 +541,6 @@ input[type="checkbox"] {
   display: flex;
   gap: 4px;
   min-width: 0;
-}
-
-.flow-bound select,
-.flow-bound input {
-  min-height: 30px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 13px;
 }
 
 .flow-bound select {
@@ -541,39 +562,6 @@ input[type="checkbox"] {
   display: flex;
   gap: 4px;
   min-width: 0;
-}
-
-.icon-button {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 30px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-}
-
-.icon-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.icon-button:not(:disabled):hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.35;
-}
-
-#deletePlan:not(:disabled):hover {
-  background: var(--critical-soft);
-  color: var(--critical);
 }
 
 /* ---------- Lifestyle builder ---------- */
@@ -717,15 +705,7 @@ input[type="checkbox"] {
 
 .kid-born input {
   width: 72px;
-  min-height: 30px;
-  padding: 4px 8px;
-}
-
-.kid-row select {
-  min-height: 30px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 13px;
+  padding-inline: 8px;
 }
 
 .ls-items {
@@ -767,9 +747,7 @@ input[type="checkbox"] {
 }
 
 .ls-item-amount {
-  min-height: 28px;
-  padding: 3px 8px;
-  font-size: 12.5px;
+  padding-inline: 8px;
   text-align: right;
 }
 
@@ -781,7 +759,7 @@ input[type="checkbox"] {
 
 .ls-item .icon-button {
   width: 26px;
-  height: 28px;
+  height: 30px;
 }
 
 .ls-item .ls-item-reset {
@@ -806,6 +784,7 @@ input[type="checkbox"] {
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px 14px;
   margin: 0;
   padding: 0;
@@ -818,6 +797,11 @@ input[type="checkbox"] {
   display: none;
 }
 
+/* Sits right above its canvas; the section's grid gap is too loose here. */
+.chart-legend + .canvas-wrap {
+  margin-top: -6px;
+}
+
 .chart-legend li {
   display: inline-flex;
   align-items: center;
@@ -825,16 +809,28 @@ input[type="checkbox"] {
 }
 
 .legend-swatch {
+  flex: 0 0 auto;
   width: 10px;
   height: 10px;
   border-radius: 3px;
 }
 
-.legend-swatch.legend-line {
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.legend-line {
   width: 16px;
   height: 2.5px;
   border-radius: 2px;
-  background: var(--chart-ink);
+}
+
+.legend-ramp {
+  width: 40px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--chart-ramp));
 }
 
 /* ---------- Metrics ---------- */
@@ -966,10 +962,6 @@ input[type="checkbox"] {
 .picker input {
   width: auto;
   min-width: 96px;
-  min-height: 30px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 13px;
 }
 
 .picker input[type="number"] {
@@ -1226,15 +1218,12 @@ td.empty {
 /* iOS zooms into any focused field under 16px; keep fields at 16px on touch
    screens so tapping one never zooms the page. */
 @media (pointer: coarse) {
+  :root {
+    --control-font-sm: 16px;
+  }
+
   input,
-  select,
-  .flow-bound select,
-  .flow-bound input,
-  .picker select,
-  .picker input,
-  .kid-row select,
-  .kid-born input,
-  .ls-item-amount {
+  select {
     font-size: 16px;
   }
 }

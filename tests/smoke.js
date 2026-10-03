@@ -98,7 +98,7 @@ async function main() {
     check(overviewTitles[2] === "How much you need", "How much you need is the third Overview section", overviewTitles.join(", "));
     await page.fill("#withdrawalTax", "30");
     await page.click('[data-page="spending"]');
-    check(await page.locator("#spendingLegend li", { hasText: "Taxes on withdrawals" }).count() === 1, "withdrawal tax shows in the Spending view");
+    check(await page.locator("#spendingPage .chart-legend li", { hasText: "Taxes on withdrawals" }).count() === 1, "withdrawal tax shows in the Spending view");
     await page.fill("#withdrawalTax", "15");
     await page.click('[data-page="overview"]');
 
@@ -123,7 +123,7 @@ async function main() {
 
     console.log("Spending and tabs");
     await page.click('[data-page="spending"]');
-    check(await page.locator("#spendingLegend li").count() > 2, "Spending legend lists categories");
+    check(await page.locator("#spendingPage .chart-legend li").count() > 2, "Spending legend lists categories");
     check(await page.locator("#spendingTable tr.is-marked").count() === 1, "Spending table has a total row");
     await page.click("#runSimulation");
     await waitForRun(page);

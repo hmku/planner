@@ -50,7 +50,7 @@
                 <span id="savedPlansLabel">Saved plans</span>
                 <div class="inline-control">
                   <select id="savedPlanSelect" aria-labelledby="savedPlansLabel"></select>
-                  <button id="deletePlan" class="icon-button" type="button" aria-label="Delete the open saved plan" title="Delete the open saved plan">
+                  <button id="deletePlan" class="icon-button icon-button-danger" type="button" aria-label="Delete the open saved plan" title="Delete the open saved plan">
                     <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4.5 6h11M8 6V4.5h4V6m-6 0 .7 9.5h6.6L14 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                   </button>
                 </div>
@@ -377,7 +377,6 @@
             data-summary-id="spendingSummary"
             data-summary-text="Annual spending by category in today&apos;s dollars, straight from your inputs."
           >
-            <ul id="spendingLegend" class="chart-legend" aria-label="Spending categories"></ul>
             <div class="canvas-wrap">
               <canvas id="spendingCanvas" class="chart-tall" aria-label="Stacked annual spending by category with income overlaid"></canvas>
             </div>
@@ -470,7 +469,7 @@
                   <span>Y-axis</span>
                   <select id="policyMetricSelect">
                     <option value="beta">Optimal SPX beta</option>
-                    <option value="risk">Estimated depletion risk</option>
+                    <option value="risk">Run-out risk</option>
                     <option value="terminalWealth">Expected terminal wealth</option>
                   </select>
                 </label>
@@ -492,7 +491,7 @@
                   <thead>
                     <tr>
                       <th>SPX beta</th>
-                      <th>Estimated depletion risk</th>
+                      <th>Run-out risk</th>
                       <th>Expected terminal wealth</th>
                       <th class="text">Choice</th>
                     </tr>
@@ -581,7 +580,7 @@
               </article>
               <article>
                 <h3>Dynamic beta</h3>
-                <p>Backward dynamic programming over plan year and wealth, using a zero bucket plus 180 log-spaced buckets from $10,000 to $1 trillion and betas from 0.0 to 1.5 in 0.1 steps. Each node picks the beta with the lowest estimated depletion risk, breaking ties by expected terminal wealth. The beta for a year is chosen before that year&apos;s return is drawn.</p>
+                <p>Backward dynamic programming over plan year and wealth, using a zero bucket plus 180 log-spaced buckets from $10,000 to $1 trillion and betas from 0.0 to 1.5 in 0.1 steps. Each node picks the beta with the lowest estimated run-out risk, breaking ties by expected terminal wealth. The beta for a year is chosen before that year&apos;s return is drawn.</p>
               </article>
               <article>
                 <h3>Frontier</h3>
@@ -661,7 +660,7 @@
             <span>Born</span>
             <input data-kid-field="birthYear" type="number" min="1900" max="2200" step="1" aria-label="Birth year">
           </label>
-          <button class="remove-flow" type="button" aria-label="Remove kid">
+          <button class="icon-button icon-button-danger remove-row" type="button" aria-label="Remove kid">
             <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path></svg>
           </button>
         </div>
@@ -695,7 +694,7 @@
       <div class="flow-row">
         <input class="flow-name" data-field="name" type="text" autocomplete="off" aria-label="Name" placeholder="Name">
         <input class="flow-amount" data-field="amount" type="text" inputmode="decimal" data-format="money" autocomplete="off" aria-label="Annual amount" placeholder="$0">
-        <button class="remove-flow" type="button" aria-label="Remove cash flow">
+        <button class="icon-button icon-button-danger remove-row" type="button" aria-label="Remove cash flow">
           <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path></svg>
         </button>
         <div class="flow-timing">

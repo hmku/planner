@@ -21,7 +21,7 @@
     "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate", "expenseHeading",
     "lifestyleBody", "lifestyleTotal", "kidRows", "addKid", "lifestyleAssumptions", "lifestyleAssumptionsSummary",
     "lifestyleAssumptionsSection",
-    "spendingCanvas", "spendingLegend", "spendingSummary", "spendingTable", "spendingNowHeader",
+    "spendingCanvas", "spendingSummary", "spendingTable", "spendingNowHeader",
     "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
     "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote",
     "requiredWealthMetricLabel", "requiredWealthMetric", "requiredWealthMetricNote",
@@ -243,7 +243,7 @@
     // Rows moved out of the lifestyle builder remember their line, so restoring
     // the line can remove them.
     if (flow.lifestyleKey) node.dataset.lifestyleKey = flow.lifestyleKey;
-    node.querySelector(".remove-flow").addEventListener("click", () => {
+    node.querySelector(".remove-row").addEventListener("click", () => {
       node.remove();
       noteEdit();
     });

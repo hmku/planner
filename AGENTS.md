@@ -23,14 +23,28 @@ There is no package manager, build pipeline, framework, or backend.
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
 5. `js/lifestyle.js` — lifestyle builder prices/options and the pure generator (`buildLifestyleItems`, `normalizeLifestyle`), plus `SPENDING_CATEGORIES`
 6. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep), and required net worth (`buildRequiredWealth`, `riskAtWealth`, `requiredWealthForRisk`). `js/simulation-worker.js` runs `simulateScenario()` in a Web Worker by loading modules 1–3 and 6.
-7. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
+7. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`); see Chart conventions below
 8. `js/results.js` — metrics, inspection tables, policy views, Spending view (`renderSpendingView`, `getSpendingModel`), CSV downloads, tab switching
 9. `js/share.js` — share-link encode/decode (v2 compressed plan state; v1 decode only), address-bar sync
 10. `js/plan-store.js` — plan-state snapshot/apply/normalize, localStorage draft autosave and named saved plans
 11. `js/lifestyle-ui.js` — lifestyle builder form binding, kid rows, editable line items
 12. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
 
-Each module exports only what other modules use. Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, and the chart primitives in `charts.js` such as `beginChart`, `drawYAxis`, `drawXAxis`, `drawLegend`, `drawTooltip`) instead of copying UI or chart logic.
+Each module exports only what other modules use. Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, and the chart helpers in `charts.js`) instead of copying UI or chart logic.
+
+### Chart conventions
+
+- Register a chart in `CHARTS` with its canvas, page, hover finder, and optional `padding` overrides or `xTitle: true` (adds bottom room). `renderChart()` builds the frame with the standard `CHART_PADDING`; render functions have the signature `render(data, frame)` and never create frames themselves.
+- Register hover targets with `trackHover(frame, items)` (items need a stable `key`) or `trackHoverLookup(frame, fn)` for heatmaps; both return the current hover.
+- Legends are HTML lists above the canvas: call `drawLegend(frame, items)` with `{ label, color, shape: "line" | "dot" | "square" | "ramp" }`; never draw legends on the canvas. Single-series charts get no legend.
+- Reuse the shared pieces: `drawYearAxis`/`yearScale`, `logAxisTicks`/`spaceTicks` (labels never closer than ~52px horizontally, ~22px vertically), `barLayout`, `drawSamplePaths`, `drawHoverPoint` (crosshair + dot + tooltip), `drawReferenceLine`, `drawLabel` (chart text is always ink, never a series color).
+- Color roles: `series` main data, `seriesStrong` average/expected and "You", `highlight` selected/hovered/target points, `critical` where a path depletes, `positive` not depleted, `categorical` spending categories in fixed order.
+- Wording: "Run-out risk" for depletion probability everywhere in the UI (CSV column names stay as they are); "Ending wealth" for one path, "Expected terminal wealth" for the average.
+
+### UI conventions
+
+- Icon-only buttons use `.icon-button` (add `.icon-button-danger` for remove/delete; `.remove-row` is the JS hook for row removal).
+- Compact controls (cash-flow rows, pickers, kid rows, line items) share one CSS rule and the `--control-font-sm` token, which becomes 16px on touch screens so focusing a field never zooms.
 
 ## Main Runtime Flow
 

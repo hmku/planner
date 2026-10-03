@@ -126,6 +126,7 @@
   // More precision for small probabilities, where 0.4% vs 0.04% matters.
   function formatPolicyRiskPercent(value) {
     if (isMissing(value)) return "--";
+    if (value === 0) return "0%";
     const percent = value * 100;
     const absolutePercent = Math.abs(percent);
     const fractionDigits = absolutePercent > 0 && absolutePercent < 10

@@ -302,13 +302,8 @@
       cell.textContent = text;
       headRow.appendChild(cell);
     });
-    const body = table.createTBody();
-    rows.forEach((cells) => {
-      const row = body.insertRow();
-      cells.forEach((text) => {
-        row.insertCell().textContent = text;
-      });
-    });
+    // Cells are app-generated labels and amounts, so the shared table renderer applies.
+    Planner.renderTableBody(table.createTBody(), headers.map((_, index) => ({ render: (row) => row[index] })), rows, "");
     const wrap = document.createElement("div");
     wrap.className = "table-wrap";
     wrap.appendChild(table);
@@ -407,7 +402,7 @@
 
     root.addEventListener("click", (event) => {
       const lifestyle = Planner.state.lifestyle;
-      const removeKid = event.target.closest(".kid-row .remove-flow");
+      const removeKid = event.target.closest(".kid-row .remove-row");
       if (removeKid) {
         const kidId = removeKid.closest(".kid-row").dataset.kidId;
         lifestyle.kids = lifestyle.kids.filter((kid) => kid.id !== kidId);

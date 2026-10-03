@@ -28,6 +28,7 @@ when they ship.
 
 ## Done
 
+- Unification pass: one chart lifecycle (standard padding, `trackHover`, HTML legends that wrap on phones), shared chart helpers (sample paths, year axis, adaptive log ticks, hover point, reference line, bar layout, labels), consistent color roles and "run-out risk" wording, one icon-button component, one compact-control size, and one table renderer.
 - How much you need chart: dots without labels (hover or tap for details) and finer ticks on zoomed axes.
 - Tax on withdrawals: editable plan setting (default 15%) that grosses up spending income doesn't cover; shown in the Spending view, Simulation table, and CSV.
 - How much you need is the third Overview pane, labels the net worth needed for 10%, 5%, 1%, and 0.1% risk on a zoomed log-risk chart (no dropdown), and uses 20,000 paths; the metric card shows the 1% amount.

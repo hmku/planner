@@ -84,7 +84,7 @@
     if (!hasDynamicPolicy(results)) {
       text = "Set beta mode to Dynamic and run a simulation to see the risk/wealth tradeoff.";
     } else {
-      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies. The red point is the min-risk policy used for the simulation.`;
+      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies. The orange point is the min-risk policy used for the simulation.`;
     }
     Planner.els.frontierSummary.textContent = text;
   }
@@ -449,7 +449,7 @@
     const resume = Number.isFinite(explorer.finalPolicyBeta)
       ? `the policy then resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
       : "the plan horizon is reached";
-    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}. End node: ${Planner.formatCurrency(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} depletion risk, ${Planner.formatCurrency(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
+    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}. End node: ${Planner.formatCurrency(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} run-out risk, ${Planner.formatCurrency(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
   }
 
   // ---------- CSV ----------
@@ -624,7 +624,6 @@
     const { els } = Planner;
     if (spendingModel.error) {
       els.spendingSummary.textContent = spendingModel.error;
-      els.spendingLegend.replaceChildren();
       Planner.renderTableBody(els.spendingTable, SPENDING_COLUMNS, [], "Fix the plan years to see spending.");
     } else {
       const { years, categories, totals, income } = spendingModel;
@@ -641,22 +640,6 @@
           `${Planner.formatCompactCurrency(total.lifetime)} over ${years.length} years against ${Planner.formatCompactCurrency(lifetimeIncome)} of income; the rest comes from the portfolio.`
         : "No spending entered yet.";
 
-      const legendItems = used.map((category) => {
-        const item = document.createElement("li");
-        const swatch = document.createElement("span");
-        swatch.className = "legend-swatch";
-        swatch.style.background = `var(--chart-cat-${category.colorIndex + 1})`;
-        item.append(swatch, category.label);
-        return item;
-      });
-      if (income.some((value) => value > 0)) {
-        const item = document.createElement("li");
-        const swatch = document.createElement("span");
-        swatch.className = "legend-swatch legend-line";
-        item.append(swatch, "Income");
-        legendItems.push(item);
-      }
-      els.spendingLegend.replaceChildren(...legendItems);
     }
     if (Planner.state.activePage === "spending") Planner.renderChart("spending");
   }
