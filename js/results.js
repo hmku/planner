@@ -12,13 +12,12 @@
     Planner.els.downloadCsv.disabled = false;
     Planner.els.riskMetric.textContent = Planner.formatPercent(results.risk);
     Planner.els.riskMetricNote.textContent = `${Planner.formatNumber(results.depletedCount)} of ${Planner.formatNumber(scenario.simulationCount)} paths deplete by ${lastYear}`;
-    Planner.els.terminalWealthMetric.textContent = Planner.formatCompactCurrency(results.expectedTerminalWealth);
-    Planner.els.terminalWealthMetric.title = Planner.formatCurrency(results.expectedTerminalWealth);
-    Planner.els.terminalWealthMetricNote.textContent = `Median ${Planner.formatCompactCurrency(Planner.percentileOfSorted(results.terminalWealthSorted, 0.5))}, current dollars`;
+    Planner.els.terminalWealthMetric.textContent = Planner.formatMoney(results.expectedTerminalWealth);
+    Planner.els.terminalWealthMetricNote.textContent = `Median ${Planner.formatMoney(Planner.percentileOfSorted(results.terminalWealthSorted, 0.5))}, current dollars`;
     Planner.els.currentBetaMetricLabel.textContent = isDynamic ? "Recommended SPX beta" : "SPX beta";
     Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
     Planner.els.currentBetaMetricNote.textContent = isDynamic
-      ? `Dynamic policy at ${Planner.formatCompactCurrency(scenario.netWorth)} in ${scenario.currentYear}`
+      ? `Dynamic policy at ${Planner.formatMoney(scenario.netWorth)} in ${scenario.currentYear}`
       : "Fixed for every year";
 
     updateScenarioSummary(results);
@@ -47,19 +46,17 @@
 
     if (!Number.isFinite(needed)) {
       els.requiredWealthMetric.textContent = "Out of reach";
-      els.requiredWealthMetric.title = "";
-      els.requiredWealthMetricNote.textContent = `No starting amount up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_MAX_WEALTH_BUCKET)} gets below ${targetLabel}`;
+      els.requiredWealthMetricNote.textContent = `No starting amount up to ${Planner.formatMoney(Planner.DYNAMIC_MAX_WEALTH_BUCKET)} gets below ${targetLabel}`;
       els.requiredWealthSummary.textContent = describeRequiredWealthLadder(results, policyText);
       return;
     }
     const gap = scenario.netWorth - needed;
-    els.requiredWealthMetric.textContent = Planner.formatCompactCurrency(needed);
-    els.requiredWealthMetric.title = Planner.formatCurrency(needed);
+    els.requiredWealthMetric.textContent = Planner.formatMoney(needed);
     els.requiredWealthMetricNote.textContent = needed === 0
       ? "Income covers spending on almost every path"
       : gap >= 0
-        ? `${Planner.formatCompactCurrency(gap)} less than you have`
-        : `${Planner.formatCompactCurrency(-gap)} more than you have`;
+        ? `${Planner.formatMoney(gap)} less than you have`
+        : `${Planner.formatMoney(-gap)} more than you have`;
     els.requiredWealthSummary.textContent = describeRequiredWealthLadder(results, policyText);
   }
 
@@ -69,12 +66,12 @@
     const { scenario, requiredWealth } = results;
     const steps = Planner.REQUIRED_WEALTH_LABELS.map((risk, index) => {
       const needed = Planner.requiredWealthForRisk(requiredWealth, risk);
-      const amount = Number.isFinite(needed) ? Planner.formatCompactCurrency(needed) : "out of reach";
+      const amount = Number.isFinite(needed) ? Planner.formatMoney(needed) : "out of reach";
       return index === 0 ? `${Planner.formatPercent(risk)} risk: ${amount}` : `${Planner.formatPercent(risk)}: ${amount}`;
     });
     const yourRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
     return `Starting net worth needed with ${policyText}. ${steps.join(" · ")}. ` +
-      `Your ${Planner.formatCompactCurrency(scenario.netWorth)} has a ${Planner.formatPolicyRiskPercent(yourRisk)} risk ` +
+      `Your ${Planner.formatMoney(scenario.netWorth)} has a ${Planner.formatPolicyRiskPercent(yourRisk)} risk ` +
       `(from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths). Hover or tap a point for details.`;
   }
 
@@ -126,7 +123,7 @@
       previousValue: Number(Planner.els.simulationSelect.value) || null,
       getValue: (path) => path.simulation,
       getLabel: (path, index) => {
-        const label = `#${index + 1} · ${Planner.formatCurrency(path.terminalWealth)}`;
+        const label = `#${index + 1} · ${Planner.formatMoney(path.terminalWealth)}`;
         return path.failureYear ? `${label} · depleted ${path.failureYear}` : label;
       }
     });
@@ -151,17 +148,17 @@
 
   function describeRowStatus(row) {
     if (row.depletedThisYear) return row.homeSoldThisYear ? "Sold home, depleted" : "Depleted";
-    if (row.homeSoldThisYear) return `Sold home (+${Planner.formatCompactCurrency(row.homeSaleProceeds)})`;
+    if (row.homeSoldThisYear) return `Sold home (+${Planner.formatMoney(row.homeSaleProceeds)})`;
     return row.depletionYear ? `After depletion (${row.depletionYear})` : "Active";
   }
 
   const SIMULATION_PATH_COLUMNS = [
     { render: (row) => row.year },
     { render: (row) => row.historicalReturnYear || "--" },
-    { render: (row) => Planner.formatCurrency(row.startingWealth) },
-    { render: (row) => Planner.formatCurrency(row.income) },
-    { render: (row) => Planner.formatCurrency(row.expenses) },
-    { render: (row) => Planner.formatCurrency(row.withdrawalTax) },
+    { render: (row) => Planner.formatMoney(row.startingWealth) },
+    { render: (row) => Planner.formatMoney(row.income) },
+    { render: (row) => Planner.formatMoney(row.expenses) },
+    { render: (row) => Planner.formatMoney(row.withdrawalTax) },
     { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalRiskFreeReturn) },
     { render: (row) => Planner.formatPercent(row.nominalSpxExcessReturn) },
@@ -170,8 +167,8 @@
     { render: (row) => Planner.formatPercent(row.realSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalPortfolioReturn) },
     { render: (row) => Planner.formatPercent(row.portfolioRealReturn) },
-    { render: (row) => Planner.formatCurrency(row.endingWealth) },
-    { render: (row) => Planner.formatCurrency(row.homeEquity) },
+    { render: (row) => Planner.formatMoney(row.endingWealth) },
+    { render: (row) => Planner.formatMoney(row.homeEquity) },
     {
       render: describeRowStatus,
       className: (row) => row.depletedThisYear ? "text status-depleted" : row.depletionYear ? "text status-after" : "text"
@@ -182,7 +179,7 @@
     const rows = getSelectedSimulationRows(results);
     const summary = results.simulationRows[getSelectedSimulation() - 1];
     Planner.els.selectedSimulationSummary.textContent = summary
-      ? `Simulation #${Planner.formatNumber(summary.simulation)} ends at ${Planner.formatCurrency(summary.terminalWealth)} (${Planner.formatPercent(summary.endingPercentile)} percentile)${summary.failureYear ? `, depleted in ${summary.failureYear}` : ", never depleted"}. The picker lists the ${Planner.formatNumber(results.inspectionPaths.length)} sampled paths, sorted by ending wealth.`
+      ? `Simulation #${Planner.formatNumber(summary.simulation)} ends at ${Planner.formatMoney(summary.terminalWealth)} (${Planner.formatPercent(summary.endingPercentile)} percentile)${summary.failureYear ? `, depleted in ${summary.failureYear}` : ", never depleted"}. The picker lists the ${Planner.formatNumber(results.inspectionPaths.length)} sampled paths, sorted by ending wealth.`
       : "Run a simulation to inspect one path.";
     Planner.renderTableBody(Planner.els.simulationPathTable, SIMULATION_PATH_COLUMNS, rows, "No rows for this simulation.");
   }
@@ -237,15 +234,15 @@
     const metricLabel = Planner.getPolicyMetric(view.metric).label;
     const wealthBuckets = results.dynamicPolicy.wealthBuckets;
     Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs wealth`;
-    Planner.els.dynamicPolicySummary.textContent = `Policy the run uses (${results.dynamicPolicy.label.toLowerCase()}) for ${results.years[view.yearIndex]}. Plots show wealth buckets up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; the solver grid extends to ${Planner.formatCompactCurrency(wealthBuckets[wealthBuckets.length - 1])}.`;
+    Planner.els.dynamicPolicySummary.textContent = `Policy the run uses (${results.dynamicPolicy.label.charAt(0).toLowerCase()}${results.dynamicPolicy.label.slice(1)}) for ${results.years[view.yearIndex]}. Plots show wealth buckets up to ${Planner.formatMoney(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; the solver grid extends to ${Planner.formatMoney(wealthBuckets[wealthBuckets.length - 1])}.`;
 
     const previousBucket = Planner.els.policyBucketSelect.value;
     Planner.populateSelect(Planner.els.policyBucketSelect, view.rows, {
       previousValue: previousBucket !== "" ? previousBucket : view.currentBucketIndex ?? view.rows[1]?.bucketIndex,
       getValue: (row) => row.bucketIndex,
       getLabel: (row) => row.bucketIndex === view.currentBucketIndex
-        ? `${Planner.formatCurrency(row.wealth)} (current)`
-        : Planner.formatCurrency(row.wealth)
+        ? `${Planner.formatMoney(row.wealth)} (current)`
+        : Planner.formatMoney(row.wealth)
     });
 
     const bucketIndex = Number(Planner.els.policyBucketSelect.value);
@@ -262,7 +259,7 @@
   const POLICY_ACTION_TABLE_COLUMNS = [
     { render: (row) => Planner.formatBeta(row.beta) },
     { render: (row) => Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk) },
-    { render: (row) => Planner.formatCurrency(row.expectedTerminalWealth) },
+    { render: (row) => Planner.formatMoney(row.expectedTerminalWealth) },
     { render: (row) => row.isRecommended ? "Recommended" : "", className: "text" }
   ];
 
@@ -348,12 +345,12 @@
 
   const POLICY_PATH_TABLE_COLUMNS = [
     { render: (row) => row.year },
-    { render: (row) => Planner.formatCurrency(row.startingWealth) },
+    { render: (row) => Planner.formatMoney(row.startingWealth) },
     { render: (row) => Planner.formatBeta(row.beta) },
     { render: (row) => row.returnLabel, className: "text" },
     { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
     { render: (row) => Planner.formatPercent(row.inflation) },
-    { render: (row) => Planner.formatCurrency(row.endingWealth) },
+    { render: (row) => Planner.formatMoney(row.endingWealth) },
     { render: (row) => Planner.formatBeta(row.nextPolicyBeta) },
     { render: (row) => Planner.formatPolicyRiskPercent(row.nodeRisk) }
   ];
@@ -457,7 +454,7 @@
     const resume = Number.isFinite(explorer.finalPolicyBeta)
       ? `the policy then resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
       : "the plan horizon is reached";
-    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}. End node: ${Planner.formatCurrency(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} run-out risk, ${Planner.formatCurrency(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
+    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}. End node: ${Planner.formatMoney(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} run-out risk, ${Planner.formatMoney(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
   }
 
   // ---------- CSV ----------
@@ -649,8 +646,8 @@
 
       const lifetimeIncome = income.reduce((sum, value) => sum + value, 0);
       els.spendingSummary.textContent = rows.length
-        ? `${Planner.formatCompactCurrency(total.now)} in ${years[0]}, peaking at ${Planner.formatCompactCurrency(total.peak)} in ${total.peakYear}. ` +
-          `${Planner.formatCompactCurrency(total.lifetime)} over ${years.length} years against ${Planner.formatCompactCurrency(lifetimeIncome)} of income; the rest comes from the portfolio.`
+        ? `${Planner.formatMoney(total.now)} in ${years[0]}, peaking at ${Planner.formatMoney(total.peak)} in ${total.peakYear}. ` +
+          `${Planner.formatMoney(total.lifetime)} over ${years.length} years against ${Planner.formatMoney(lifetimeIncome)} of income; the rest comes from the portfolio.`
         : "No spending entered yet.";
 
     }
@@ -659,10 +656,10 @@
 
   const SPENDING_COLUMNS = [
     { render: (row) => row.label, className: "text" },
-    { render: (row) => Planner.formatCurrency(row.now) },
+    { render: (row) => Planner.formatMoney(row.now) },
     { render: (row) => String(row.peakYear) },
-    { render: (row) => Planner.formatCurrency(row.peak) },
-    { render: (row) => Planner.formatCurrency(row.lifetime) }
+    { render: (row) => Planner.formatMoney(row.peak) },
+    { render: (row) => Planner.formatMoney(row.lifetime) }
   ];
 
   // ---------- Tabs ----------

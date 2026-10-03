@@ -585,7 +585,7 @@
     if (hover) {
       const { path } = hover.item;
       drawTooltip(frame, hover.x, hover.y, `Simulation #${Planner.formatNumber(path.simulation)}`, [
-        `Ending wealth: ${Planner.formatCurrency(path.terminalWealth)}`,
+        `Ending wealth: ${Planner.formatMoney(path.terminalWealth)}`,
         `Ending percentile: ${Planner.formatPercent(path.endingPercentile)}`,
         `Avg real SPX return: ${Planner.formatPercent(path.averageRealSpxReturn)}`,
         path.failureYear ? `Depleted in ${path.failureYear}` : "Not depleted"
@@ -620,7 +620,7 @@
     const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
 
     drawAxisTitle(frame, "Net worth (current $)");
-    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatMoney);
     drawYearAxis(frame, years, xOf);
     drawEndingPercentileLabels(frame, results, yOf, yScale.max);
     drawSamplePaths(frame, results, {
@@ -745,7 +745,7 @@
     const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
 
     drawAxisTitle(frame, "Net worth (current $)");
-    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatMoney);
     drawYearAxis(frame, years, xOf);
 
     const items = rows.map((row) => ({ key: row.year, row, x: xOf(row.year), y: yOf(row.endingWealth) }));
@@ -770,7 +770,7 @@
 
     if (hover) {
       const { row } = hover.item;
-      const lines = [`Ending wealth: ${Planner.formatCurrency(row.endingWealth)}`];
+      const lines = [`Ending wealth: ${Planner.formatMoney(row.endingWealth)}`];
       if (row.historicalReturnYear) {
         lines.push(`Sampled ${row.historicalReturnYear}: SPX ${Planner.formatPercent(row.nominalSpxReturn)}`);
         lines.push(`Beta ${Planner.formatBeta(row.spxBetaUsed)} · real ${Planner.formatPercent(row.portfolioRealReturn)}`);
@@ -785,7 +785,7 @@
   const POLICY_METRICS = {
     beta: { label: "Optimal SPX beta", value: (row) => row.beta, format: Planner.formatBeta },
     risk: { label: "Run-out risk", value: (row) => row.estimatedDepletionRisk, format: Planner.formatPolicyRiskPercent },
-    terminalWealth: { label: "Expected terminal wealth", value: (row) => row.expectedTerminalWealth, format: Planner.formatCompactCurrency }
+    terminalWealth: { label: "Expected terminal wealth", value: (row) => row.expectedTerminalWealth, format: Planner.formatMoney }
   };
 
   function getPolicyMetric(metric) {
@@ -822,7 +822,7 @@
 
     drawAxisTitle(frame, metric.label);
     drawYAxis(frame, yTicks, yOf, metric.format);
-    drawXAxis(frame, logAxisTicks(minWealth, maxWealth, xOf, 52), xOf, Planner.formatCompactCurrency);
+    drawXAxis(frame, logAxisTicks(minWealth, maxWealth, xOf, 52), xOf, Planner.formatMoney);
 
     const items = rows.map((row, index) => ({ key: row.bucketIndex, row, x: xOf(row.wealth), y: yOf(Math.max(0, values[index])) }));
     const hover = trackHover(frame, items);
@@ -844,11 +844,11 @@
     if (hover) {
       const { row } = hover.item;
       drawHoverPoint(frame, hover.item, {
-        title: `Wealth ${Planner.formatCurrency(row.wealth)}`,
+        title: `Wealth ${Planner.formatMoney(row.wealth)}`,
         lines: [
           `Optimal beta: ${Planner.formatBeta(row.beta)}`,
           `Run-out risk: ${Planner.formatPolicyRiskPercent(row.estimatedDepletionRisk)}`,
-          `Expected terminal wealth: ${Planner.formatCompactCurrency(row.expectedTerminalWealth)}`
+          `Expected terminal wealth: ${Planner.formatMoney(row.expectedTerminalWealth)}`
         ]
       });
     }
@@ -897,7 +897,7 @@
         );
       });
     });
-    drawYAxis(frame, logAxisTicks(minWealth, maxWealth, yOfWealth, 22), yOfWealth, Planner.formatCompactCurrency);
+    drawYAxis(frame, logAxisTicks(minWealth, maxWealth, yOfWealth, 22), yOfWealth, Planner.formatMoney);
     drawYearAxis(frame, years, (year) => xOfYearIndex(year - years[0]));
 
     const pathPoints = explorer.points.map((point) => ({
@@ -925,7 +925,7 @@
       ctx.lineWidth = 1.5;
       ctx.strokeRect(frame.left + yearIndex * cellWidth, frame.bottom - (visibleIndex + 1) * cellHeight, cellWidth, cellHeight);
       drawTooltip(frame, hover.x, hover.y, String(years[yearIndex]), [
-        `Wealth ≈ ${Planner.formatCurrency(bucket.wealth)}`,
+        `Wealth ≈ ${Planner.formatMoney(bucket.wealth)}`,
         `Policy beta: ${Planner.formatBeta(policy.policyByYear[yearIndex]?.[bucket.bucketIndex])}`,
         `Run-out risk: ${Planner.formatPolicyRiskPercent(policy.valueByYear[yearIndex]?.[bucket.bucketIndex])}`
       ]);
@@ -963,7 +963,7 @@
     const yOf = logScale(minWealth, maxWealth, frame.bottom, frame.top);
 
     drawAxisTitle(frame, "Terminal wealth");
-    drawYAxis(frame, logAxisTicks(minWealth, maxWealth, yOf, 22), yOf, Planner.formatCompactCurrency);
+    drawYAxis(frame, logAxisTicks(minWealth, maxWealth, yOf, 22), yOf, Planner.formatMoney);
     const xTicks = spaceTicks(Planner.niceTicks(riskScale.min, riskScale.max, 5), xOf, 52);
     drawXAxis(frame, xTicks, xOf, Planner.formatPolicyRiskPercent);
     drawXAxisTitle(frame, "Run-out risk");
@@ -992,8 +992,8 @@
         title: row.isChosen ? `${row.label} (used for the run)` : row.label,
         lines: [
           `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
-          `Expected terminal wealth: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
-          `Median terminal wealth: ${Planner.formatCurrency(row.medianTerminalWealth)}`,
+          `Expected terminal wealth: ${Planner.formatMoney(row.expectedTerminalWealth)}`,
+          `Median terminal wealth: ${Planner.formatMoney(row.medianTerminalWealth)}`,
           `Current beta: ${Planner.formatBeta(row.currentBeta)}`
         ]
       });
@@ -1038,7 +1038,7 @@
 
     drawAxisTitle(frame, "Run-out risk (log scale)");
     drawYAxis(frame, logAxisTicks(minRisk * 2, maxRisk / 1.5, yOf, 22), yOf, Planner.formatPercent);
-    drawXAxis(frame, logAxisTicks(minWealth, maxWealth, xOf, 52), xOf, Planner.formatCompactCurrency);
+    drawXAxis(frame, logAxisTicks(minWealth, maxWealth, xOf, 52), xOf, Planner.formatMoney);
     drawXAxisTitle(frame, "Starting net worth (log scale)");
 
     withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
@@ -1062,7 +1062,7 @@
       // Off the zoomed range: a short note in the free corner (the curve runs
       // top-left to bottom-right).
       const below = scenario.netWorth < minWealth || yourRisk > maxRisk;
-      const youText = `You: ${Planner.formatCompactCurrency(scenario.netWorth)}, ${Planner.formatPolicyRiskPercent(yourRisk)} risk`;
+      const youText = `You: ${Planner.formatMoney(scenario.netWorth)}, ${Planner.formatPolicyRiskPercent(yourRisk)} risk`;
       drawLabel(frame, below ? `◂ ${youText}` : `${youText} ▸`, below ? frame.left + 6 : frame.right - 6, below ? frame.bottom - 12 : frame.top + 10, {
         align: below ? "left" : "right",
         baseline: "middle",
@@ -1079,16 +1079,16 @@
     if (hoveredPoint) {
       const gap = hoveredPoint.wealth - scenario.netWorth;
       drawTooltip(frame, hoveredPoint.x, hoveredPoint.y, hoveredPoint.kind === "you"
-        ? `You: ${Planner.formatCompactCurrency(hoveredPoint.wealth)}`
+        ? `You: ${Planner.formatMoney(hoveredPoint.wealth)}`
         : `${Planner.formatPercent(hoveredPoint.risk)} run-out risk`, hoveredPoint.kind === "you"
         ? [`Run-out risk: ${Planner.formatPolicyRiskPercent(hoveredPoint.risk)}`]
         : [
-          `Starting net worth: ${Planner.formatCompactCurrency(hoveredPoint.wealth)}`,
-          gap > 0 ? `${Planner.formatCompactCurrency(gap)} more than you have` : `${Planner.formatCompactCurrency(-gap)} less than you have`
+          `Starting net worth: ${Planner.formatMoney(hoveredPoint.wealth)}`,
+          gap > 0 ? `${Planner.formatMoney(gap)} more than you have` : `${Planner.formatMoney(-gap)} less than you have`
         ]);
     } else if (hover) {
       drawHoverPoint(frame, hover.item, {
-        title: `Start with ${Planner.formatCompactCurrency(hover.item.wealth)}`,
+        title: `Start with ${Planner.formatMoney(hover.item.wealth)}`,
         lines: [`Run-out risk: ${Planner.formatPolicyRiskPercent(hover.item.risk)}`]
       });
     }
@@ -1109,7 +1109,7 @@
     const yScale = Planner.niceZeroScale(Math.max(...recurringTotals, ...income, 1) * 1.04, 4);
     const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
     drawAxisTitle(frame, "Per year (today's $)");
-    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatMoney);
 
     const layout = barLayout(frame, years.length);
     const segmentGap = layout.band > 4 ? 1 : 0;
@@ -1155,7 +1155,7 @@
     items.forEach((item) => {
       if (totals[item.index] <= yScale.max) return;
       const x = Planner.clamp(layout.center(item.index), frame.left + 24, frame.right - 24);
-      drawLabel(frame, `↑ ${Planner.formatCompactCurrency(totals[item.index])}`, x, frame.top - 6, { align: "center", size: 11, weight: 600 });
+      drawLabel(frame, `↑ ${Planner.formatMoney(totals[item.index])}`, x, frame.top - 6, { align: "center", size: 11, weight: 600 });
     });
 
     drawYearAxis(frame, years, (year) => layout.center(year - years[0]));
@@ -1170,9 +1170,9 @@
       const { index } = hover.item;
       const lines = categories
         .filter((category) => category.values[index] > 0)
-        .map((category) => `${category.label}: ${Planner.formatCurrency(category.values[index])}`);
-      lines.push(`Total: ${Planner.formatCurrency(totals[index])}`);
-      if (income[index] > 0) lines.push(`Income: ${Planner.formatCurrency(income[index])}`);
+        .map((category) => `${category.label}: ${Planner.formatMoney(category.values[index])}`);
+      lines.push(`Total: ${Planner.formatMoney(totals[index])}`);
+      if (income[index] > 0) lines.push(`Income: ${Planner.formatMoney(income[index])}`);
       drawTooltip(frame, hover.x, hover.y, String(years[index]), lines);
     }
   }

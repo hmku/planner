@@ -121,10 +121,10 @@
     const peak = peakOf(items, years);
     const oneTime = items.filter((item) => item.oneTime).reduce((sum, item) => sum + item.amount, 0);
     const parts = [];
-    if (now > 0) parts.push(`${Planner.formatCompactCurrency(now)}/yr`);
-    if (peak.amount > now * 1.02) parts.push(`peak ${Planner.formatCompactCurrency(peak.amount)}`);
-    if (oneTime > 0) parts.push(`+ ${Planner.formatCompactCurrency(oneTime)} once`);
-    return parts.join(" · ") || "$0";
+    if (now > 0) parts.push(`${Planner.formatMoney(now)}/yr`);
+    if (peak.amount > now * 1.02) parts.push(`peak ${Planner.formatMoney(peak.amount)}`);
+    if (oneTime > 0) parts.push(`+ ${Planner.formatMoney(oneTime)} once`);
+    return parts.join(" · ") || Planner.formatMoney(0);
   }
 
   function describeCategory(category, years) {
@@ -165,9 +165,9 @@
     const peak = peakOf(currentItems, years);
     total.textContent = "";
     const strong = document.createElement("strong");
-    strong.textContent = `${Planner.formatCompactCurrency(now)}/yr`;
+    strong.textContent = `${Planner.formatMoney(now)}/yr`;
     total.append(strong, ` in ${years.currentYear}`);
-    if (peak.amount > now * 1.02) total.append(`, peaking at ${Planner.formatCompactCurrency(peak.amount)} in ${peak.year}`);
+    if (peak.amount > now * 1.02) total.append(`, peaking at ${Planner.formatMoney(peak.amount)} in ${peak.year}`);
     total.append(". ");
     total.append(
       linkButton("See spending", () => showPageAt("spending", document.querySelector(".page-nav"))),
@@ -209,12 +209,12 @@
       element.textContent = "";
       return;
     }
-    const money = Planner.formatCompactCurrency;
+    const money = Planner.formatMoney;
     const { owning, renting, price } = comparison;
     const verdict = owning > renting * 1.05
       ? `about ${money(owning - renting)}/yr more than renting`
       : owning < renting * 0.95 ? `about ${money(renting - owning)}/yr less than renting` : "about the same as renting";
-    element.textContent = `Owning this ${money(price)} home costs about ${money(owning)}/yr all-in (upkeep and tax, plus the ${Planner.LIFESTYLE_PRICES.riskFreeRealReturn * 100}% T-bill return the money would earn, less appreciation); renting a similar home is about ${money(renting)}/yr. Owning is ${verdict}. This assumes the home's value never falls, so it is as safe as T-bills; the beta policy takes more stock risk with the rest.`;
+    element.textContent = `Owning this ${money(price)} home costs about ${money(owning)}/yr all-in (upkeep and tax, plus the ${Planner.formatPercent(Planner.LIFESTYLE_PRICES.riskFreeRealReturn)} T-bill return the money would earn, less appreciation); renting a similar home is about ${money(renting)}/yr. Owning is ${verdict}. This assumes the home's value never falls, so it is as safe as T-bills; the beta policy takes more stock risk with the rest.`;
   }
 
   // ---------- Assumptions tables (Methodology tab) ----------
@@ -226,7 +226,7 @@
     const { LIFESTYLE_OPTIONS: options, LIFESTYLE_PRICES: prices } = Planner;
     const tier = options.costTier.find((option) => option.value === Planner.state.lifestyle.costTier) || options.costTier[0];
     const scaled = tier.factor !== 1;
-    const money = Planner.formatCurrency;
+    const money = Planner.formatMoney;
     const localCells = (amount) => (scaled ? [money(amount), money(amount * tier.factor)] : [money(amount)]);
     const flatCells = (amount) => (scaled ? [money(amount), money(amount)] : [money(amount)]);
     const priceHeaders = scaled ? ["SF / NYC", `Your area (×${tier.factor})`] : ["Per year"];
@@ -261,7 +261,7 @@
         title: "Everyday living (per year, couple)",
         note: `A single adult pays ×${Planner.LIFESTYLE_SINGLE_ADULT_FACTOR}. Amounts are SF/NYC${scaled ? `; your area pays ×${tier.factor}` : ""}.`,
         headers: ["Line", ...options.everydayTier.map((option) => option.label)],
-        rows: Planner.LIFESTYLE_EVERYDAY_LINES.map((line) => [line.label, ...line.amounts.map(Planner.formatCompactCurrency)])
+        rows: Planner.LIFESTYLE_EVERYDAY_LINES.map((line) => [line.label, ...line.amounts.map(Planner.formatMoney)])
       },
       {
         title: "Flights (round trip)",
@@ -282,13 +282,13 @@
         note: "Rent is whatever you enter. An owned home is an asset: its value grows at the appreciation rate and counts toward net worth; if the portfolio would run out, it is sold and rent at its rent-equivalent replaces its costs. Mortgage payments are fixed in dollars, so they (and the balance) shrink in today's dollars with inflation.",
         headers: ["Rule", "Value"],
         rows: [
-          ["Closing costs on a purchase (one time)", `${prices.closingCostShare * 100}% of price`],
+          ["Closing costs on a purchase (one time)", `${Planner.formatPercent(prices.closingCostShare)} of price`],
           ["Home appreciation, after inflation (default, editable)", `${Planner.defaultLifestyle(0).housing.appreciationPct}% per year`],
-          ["Selling costs if sold", `${prices.homeSellingCostShare * 100}% of value`],
-          ["Rent for a similar home after selling", `${prices.homeRentYield * 100}% of value per year`],
-          ["Safe return the money would earn in T-bills (for the rent-vs-own comparison; the home is riskless in the model)", `${prices.riskFreeRealReturn * 100}% per year, real`],
+          ["Selling costs if sold", `${Planner.formatPercent(prices.homeSellingCostShare)} of value`],
+          ["Rent for a similar home after selling", `${Planner.formatPercent(prices.homeRentYield)} of value per year`],
+          ["Safe return the money would earn in T-bills (for the rent-vs-own comparison; the home is riskless in the model)", `${Planner.formatPercent(prices.riskFreeRealReturn)} per year, real`],
           ["Existing mortgage balance (Already own)", `remaining payments valued at ${prices.existingMortgageRatePct}%`],
-          ["Inflation that shrinks mortgage payments and balance", `${prices.mortgageInflation * 100}% per year`],
+          ["Inflation that shrinks mortgage payments and balance", `${Planner.formatPercent(prices.mortgageInflation)} per year`],
           ["Property tax, insurance, upkeep (default, editable)", `${Planner.defaultLifestyle(0).housing.carryingPct}% of value per year`],
           ["Mortgage defaults (editable)", `${Planner.defaultLifestyle(0).housing.downPaymentPct}% down, ${Planner.defaultLifestyle(0).housing.mortgageRate}%, ${Planner.defaultLifestyle(0).housing.mortgageYears} years`]
         ]
@@ -355,7 +355,7 @@
         amount.value = group.amount;
         amount.setAttribute("aria-label", `${group.name} ${group.oneTime ? "amount" : "per year"}`);
         amount.classList.toggle("is-overridden", group.isOverridden);
-        amount.title = group.isOverridden ? `Preset: ${Planner.formatCurrency(group.presetAmount)}` : "";
+        amount.title = group.isOverridden ? `Preset: ${Planner.formatMoney(group.presetAmount)}` : "";
         row.querySelector(".ls-item-reset").hidden = !group.isOverridden;
         return row;
       });

@@ -241,7 +241,7 @@
 
     const penaltyPolicies = await solveSweep(penaltyFactors.map((factor) => {
       const riskPenalty = factor * riskPenaltyScale;
-      return { type: "riskPenalty", riskPenalty, label: `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}` };
+      return { type: "riskPenalty", riskPenalty, label: `Risk penalty ${Planner.formatMoney(riskPenalty)}` };
     }));
 
     const candidates = [minRiskPoint];

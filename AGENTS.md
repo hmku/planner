@@ -45,6 +45,8 @@ Each module exports only what other modules use. Prefer extending shared helpers
 
 ### UI conventions
 
+- Every number shown in the UI goes through `js/format.js`. Money is always compact via `Planner.formatMoney` ($2.1M, $850K, $450), in text, tables, tooltips, and axes; there is no full-dollar display formatter. Only editable money inputs show full dollars, and CSVs keep raw numbers. Use `formatPercent`/`formatPolicyRiskPercent`, `formatBeta`, `formatNumber`, `formatSeconds` for the rest; `tests/unit.js` fails if other code builds number formats (`Intl.NumberFormat`, `toLocaleString`, `toFixed` outside `Number(...)`), hand-formats a percent, or writes a literal amount like `$10,000` or `$80k`.
+
 - Icon-only buttons use `.icon-button` (add `.icon-button-danger` for remove/delete; `.remove-row` is the JS hook for row removal).
 - Compact controls (cash-flow rows, pickers, kid rows, line items) share one CSS rule and the `--control-font-sm` token, which becomes 16px on touch screens so focusing a field never zooms.
 

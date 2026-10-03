@@ -165,6 +165,25 @@ async function main() {
   const fixed = await Planner.simulateScenario({ ...scenario, betaMode: "fixed" }, returnRows, Planner.createSeededRandom(7));
   check(Math.abs(fixed.risk - Planner.riskAtWealth(fixed.requiredWealth, scenario.netWorth)) < 0.02, "fixed beta: path curve agrees with the headline run");
 
+  console.log("Display formatting");
+  check(Planner.formatMoney(2140000) === "$2.1M" && Planner.formatMoney(850000) === "$850K" && Planner.formatMoney(450) === "$450" && Planner.formatMoney(NaN) === "--", "formatMoney is compact ($2.1M, $850K, $450)");
+  check(!("formatCurrency" in Planner) && !("formatCompactCurrency" in Planner), "there is only one money formatter");
+  // Every number shown in the UI goes through js/format.js: nothing else may
+  // build number formats or hand-format amounts. Number(x.toFixed(n)) rounding
+  // is allowed.
+  const sourceFiles = [...fs.readdirSync(path.join(root, "js")).map((file) => `js/${file}`), "app.js", "index.html"]
+    .filter((file) => /\.(js|html)$/.test(file) && file !== "js/format.js");
+  const rules = [
+    { pattern: /Intl\.NumberFormat|toLocaleString\(/, why: "builds its own number format" },
+    { pattern: /\.to(Fixed|Precision)\(/, why: "formats with toFixed/toPrecision", allow: /Number\(/ },
+    { pattern: /\* 100\}%/, why: "hand-formats a percent (use formatPercent)" },
+    { pattern: /\$\d{1,3}(,\d{3})+|\$\d+(\.\d+)?\s?(k|thousand|million|billion|trillion)\b/, why: "writes a full or lowercase-k dollar amount (write $10K, $2.1M)" }
+  ];
+  const violations = sourceFiles.flatMap((file) => fs.readFileSync(path.join(root, file), "utf8").split("\n").flatMap((line, index) => rules
+    .filter((rule) => rule.pattern.test(line) && !(rule.allow && rule.allow.test(line)))
+    .map((rule) => `${file}:${index + 1} ${rule.why}`)));
+  check(violations.length === 0, `all display formatting goes through js/format.js${violations.length ? `\n        ${violations.join("\n        ")}` : ""}`);
+
   console.log(failures ? `\n${failures} check(s) failed` : "\nAll unit checks passed");
   process.exitCode = failures ? 1 : 0;
 }

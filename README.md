@@ -45,7 +45,7 @@ The inputs autosave to the browser's local storage as you edit, so closing or re
 
 ## How It Works
 
-The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`; `manifest.webmanifest`, `icons/`, and the `sw.js` service worker make it an installable, offline-capable app. There is no build step, package manager, server API, or database. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
+The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`; `manifest.webmanifest`, `icons/`, and the `sw.js` service worker make it an installable, offline-capable app. There is no build step, package manager, server API, or database. Money is always shown compactly ($2.1M, $850K) everywhere except editable inputs and CSV exports. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
 
 To keep memory small, a run stores only the sampled historical year for each simulation-year (about 2 bytes each). The Simulation table, its chart, and the simulation CSV replay a simulation from those indices with the same arithmetic as the run, so the numbers match exactly. The simulation CSV exports the annual rows of the sampled inspection paths (up to 200, the same paths listed in the Simulation picker, in picker order with an `inspection_rank` column), so it stays small regardless of the simulation count.
 

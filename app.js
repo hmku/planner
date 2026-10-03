@@ -418,7 +418,7 @@
       state.isDirty = state.inputVersion !== runVersion;
       if (state.inputVersion === runVersion) Planner.syncShareUrl(planState, seed);
       Planner.renderResults(results);
-      setStatus(`${Planner.formatNumber(scenario.simulationCount)} simulations in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
+      setStatus(`${Planner.formatNumber(scenario.simulationCount)} simulations in ${Planner.formatSeconds(performance.now() - startedAt)}`);
     } catch (error) {
       setStatus(Planner.isCancellationError(error) ? "Simulation stopped." : error.message, Planner.isCancellationError(error) ? "" : "error");
       state.isDirty = true;

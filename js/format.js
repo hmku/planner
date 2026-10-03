@@ -95,19 +95,19 @@
     return value.length;
   }
 
+  // Every number shown in the UI goes through this file (tests/unit.js checks
+  // that nothing else formats numbers). Money is always compact ($2.1M,
+  // $850K, $450) via formatMoney(); only editable inputs show full dollars.
   const currencyFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   const centsFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const compactCurrencyFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  const moneyFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 });
   const percentFormat = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
   const betaFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+  const secondsFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   function isMissing(value) {
     return value === null || value === "" || !Number.isFinite(value);
-  }
-
-  function formatCurrency(value) {
-    return isMissing(value) ? "--" : currencyFormat.format(value);
   }
 
   function formatInputCurrency(value) {
@@ -115,8 +115,8 @@
     return (hasCents ? centsFormat : currencyFormat).format(value);
   }
 
-  function formatCompactCurrency(value) {
-    return isMissing(value) ? "--" : compactCurrencyFormat.format(value);
+  function formatMoney(value) {
+    return isMissing(value) ? "--" : moneyFormat.format(value);
   }
 
   function formatPercent(value) {
@@ -141,6 +141,10 @@
     return isMissing(value) ? "--" : betaFormat.format(value);
   }
 
+  function formatSeconds(milliseconds) {
+    return `${secondsFormat.format(milliseconds / 1000)}s`;
+  }
+
   function formatNumber(value) {
     return numberFormat.format(value);
   }
@@ -148,11 +152,11 @@
   Object.assign(Planner, {
     bindFormattedInputs,
     formatAllFormattedInputs,
-    formatCurrency,
-    formatCompactCurrency,
+    formatMoney,
     formatPercent,
     formatPolicyRiskPercent,
     formatBeta,
-    formatNumber
+    formatNumber,
+    formatSeconds
   });
 })(window.Planner = window.Planner || {});
