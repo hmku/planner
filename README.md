@@ -8,10 +8,7 @@ The planner lets you enter plan years, current net worth, beta mode, SPX beta, s
 - expected (mean) terminal wealth in current dollars, with the median alongside
 - current SPX beta for the first plan year
 - historical return span used by the model
-- a depletion-year distribution (hover a bar for its probability)
-- simulated current-dollar net worth paths
-- simulated SPX beta paths
-- an on-demand dynamic-beta frontier comparing expected terminal wealth against run-out risk
+- an Overview with, in order: simulated current-dollar net worth paths, the dynamic-beta frontier comparing expected terminal wealth against run-out risk, simulated SPX beta paths, and a depletion-year distribution (hover a bar for its probability)
 - a Simulation view for one selected simulation's net worth path and annual return/cash-flow rows, with a CSV of all sampled paths
 - a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
 - shareable links that restore the plan inputs and rerun the same seeded simulation paths
@@ -32,7 +29,9 @@ T-bill return + SPX beta * (S&P 500 return - T-bill return)
 
 The simulated portfolio return is converted into current-dollar real returns using that year's inflation observation. Income and expenditures are annual current-dollar cash flows.
 
-Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. After a dynamic run completes, the Frontier tab can run a separate risk/wealth frontier from scenario-calibrated risk-penalty policies; the frontier plots expected terminal wealth against run-out probability and shows each point's current recommended SPX beta on hover. Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level minimum-risk policy in the Beta Policy tab: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
+Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Every dynamic run also solves a risk/wealth frontier from scenario-calibrated risk-penalty policies, shown on the Overview; the frontier plots expected terminal wealth against run-out probability and shows each point's current recommended SPX beta on hover. Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level minimum-risk policy in the Beta Policy tab: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
+
+The frontier costs two extra backward sweeps rather than one per policy: the min-risk and max-expected-wealth policies are solved together (which calibrates the risk-penalty scale), then all risk-penalty policies are solved together. Within a sweep, each node's ending wealth and bucket interpolation for every beta and historical return row is computed once and shared by all objectives. The frontier's cost does not depend on the simulation count.
 
 ## Sharing Plans
 

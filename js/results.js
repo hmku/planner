@@ -35,11 +35,9 @@
   function updateFrontierSummary(results) {
     let text;
     if (!hasDynamicPolicy(results)) {
-      text = "Switch to dynamic beta and run a simulation before running the frontier.";
-    } else if (results.dynamicPolicy.frontier.length > 1) {
-      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies. The red point is the min-risk policy used for the simulation.`;
+      text = "Set beta mode to Dynamic and run a simulation to see the risk/wealth tradeoff.";
     } else {
-      text = "Run the frontier to compare risk-penalty policies against the min-risk policy.";
+      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies. The red point is the min-risk policy used for the simulation.`;
     }
     Planner.els.frontierSummary.textContent = text;
   }
@@ -525,7 +523,6 @@
   Object.assign(Planner, {
     hasDynamicPolicy,
     renderResults,
-    updateFrontierSummary,
     resetDetailsControls,
     updateScenarioSummary,
     getSelectedSimulationRows,

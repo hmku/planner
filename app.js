@@ -7,9 +7,6 @@
     isDirty: true,
     isRunning: false,
     cancelRequested: false,
-    isFrontierRunning: false,
-    frontierCancelRequested: false,
-    frontierRunId: 0,
     inputVersion: 0,
     nextSimulationSeed: null
   };
@@ -21,7 +18,7 @@
     "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate",
     "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
     "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote", "dataSpanMetric", "dataSpanMetricNote",
-    "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary", "runFrontier",
+    "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary",
     "netWorthZoom", "netWorthZoomLabel", "showDepleted",
     "distributionCanvas", "pathsCanvas", "betaCanvas", "frontierCanvas", "selectedSimulationCanvas",
     "simulationSelect", "simulationPathTable", "selectedSimulationSummary", "downloadCsv",
@@ -29,7 +26,7 @@
     "policyBucketPlotTitle", "policyMetricSelect", "dynamicPolicyCanvas", "dynamicPolicyActionTable", "downloadPolicyCsv",
     "policyPathSummary", "policyPathBeta", "policyPathYears", "policyPathReturnMode", "policyPathReturnYear",
     "policyPathCanvas", "policyPathTable",
-    "overviewPage", "detailsPage", "policyPage", "frontierPage", "methodologyPage"
+    "overviewPage", "detailsPage", "policyPage", "methodologyPage"
   ];
 
   function cacheElements() {
@@ -66,7 +63,6 @@
   function bindEvents() {
     const { els } = Planner;
     els.runSimulation.addEventListener("click", runSimulation);
-    els.runFrontier.addEventListener("click", runFrontier);
     els.sharePlan.addEventListener("click", Planner.sharePlan);
     els.plannerForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -157,7 +153,6 @@
 
   function markDirty() {
     if (!Planner.state.isRunning) Planner.state.nextSimulationSeed = null;
-    if (Planner.state.isFrontierRunning) cancelFrontierRun();
     Planner.state.inputVersion += 1;
     Planner.state.isDirty = true;
     updateRunState();
@@ -170,28 +165,6 @@
     els.runSimulation.textContent = state.cancelRequested ? "Stopping" : state.isRunning ? "Stop" : "Run";
     els.runSimulation.classList.toggle("is-running", state.isRunning);
     els.sharePlan.disabled = state.isRunning || !state.marketData;
-    updateFrontierRunState();
-  }
-
-  function canRunFrontier() {
-    const { state } = Planner;
-    return Boolean(state.marketData && Planner.hasDynamicPolicy(state.results) && !state.isDirty && !state.isRunning);
-  }
-
-  function updateFrontierRunState() {
-    const { state, els } = Planner;
-    els.runFrontier.disabled = state.isFrontierRunning ? state.frontierCancelRequested : !canRunFrontier();
-    els.runFrontier.textContent = state.isFrontierRunning
-      ? (state.frontierCancelRequested ? "Stopping" : "Stop")
-      : "Run frontier";
-    els.runFrontier.classList.toggle("is-running", state.isFrontierRunning);
-  }
-
-  function cancelFrontierRun() {
-    Planner.state.frontierRunId += 1;
-    Planner.state.isFrontierRunning = false;
-    Planner.state.frontierCancelRequested = false;
-    updateFrontierRunState();
   }
 
   function updateBetaModeControls() {
@@ -354,7 +327,6 @@
     state.nextSimulationSeed = null;
     state.isRunning = true;
     state.cancelRequested = false;
-    if (state.isFrontierRunning) cancelFrontierRun();
     Planner.clearHover();
     els.runProgress.hidden = false;
     setProgress(0);
@@ -384,55 +356,6 @@
       state.cancelRequested = false;
       els.runProgress.hidden = true;
       updateRunState();
-    }
-  }
-
-  async function runFrontier() {
-    const { state, els } = Planner;
-    if (state.isFrontierRunning) {
-      state.frontierCancelRequested = true;
-      updateFrontierRunState();
-      return;
-    }
-    if (!canRunFrontier()) return;
-
-    const results = state.results;
-    const frontierRunId = state.frontierRunId + 1;
-    const isCurrentRun = () => state.frontierRunId === frontierRunId && state.results === results;
-    state.frontierRunId = frontierRunId;
-    state.isFrontierRunning = true;
-    state.frontierCancelRequested = false;
-    Planner.clearHover();
-    results.dynamicPolicy.frontier = results.dynamicPolicy.frontier.slice(0, 1);
-    els.frontierSummary.textContent = "Calculating dynamic beta frontier: 0%.";
-    Planner.renderChart("frontier");
-    updateFrontierRunState();
-    await Planner.yieldToBrowser();
-
-    try {
-      await Planner.buildDynamicBetaFrontier(
-        results,
-        state.marketData.returns,
-        (progress) => {
-          if (!isCurrentRun()) return;
-          els.frontierSummary.textContent = `Calculating dynamic beta frontier: ${Math.round(Planner.clamp(progress, 0, 1) * 100)}%.`;
-        },
-        () => !isCurrentRun() || state.frontierCancelRequested
-      );
-      if (!isCurrentRun()) return;
-      Planner.updateFrontierSummary(results);
-      Planner.renderChart("frontier");
-    } catch (error) {
-      if (!isCurrentRun()) return;
-      els.frontierSummary.textContent = Planner.isCancellationError(error)
-        ? "Frontier stopped."
-        : `Frontier unavailable: ${error.message}`;
-    } finally {
-      if (state.frontierRunId === frontierRunId) {
-        state.isFrontierRunning = false;
-        state.frontierCancelRequested = false;
-        updateFrontierRunState();
-      }
     }
   }
 

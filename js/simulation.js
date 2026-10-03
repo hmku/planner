@@ -302,76 +302,57 @@
   }
 
 
+  // Solves the min-risk policy (which drives the simulation) and the risk/wealth
+  // frontier. The frontier needs two extra sweeps: the min-risk and
+  // max-expected-wealth policies are solved together first, which calibrates the
+  // risk-penalty scale for one more sweep over every risk-penalty policy.
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = buildDynamicWealthBuckets(scenario);
-    let completedYearSteps = 0;
-    const onPolicyYearComplete = async (yearIndex) => {
-      completedYearSteps += 1;
-      onProgress((completedYearSteps / years.length) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
-      if (yearIndex % 4 === 0) await Planner.yieldToBrowser();
-    };
-
-    const minRiskPolicy = await buildDynamicBetaPolicyForObjective({
+    const penaltyFactors = Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS;
+    // Progress weights approximate sweep cost: shared transitions plus per-objective work.
+    const firstSweepWeight = 2 + 2;
+    const secondSweepWeight = 2 + penaltyFactors.length;
+    const totalWeight = (firstSweepWeight + secondSweepWeight) * years.length;
+    let completedWeight = 0;
+    const solve = (objectives, sweepWeight, actionTablesFor = -1) => solveDynamicBetaPolicies({
       scenario,
       returnRows,
       years,
       wealthBuckets,
-      objective: { type: "minRisk", label: "Minimum run-out risk" },
+      objectives,
+      actionTablesFor,
       shouldCancel,
-      onPolicyYearComplete
+      onPolicyYearComplete: async (yearIndex) => {
+        completedWeight += sweepWeight;
+        onProgress((completedWeight / totalWeight) * Planner.DYNAMIC_POLICY_PROGRESS_SHARE);
+        if (yearIndex % 4 === 0) await Planner.yieldToBrowser();
+      }
     });
+
+    const [minRiskPolicy, maxWealthPolicy] = await solve([
+      { type: "minRisk", label: "Minimum run-out risk" },
+      { type: "riskPenalty", riskPenalty: 0, label: "Maximum expected wealth" }
+    ], firstSweepWeight, 0);
+    const minRiskPoint = buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, true);
+    const maxWealthPoint = buildFrontierPoint(maxWealthPolicy, scenario, wealthBuckets, false);
+    const riskPenaltyScale = calibrateFrontierRiskPenaltyScale(minRiskPoint, maxWealthPoint, scenario);
+
+    const penaltyPolicies = await solve(penaltyFactors.map((factor) => {
+      const riskPenalty = factor * riskPenaltyScale;
+      return { type: "riskPenalty", riskPenalty, label: `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}` };
+    }), secondSweepWeight);
+
+    const frontier = [minRiskPoint];
+    addFrontierPoint(frontier, maxWealthPoint);
+    penaltyPolicies.forEach((policy) => addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, wealthBuckets, false)));
+    frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
+
     return {
       betaValues: Planner.DYNAMIC_BETA_VALUES,
       wealthBuckets,
-      frontier: [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, true)],
+      frontier,
       ...minRiskPolicy
     };
-  }
-
-
-  async function buildDynamicBetaFrontier(results, returnRows, onProgress = () => {}, shouldCancel = () => false) {
-    const { scenario, years } = results;
-    const minRiskPolicy = results.dynamicPolicy;
-    if (!minRiskPolicy) return [];
-
-    const wealthBuckets = minRiskPolicy.wealthBuckets;
-    const policyBuilds = 1 + Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS.length;
-    let completedYearSteps = 0;
-    const onPolicyYearComplete = async (yearIndex) => {
-      completedYearSteps += 1;
-      onProgress(completedYearSteps / (policyBuilds * years.length));
-      if (yearIndex % 4 === 0) await Planner.yieldToBrowser();
-    };
-    const buildPoint = async (objective) => {
-      const policy = await buildDynamicBetaPolicyForObjective({
-        scenario,
-        returnRows,
-        years,
-        wealthBuckets,
-        objective,
-        shouldCancel,
-        onPolicyYearComplete
-      });
-      return buildFrontierPoint(policy, scenario, wealthBuckets, false);
-    };
-
-    const frontier = [buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, true)];
-    const maxWealthPoint = await buildPoint({ type: "riskPenalty", riskPenalty: 0, label: "Maximum expected wealth" });
-    addFrontierPoint(frontier, maxWealthPoint);
-    const riskPenaltyScale = calibrateFrontierRiskPenaltyScale(frontier[0], maxWealthPoint, scenario);
-
-    for (const factor of Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS) {
-      const riskPenalty = factor * riskPenaltyScale;
-      addFrontierPoint(frontier, await buildPoint({
-        type: "riskPenalty",
-        riskPenalty,
-        label: `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}`
-      }));
-    }
-
-    frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
-    minRiskPolicy.frontier = frontier;
-    return frontier;
   }
 
 
@@ -385,19 +366,25 @@
   }
 
 
-  // Backward induction over (year, wealth bucket). For each node and each beta,
-  // averages next-year depletion risk and expected terminal wealth across every
-  // historical return row, then keeps the beta preferred by the objective.
-  async function buildDynamicBetaPolicyForObjective({
+  // Backward induction over (year, wealth bucket) for several objectives in one
+  // sweep. For each node and each beta, every historical return row's ending
+  // wealth and bucket interpolation is computed once and shared by all
+  // objectives; each objective then averages its own next-year depletion risk
+  // and expected terminal wealth and keeps the beta it prefers. Per-beta action
+  // tables are kept only for the objective at index actionTablesFor.
+  async function solveDynamicBetaPolicies({
     scenario,
     returnRows,
     years,
     wealthBuckets,
-    objective,
+    objectives,
+    actionTablesFor,
     shouldCancel,
     onPolicyYearComplete
   }) {
     const betaValues = Planner.DYNAMIC_BETA_VALUES;
+    const betaCount = betaValues.length;
+    const objectiveCount = objectives.length;
     const bucketCount = wealthBuckets.length;
     const lastBucket = bucketCount - 1;
     const topWealth = wealthBuckets[lastBucket];
@@ -406,98 +393,130 @@
     const logGrowthByBeta = betaValues.map(logGrowthFor);
     const cashFlows = netCashFlowsByYear(scenario, years);
 
-    const valueByYear = new Array(years.length + 1);
-    const expectedWealthByYear = new Array(years.length + 1);
-    const actionValueByYear = new Array(years.length);
-    const actionExpectedWealthByYear = new Array(years.length);
-    const policyByYear = new Array(years.length);
-    let nextValues = new Array(bucketCount).fill(0);
-    let nextExpectedWealth = [...wealthBuckets];
-    valueByYear[years.length] = nextValues;
-    expectedWealthByYear[years.length] = nextExpectedWealth;
+    const policies = objectives.map((objective, index) => {
+      const terminalValues = new Float64Array(bucketCount);
+      const terminalExpectedWealth = Float64Array.from(wealthBuckets);
+      const valueByYear = new Array(years.length + 1);
+      const expectedWealthByYear = new Array(years.length + 1);
+      valueByYear[years.length] = terminalValues;
+      expectedWealthByYear[years.length] = terminalExpectedWealth;
+      return {
+        objective,
+        valueByYear,
+        expectedWealthByYear,
+        actionValueByYear: index === actionTablesFor ? new Array(years.length) : null,
+        actionExpectedWealthByYear: index === actionTablesFor ? new Array(years.length) : null,
+        policyByYear: new Array(years.length)
+      };
+    });
+    let nextValues = policies.map((policy) => policy.valueByYear[years.length]);
+    let nextExpectedWealth = policies.map((policy) => policy.expectedWealthByYear[years.length]);
+
+    // Per-beta scratch: interpolation endpoints for each in-range return row.
+    const lowerIndexes = new Int32Array(rowCount);
+    const weights = new Float64Array(rowCount);
+    const riskSums = new Float64Array(objectiveCount);
+    const wealthSums = new Float64Array(objectiveCount);
+    const bestRisk = new Float64Array(objectiveCount);
+    const bestWealth = new Float64Array(objectiveCount);
+    const bestBeta = new Float64Array(objectiveCount);
 
     for (let yearIndex = years.length - 1; yearIndex >= 0; yearIndex -= 1) {
       throwIfCanceled(shouldCancel);
       const netCashFlow = cashFlows[yearIndex].net;
-      const currentValues = new Array(bucketCount);
-      const currentExpectedWealth = new Array(bucketCount);
-      const currentActionValues = new Array(bucketCount);
-      const currentActionExpectedWealth = new Array(bucketCount);
-      const currentPolicy = new Array(bucketCount);
+      const currentValues = objectives.map(() => new Float64Array(bucketCount));
+      const currentExpectedWealth = objectives.map(() => new Float64Array(bucketCount));
+      const currentPolicy = objectives.map(() => new Float64Array(bucketCount));
+      const actionValues = actionTablesFor >= 0 ? new Array(bucketCount) : null;
+      const actionExpectedWealth = actionTablesFor >= 0 ? new Array(bucketCount) : null;
 
       for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
         const startingWealth = wealthBuckets[bucketIndex];
-        const actionValues = new Array(betaValues.length);
-        const actionExpectedWealthValues = new Array(betaValues.length);
-        currentActionValues[bucketIndex] = actionValues;
-        currentActionExpectedWealth[bucketIndex] = actionExpectedWealthValues;
+        if (actionValues) {
+          actionValues[bucketIndex] = new Float64Array(betaCount);
+          actionExpectedWealth[bucketIndex] = new Float64Array(betaCount);
+        }
         if (startingWealth <= 0) {
-          actionValues.fill(1);
-          actionExpectedWealthValues.fill(0);
-          currentValues[bucketIndex] = 1;
-          currentExpectedWealth[bucketIndex] = 0;
-          currentPolicy[bucketIndex] = 0;
+          if (actionValues) actionValues[bucketIndex].fill(1);
+          for (let k = 0; k < objectiveCount; k += 1) {
+            currentValues[k][bucketIndex] = 1;
+            currentExpectedWealth[k][bucketIndex] = 0;
+            currentPolicy[k][bucketIndex] = 0;
+          }
           continue;
         }
 
-        let bestDepletionRisk = Number.POSITIVE_INFINITY;
-        let bestExpectedWealth = Number.NEGATIVE_INFINITY;
-        let bestBeta = betaValues[0];
+        bestRisk.fill(Number.POSITIVE_INFINITY);
+        bestWealth.fill(Number.NEGATIVE_INFINITY);
+        bestBeta.fill(betaValues[0]);
 
-        for (let betaIndex = 0; betaIndex < betaValues.length; betaIndex += 1) {
+        for (let betaIndex = 0; betaIndex < betaCount; betaIndex += 1) {
           const logGrowth = logGrowthByBeta[betaIndex];
-          let totalDepletionRisk = 0;
-          let totalExpectedWealth = 0;
+          let depletedCount = 0;
+          let topCount = 0;
+          let interpolatedCount = 0;
           for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
             const endingWealth = advanceWealth(startingWealth, netCashFlow, logGrowth[rowIndex]);
             if (endingWealth <= 0) {
-              totalDepletionRisk += 1;
+              depletedCount += 1;
             } else if (endingWealth >= topWealth) {
-              totalDepletionRisk += nextValues[lastBucket];
-              totalExpectedWealth += nextExpectedWealth[lastBucket];
+              topCount += 1;
             } else {
               const upper = upperBucketIndex(wealthBuckets, endingWealth);
               const lower = upper - 1;
-              const t = (endingWealth - wealthBuckets[lower]) / (wealthBuckets[upper] - wealthBuckets[lower]);
-              totalDepletionRisk += nextValues[lower] + (nextValues[upper] - nextValues[lower]) * t;
-              totalExpectedWealth += nextExpectedWealth[lower] + (nextExpectedWealth[upper] - nextExpectedWealth[lower]) * t;
+              lowerIndexes[interpolatedCount] = lower;
+              weights[interpolatedCount] = (endingWealth - wealthBuckets[lower]) / (wealthBuckets[upper] - wealthBuckets[lower]);
+              interpolatedCount += 1;
             }
           }
-          const actionDepletionRisk = totalDepletionRisk / rowCount;
-          const actionExpectedWealth = totalExpectedWealth / rowCount;
-          actionValues[betaIndex] = actionDepletionRisk;
-          actionExpectedWealthValues[betaIndex] = actionExpectedWealth;
 
-          if (isBetterDynamicAction(objective, actionDepletionRisk, actionExpectedWealth, bestDepletionRisk, bestExpectedWealth)) {
-            bestDepletionRisk = actionDepletionRisk;
-            bestExpectedWealth = actionExpectedWealth;
-            bestBeta = betaValues[betaIndex];
+          for (let k = 0; k < objectiveCount; k += 1) {
+            const values = nextValues[k];
+            const expectedWealth = nextExpectedWealth[k];
+            let totalDepletionRisk = depletedCount + topCount * values[lastBucket];
+            let totalExpectedWealth = topCount * expectedWealth[lastBucket];
+            for (let i = 0; i < interpolatedCount; i += 1) {
+              const lower = lowerIndexes[i];
+              const t = weights[i];
+              totalDepletionRisk += values[lower] + (values[lower + 1] - values[lower]) * t;
+              totalExpectedWealth += expectedWealth[lower] + (expectedWealth[lower + 1] - expectedWealth[lower]) * t;
+            }
+            const actionDepletionRisk = totalDepletionRisk / rowCount;
+            const actionExpectedWealthValue = totalExpectedWealth / rowCount;
+            if (k === actionTablesFor) {
+              actionValues[bucketIndex][betaIndex] = actionDepletionRisk;
+              actionExpectedWealth[bucketIndex][betaIndex] = actionExpectedWealthValue;
+            }
+            if (isBetterDynamicAction(objectives[k], actionDepletionRisk, actionExpectedWealthValue, bestRisk[k], bestWealth[k])) {
+              bestRisk[k] = actionDepletionRisk;
+              bestWealth[k] = actionExpectedWealthValue;
+              bestBeta[k] = betaValues[betaIndex];
+            }
           }
         }
 
-        currentValues[bucketIndex] = bestDepletionRisk;
-        currentExpectedWealth[bucketIndex] = bestExpectedWealth;
-        currentPolicy[bucketIndex] = bestBeta;
+        for (let k = 0; k < objectiveCount; k += 1) {
+          currentValues[k][bucketIndex] = bestRisk[k];
+          currentExpectedWealth[k][bucketIndex] = bestWealth[k];
+          currentPolicy[k][bucketIndex] = bestBeta[k];
+        }
       }
 
-      valueByYear[yearIndex] = currentValues;
-      expectedWealthByYear[yearIndex] = currentExpectedWealth;
-      actionValueByYear[yearIndex] = currentActionValues;
-      actionExpectedWealthByYear[yearIndex] = currentActionExpectedWealth;
-      policyByYear[yearIndex] = currentPolicy;
+      policies.forEach((policy, k) => {
+        policy.valueByYear[yearIndex] = currentValues[k];
+        policy.expectedWealthByYear[yearIndex] = currentExpectedWealth[k];
+        policy.policyByYear[yearIndex] = currentPolicy[k];
+        if (k === actionTablesFor) {
+          policy.actionValueByYear[yearIndex] = actionValues;
+          policy.actionExpectedWealthByYear[yearIndex] = actionExpectedWealth;
+        }
+      });
       nextValues = currentValues;
       nextExpectedWealth = currentExpectedWealth;
       await onPolicyYearComplete(yearIndex);
     }
 
-    return {
-      objective,
-      valueByYear,
-      expectedWealthByYear,
-      actionValueByYear,
-      actionExpectedWealthByYear,
-      policyByYear
-    };
+    return policies;
   }
 
 
@@ -628,7 +647,6 @@
     cashFlowForYear,
     simulateScenario,
     getSimulationYearRows,
-    buildDynamicBetaFrontier,
     selectDynamicBeta,
     interpolateBucketValue,
     nearestBucketIndex

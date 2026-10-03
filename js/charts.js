@@ -393,7 +393,7 @@
     detail: { canvas: "selectedSimulationCanvas", page: "details", render: renderSelectedSimulationChart, find: findNearestX },
     policyBucket: { canvas: "dynamicPolicyCanvas", page: "policy", render: renderPolicyBucketChart, find: findNearestX },
     policyPath: { canvas: "policyPathCanvas", page: "policy", render: renderPolicyPathChart, find: findCell },
-    frontier: { canvas: "frontierCanvas", page: "frontier", render: renderFrontierChart, find: findNearestPoint }
+    frontier: { canvas: "frontierCanvas", page: "overview", render: renderFrontierChart, find: findNearestPoint }
   };
 
   function renderChart(chartKey) {
@@ -899,8 +899,8 @@
     });
 
     drawLegend(frame, [
-      { label: "Min-risk policy (simulated)", color: theme.critical, shape: "dot" },
-      { label: "Risk-penalty policies", color: theme.series, shape: "dot" }
+      { label: "Min-risk (simulated)", color: theme.critical, shape: "dot" },
+      { label: "Risk-penalty", color: theme.series, shape: "dot" }
     ]);
     if (hover) {
       const { row } = hover.item;

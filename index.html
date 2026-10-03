@@ -109,7 +109,6 @@
           <button class="page-button active" type="button" data-page="overview">Overview</button>
           <button class="page-button" type="button" data-page="details">Simulation</button>
           <button class="page-button" type="button" data-page="policy">Beta Policy</button>
-          <button class="page-button" type="button" data-page="frontier">Frontier</button>
           <button class="page-button" type="button" data-page="methodology">Methodology</button>
         </nav>
 
@@ -135,6 +134,28 @@
           <section
             class="card content-section"
             data-section-header
+            data-title="Dynamic beta frontier"
+            data-summary-id="frontierSummary"
+            data-summary-text="Run a dynamic beta simulation to see the risk/wealth tradeoff."
+          >
+            <div class="canvas-wrap">
+              <canvas id="frontierCanvas" class="chart-medium" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="SPX beta over time"
+            data-summary-id="betaPathSummary"
+            data-summary-text="Average beta and downsampled simulation paths."
+          >
+            <div class="canvas-wrap">
+              <canvas id="betaCanvas" class="chart-short" aria-label="Simulated SPX beta paths over time"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
             data-title="Depletion year distribution"
             data-summary-id="scenarioSummary"
             data-summary-text="Run a simulation to see the distribution."
@@ -147,17 +168,6 @@
             </div>
             <div class="canvas-wrap">
               <canvas id="distributionCanvas" class="chart-medium" aria-label="Probability distribution of years where money runs out"></canvas>
-            </div>
-          </section>
-          <section
-            class="card content-section"
-            data-section-header
-            data-title="SPX beta over time"
-            data-summary-id="betaPathSummary"
-            data-summary-text="Average beta and downsampled simulation paths."
-          >
-            <div class="canvas-wrap">
-              <canvas id="betaCanvas" class="chart-short" aria-label="Simulated SPX beta paths over time"></canvas>
             </div>
           </section>
         </div>
@@ -324,23 +334,6 @@
           </section>
         </div>
 
-        <div id="frontierPage" class="page-panel" hidden>
-          <section
-            class="card content-section"
-            data-section-header
-            data-title="Dynamic beta frontier"
-            data-summary-id="frontierSummary"
-            data-summary-text="Run a dynamic beta simulation, then run the frontier."
-          >
-            <div data-section-toolbar>
-              <button id="runFrontier" class="button button-secondary button-small" type="button" disabled>Run frontier</button>
-            </div>
-            <div class="canvas-wrap">
-              <canvas id="frontierCanvas" class="chart-tall" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
-            </div>
-          </section>
-        </div>
-
         <div id="methodologyPage" class="page-panel" hidden>
           <section
             class="card content-section"
@@ -363,7 +356,7 @@
               </article>
               <article>
                 <h3>Frontier</h3>
-                <p>The frontier re-solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
+                <p>Each dynamic run also solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
               </article>
               <article>
                 <h3>Cash flows</h3>

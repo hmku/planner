@@ -18,7 +18,7 @@ There is no package manager, build pipeline, framework, backend, or test runner 
 2. `js/util.js` — CSV export (chunked, accepts generators), select/table helpers, math, nice axis ticks, canvas sizing
 3. `js/format.js` — display formatting and money/integer inputs
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
-5. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy
+5. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep)
 6. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
 7. `js/results.js` — metrics, inspection tables, policy views, CSV downloads, tab switching
 8. `js/share.js` — share-link encode/decode
@@ -40,7 +40,7 @@ The simulation path is:
 
 `renderCharts(results)` draws every chart registered in `CHARTS` for the active page; `renderChart(key)` redraws one. Chart render functions take only `results` and read any control values from `Planner.els`.
 
-The Simulation tab (`details` page id) uses the `detail` chart and `renderSimulationPathTable()`. The `#simulationSelect` dropdown controls both the selected net worth plot and the annual rows table.
+The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over time, depletion year distribution. The frontier is computed as part of every dynamic run (no separate button). The Simulation tab (`details` page id) uses the `detail` chart and `renderSimulationPathTable()`. The `#simulationSelect` dropdown controls both the selected net worth plot and the annual rows table.
 
 ## Important Implementation Details
 
