@@ -18,6 +18,7 @@
         </div>
         <div class="run-controls">
           <p id="runStatus" class="run-status" role="status" aria-live="polite"></p>
+          <button id="savePlan" class="button button-secondary" type="button" title="Save this plan in this browser">Save</button>
           <button id="sharePlan" class="button button-secondary" type="button">Share</button>
           <button id="runSimulation" class="button button-primary" type="button" disabled>Run</button>
         </div>
@@ -33,6 +34,19 @@
           <section class="card control-group" aria-labelledby="planHeading">
             <h2 id="planHeading" class="group-title">Plan</h2>
             <div class="field-grid">
+              <label class="field">
+                <span>Plan name</span>
+                <input id="planName" name="planName" type="text" maxlength="80" autocomplete="off" placeholder="Untitled plan">
+              </label>
+              <div class="field">
+                <span id="savedPlansLabel">Saved plans</span>
+                <div class="inline-control">
+                  <select id="savedPlanSelect" aria-labelledby="savedPlansLabel"></select>
+                  <button id="deletePlan" class="icon-button" type="button" aria-label="Delete the open saved plan" title="Delete the open saved plan">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4.5 6h11M8 6V4.5h4V6m-6 0 .7 9.5h6.6L14 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  </button>
+                </div>
+              </div>
               <label class="field">
                 <span>Current year</span>
                 <input id="currentYear" name="currentYear" type="number" min="1900" max="2200" step="1" required>
@@ -71,6 +85,165 @@
             <div id="incomeRows" class="flow-list"></div>
           </section>
 
+          <section id="lifestyleCard" class="card control-group" aria-labelledby="lifestyleHeading">
+            <div class="group-title-row">
+              <h2 id="lifestyleHeading" class="group-title">Lifestyle</h2>
+              <label class="toggle">
+                <input type="checkbox" data-ls="enabled">
+                <span>Use builder</span>
+              </label>
+            </div>
+            <p id="lifestyleTotal" class="lifestyle-total">Describe how you want to live; the builder prices it year by year.</p>
+            <div id="lifestyleBody" class="lifestyle-body">
+              <details class="ls-section" data-ls-section="household" open>
+                <summary><span>Household</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field field-wide">
+                    <span>Area</span>
+                    <select data-ls="costTier" data-ls-options="costTier"></select>
+                  </label>
+                  <label class="field">
+                    <span>Adults</span>
+                    <select data-ls="adults" data-ls-options="adults" data-ls-type="number"></select>
+                  </label>
+                  <label class="field">
+                    <span>Your birth year</span>
+                    <input data-ls="birthYear" type="number" min="1900" max="2200" step="1">
+                  </label>
+                </div>
+              </details>
+
+              <details class="ls-section" data-ls-section="kids">
+                <summary><span>Kids</span><span class="ls-section-amount"></span></summary>
+                <div id="kidRows" class="kid-list"></div>
+                <button id="addKid" class="button button-ghost button-small ls-add" type="button">+ Add kid</button>
+                <div class="ls-items" data-ls-items="kids"></div>
+              </details>
+
+              <details class="ls-section" data-ls-section="housing">
+                <summary><span>Housing</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field field-wide">
+                    <span>Housing</span>
+                    <select data-ls="housing.mode" data-ls-options="housingMode"></select>
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=rent,buyCash,buyMortgage">
+                    <span data-ls-label="rent">Monthly rent</span>
+                    <input data-ls="housing.monthlyRent" type="text" inputmode="decimal" data-format="money" autocomplete="off">
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyCash,buyMortgage,own">
+                    <span data-ls-label="homePrice">Home price</span>
+                    <input data-ls="housing.homePrice" type="text" inputmode="decimal" data-format="money" autocomplete="off">
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyCash,buyMortgage">
+                    <span>Purchase year</span>
+                    <input data-ls="housing.purchaseYear" type="number" min="1900" max="2200" step="1">
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyCash,buyMortgage,own">
+                    <span>Tax, insurance, upkeep</span>
+                    <span class="input-suffix"><input data-ls="housing.carryingPct" type="number" min="0" max="100" step="0.1"><em>%/yr</em></span>
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyMortgage">
+                    <span>Down payment</span>
+                    <span class="input-suffix"><input data-ls="housing.downPaymentPct" type="number" min="0" max="100" step="1"><em>%</em></span>
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyMortgage">
+                    <span>Mortgage rate</span>
+                    <span class="input-suffix"><input data-ls="housing.mortgageRate" type="number" min="0" max="100" step="0.05"><em>%</em></span>
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=buyMortgage">
+                    <span>Term</span>
+                    <span class="input-suffix"><input data-ls="housing.mortgageYears" type="number" min="1" max="50" step="1"><em>yrs</em></span>
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=own">
+                    <span>Monthly mortgage</span>
+                    <input data-ls="housing.mortgagePayment" type="text" inputmode="decimal" data-format="money" autocomplete="off">
+                  </label>
+                  <label class="field" data-ls-show="housing.mode=own">
+                    <span>Paid off in</span>
+                    <input data-ls="housing.mortgageEndYear" type="number" min="1900" max="2200" step="1">
+                  </label>
+                </div>
+                <p class="ls-hint">Rent is too personal to preset, so enter yours. Mortgage payments are held flat in today&apos;s dollars, which is conservative.</p>
+                <div class="ls-items" data-ls-items="housing"></div>
+              </details>
+
+              <details class="ls-section" data-ls-section="help">
+                <summary><span>Household help</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field field-wide" data-ls-show="hasKids">
+                    <span>While kids are at home</span>
+                    <select data-ls="help.withKids" data-ls-options="help"></select>
+                  </label>
+                  <label class="field field-wide">
+                    <span data-ls-label="helpOtherwise">Help</span>
+                    <select data-ls="help.otherwise" data-ls-options="help"></select>
+                  </label>
+                </div>
+                <div class="ls-items" data-ls-items="help"></div>
+              </details>
+
+              <details class="ls-section" data-ls-section="travel">
+                <summary><span>Travel</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Domestic trips / yr</span>
+                    <input data-ls="travel.domesticTrips" type="number" min="0" max="100" step="1">
+                  </label>
+                  <label class="field">
+                    <span>Nights each</span>
+                    <input data-ls="travel.domesticNights" type="number" min="0" max="365" step="1">
+                  </label>
+                  <label class="field">
+                    <span>International / yr</span>
+                    <input data-ls="travel.internationalTrips" type="number" min="0" max="100" step="1">
+                  </label>
+                  <label class="field">
+                    <span>Nights each</span>
+                    <input data-ls="travel.internationalNights" type="number" min="0" max="365" step="1">
+                  </label>
+                  <label class="field">
+                    <span>Flights</span>
+                    <select data-ls="travel.flightClass" data-ls-options="flightClass"></select>
+                  </label>
+                  <label class="field">
+                    <span>Hotels</span>
+                    <select data-ls="travel.hotel" data-ls-options="hotel"></select>
+                  </label>
+                  <label class="toggle field-wide" data-ls-show="hasKids">
+                    <input type="checkbox" data-ls="travel.kidsTravel">
+                    <span>Kids come along until 18</span>
+                  </label>
+                </div>
+                <p class="ls-hint" data-ls-show="travel.flightClass=private">Private is priced per trip for the whole plane (charter, ~$80k domestic, ~$300k international round trip), so it doesn&apos;t grow with the family.</p>
+                <div class="ls-items" data-ls-items="travel"></div>
+              </details>
+
+              <details class="ls-section" data-ls-section="everyday">
+                <summary><span>Everyday living</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field field-wide">
+                    <span>Style</span>
+                    <select data-ls="everyday.tier" data-ls-options="everydayTier"></select>
+                  </label>
+                </div>
+                <div class="ls-items" data-ls-items="everyday"></div>
+              </details>
+
+              <details class="ls-section" data-ls-section="health">
+                <summary><span>Health</span><span class="ls-section-amount"></span></summary>
+                <div class="field-grid">
+                  <label class="field field-wide">
+                    <span>Employer coverage until (blank = none)</span>
+                    <input data-ls="health.employerUntilYear" type="number" min="1900" max="2200" step="1">
+                  </label>
+                </div>
+                <p class="ls-hint">Private insurance after that, then Medicare at 65 if your birth year is set.</p>
+                <div class="ls-items" data-ls-items="health"></div>
+              </details>
+            </div>
+          </section>
+
           <section class="card control-group" aria-labelledby="expenseHeading">
             <div class="group-title-row">
               <h2 id="expenseHeading" class="group-title">Expenditures</h2>
@@ -107,6 +280,7 @@
 
         <nav class="page-nav" aria-label="Results views">
           <button class="page-button active" type="button" data-page="overview">Overview</button>
+          <button class="page-button" type="button" data-page="spending">Spending</button>
           <button class="page-button" type="button" data-page="details">Simulation</button>
           <button class="page-button" type="button" data-page="policy">Beta Policy</button>
           <button class="page-button" type="button" data-page="methodology">Methodology</button>
@@ -168,6 +342,37 @@
             </div>
             <div class="canvas-wrap">
               <canvas id="distributionCanvas" class="chart-medium" aria-label="Probability distribution of years where money runs out"></canvas>
+            </div>
+          </section>
+        </div>
+
+        <div id="spendingPage" class="page-panel" hidden>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="Spending over time"
+            data-summary-id="spendingSummary"
+            data-summary-text="Annual spending by category in today&apos;s dollars, straight from your inputs."
+          >
+            <ul id="spendingLegend" class="chart-legend" aria-label="Spending categories"></ul>
+            <div class="canvas-wrap">
+              <canvas id="spendingCanvas" class="chart-tall" aria-label="Stacked annual spending by category with income overlaid"></canvas>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th id="spendingNowHeader">This year</th>
+                    <th>Peak year</th>
+                    <th>Peak</th>
+                    <th>Lifetime total</th>
+                  </tr>
+                </thead>
+                <tbody id="spendingTable">
+                  <tr><td class="empty" colspan="5">No spending yet.</td></tr>
+                </tbody>
+              </table>
             </div>
           </section>
         </div>
@@ -359,8 +564,12 @@
                 <p>Each dynamic run also solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
               </article>
               <article>
+                <h3>Lifestyle builder</h3>
+                <p>The builder prices a described lifestyle as dated annual expenses in today&apos;s dollars. Kid costs follow each kid&apos;s age: childcare to 4, school 5&ndash;17, college 18&ndash;21. Local costs (childcare, school, help, everyday living) are priced for SF/NYC and scaled down for cheaper areas. Every line can be overridden or moved to a manual row. Taxes and above-inflation cost growth are not modeled.</p>
+              </article>
+              <article>
                 <h3>Cash flows</h3>
-                <p>Income and expenditures are annual current-dollar flows. Start and end years can be fixed or tied to the plan&apos;s current year and year of death.</p>
+                <p>Income and expenditures are annual current-dollar flows. Start and end years can be fixed or tied to the plan&apos;s current year and year of death. Lifestyle lines use fixed years; one-time costs such as a home purchase are a single-year flow.</p>
               </article>
               <article>
                 <h3>Timing</h3>
@@ -402,6 +611,43 @@
       </button>
     </template>
 
+    <template id="kidRowTemplate">
+      <div class="kid-row">
+        <div class="kid-row-head">
+          <strong class="kid-title"></strong>
+          <label class="kid-born">
+            <span>Born</span>
+            <input data-kid-field="birthYear" type="number" min="1900" max="2200" step="1" aria-label="Birth year">
+          </label>
+          <button class="remove-flow" type="button" aria-label="Remove kid">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>Ages 0–4</span><select data-kid-field="childcare" data-ls-options="childcare"></select></label>
+          <label class="field"><span>School (5–17)</span><select data-kid-field="school" data-ls-options="school"></select></label>
+          <label class="field"><span>College (18–21)</span><select data-kid-field="college" data-ls-options="college"></select></label>
+          <label class="field"><span>Activities</span><select data-kid-field="activities" data-ls-options="activities"></select></label>
+        </div>
+      </div>
+    </template>
+
+    <template id="lifestyleItemTemplate">
+      <div class="ls-item">
+        <div class="ls-item-label">
+          <span class="ls-item-name"></span>
+          <span class="ls-item-years"></span>
+        </div>
+        <input class="ls-item-amount" type="text" inputmode="decimal" data-format="money" autocomplete="off">
+        <button class="icon-button ls-item-reset" type="button" aria-label="Reset to the preset amount" title="Reset to the preset amount">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4.5 10a5.5 5.5 0 1 0 1.6-3.9M4.5 4v3.5H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <button class="icon-button ls-item-detach" type="button" aria-label="Move to manual expenditures" title="Move to manual expenditures">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M8.5 4.5h-4v11h11v-4M11.5 4.5h4v4m0-4-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+      </div>
+    </template>
+
     <template id="flowRowTemplate">
       <div class="flow-row">
         <input class="flow-name" data-field="name" type="text" autocomplete="off" aria-label="Name" placeholder="Name">
@@ -434,10 +680,13 @@
     <script src="js/util.js"></script>
     <script src="js/format.js"></script>
     <script src="js/ui-shell.js"></script>
+    <script src="js/lifestyle.js"></script>
     <script src="js/simulation.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/results.js"></script>
     <script src="js/share.js"></script>
+    <script src="js/plan-store.js"></script>
+    <script src="js/lifestyle-ui.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

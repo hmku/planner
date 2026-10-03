@@ -502,6 +502,112 @@
     Planner.downloadCsvFile(`financial-planner-dynamic-beta-policy-${Date.now()}.csv`, headers, rows);
   }
 
+  // ---------- Spending ----------
+
+  let spendingModel = null;
+
+  // Per-year spending by category and income, from the current inputs.
+  function buildSpendingModel() {
+    let inputs;
+    try {
+      inputs = Planner.readCashFlowInputs();
+    } catch (error) {
+      return { error: error.message };
+    }
+    const years = Planner.range(inputs.currentYear, inputs.deathYear);
+    const first = inputs.currentYear;
+    const spread = (flows, onYear) => flows.forEach((flow) => {
+      for (let year = Math.max(flow.startYear, first); year <= Math.min(flow.endYear, inputs.deathYear); year += 1) {
+        onYear(flow, year - first);
+      }
+    });
+    const categories = Planner.SPENDING_CATEGORIES.map((category, colorIndex) => ({
+      ...category,
+      colorIndex,
+      values: new Float64Array(years.length)
+    }));
+    const byKey = new Map(categories.map((category) => [category.key, category]));
+    const totals = new Float64Array(years.length);
+    const recurringTotals = new Float64Array(years.length);
+    const income = new Float64Array(years.length);
+    spread(inputs.expenses, (flow, index) => {
+      (byKey.get(flow.category) || byKey.get("other")).values[index] += flow.amount;
+      totals[index] += flow.amount;
+      if (!flow.oneTime) recurringTotals[index] += flow.amount;
+    });
+    spread(inputs.income, (flow, index) => {
+      income[index] += flow.amount;
+    });
+    return { years, categories, totals, recurringTotals, income };
+  }
+
+  function getSpendingModel() {
+    if (!spendingModel) spendingModel = buildSpendingModel();
+    return spendingModel;
+  }
+
+  function summarizeSeries(values, years) {
+    let peakIndex = 0;
+    let lifetime = 0;
+    values.forEach((value, index) => {
+      lifetime += value;
+      if (value > values[peakIndex]) peakIndex = index;
+    });
+    return { now: values[0], peak: values[peakIndex], peakYear: years[peakIndex], lifetime };
+  }
+
+  // Rebuilds the model from the inputs and refreshes the Spending view; the
+  // chart itself is drawn only while its tab is showing.
+  function renderSpendingView() {
+    spendingModel = buildSpendingModel();
+    const { els } = Planner;
+    if (spendingModel.error) {
+      els.spendingSummary.textContent = spendingModel.error;
+      els.spendingLegend.replaceChildren();
+      Planner.renderTableBody(els.spendingTable, SPENDING_COLUMNS, [], "Fix the plan years to see spending.");
+    } else {
+      const { years, categories, totals, income } = spendingModel;
+      const used = categories.filter((category) => category.values.some((value) => value > 0));
+      const rows = used.map((category) => ({ label: category.label, ...summarizeSeries(category.values, years) }));
+      const total = summarizeSeries(totals, years);
+      if (rows.length) rows.push({ label: "Total", isTotal: true, ...total });
+      els.spendingNowHeader.textContent = String(years[0]);
+      Planner.renderTableBody(els.spendingTable, SPENDING_COLUMNS, rows, "No spending yet.", (row) => (row.isTotal ? "is-marked" : ""));
+
+      const lifetimeIncome = income.reduce((sum, value) => sum + value, 0);
+      els.spendingSummary.textContent = rows.length
+        ? `${Planner.formatCompactCurrency(total.now)} in ${years[0]}, peaking at ${Planner.formatCompactCurrency(total.peak)} in ${total.peakYear}. ` +
+          `${Planner.formatCompactCurrency(total.lifetime)} over ${years.length} years against ${Planner.formatCompactCurrency(lifetimeIncome)} of income; the rest comes from the portfolio.`
+        : "No spending entered yet.";
+
+      const legendItems = used.map((category) => {
+        const item = document.createElement("li");
+        const swatch = document.createElement("span");
+        swatch.className = "legend-swatch";
+        swatch.style.background = `var(--chart-cat-${category.colorIndex + 1})`;
+        item.append(swatch, category.label);
+        return item;
+      });
+      if (income.some((value) => value > 0)) {
+        const item = document.createElement("li");
+        const swatch = document.createElement("span");
+        swatch.className = "legend-swatch legend-line";
+        item.append(swatch, "Income");
+        legendItems.push(item);
+      }
+      els.spendingLegend.replaceChildren(...legendItems);
+    }
+    if (Planner.state.activePage === "spending") Planner.renderChart("spending");
+  }
+
+  const SPENDING_COLUMNS = [
+    { render: (row) => row.label, className: "text" },
+    { render: (row) => Planner.formatCurrency(row.now) },
+    { render: (row) => String(row.peakYear) },
+    { render: (row) => Planner.formatCurrency(row.peak) },
+    { render: (row) => Planner.formatCurrency(row.lifetime) }
+  ];
+
   // ---------- Tabs ----------
 
   function switchPage(page) {
@@ -517,10 +623,12 @@
     Planner.PAGE_IDS.forEach((pageId) => {
       Planner.els[`${pageId}Page`].hidden = pageId !== nextPage;
     });
-    if (Planner.state.results) Planner.renderCharts(Planner.state.results);
+    Planner.renderCharts(Planner.state.results);
   }
 
   Object.assign(Planner, {
+    getSpendingModel,
+    renderSpendingView,
     hasDynamicPolicy,
     renderResults,
     resetDetailsControls,

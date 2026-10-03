@@ -8,14 +8,19 @@
     isRunning: false,
     cancelRequested: false,
     inputVersion: 0,
-    nextSimulationSeed: null
+    nextSimulationSeed: null,
+    lifestyle: null,
+    openPlanName: null
   };
   Planner.els = {};
 
   const ELEMENT_IDS = [
-    "plannerForm", "runSimulation", "runProgress", "runProgressBar", "runStatus", "sharePlan",
+    "plannerForm", "runSimulation", "runProgress", "runProgressBar", "runStatus", "sharePlan", "savePlan",
+    "planName", "savedPlanSelect", "deletePlan",
     "currentYear", "deathYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount",
-    "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate",
+    "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate", "expenseHeading",
+    "lifestyleBody", "lifestyleTotal", "kidRows", "addKid",
+    "spendingCanvas", "spendingLegend", "spendingSummary", "spendingTable", "spendingNowHeader",
     "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
     "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote", "dataSpanMetric", "dataSpanMetricNote",
     "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary",
@@ -26,7 +31,7 @@
     "policyBucketPlotTitle", "policyMetricSelect", "dynamicPolicyCanvas", "dynamicPolicyActionTable", "downloadPolicyCsv",
     "policyPathSummary", "policyPathBeta", "policyPathYears", "policyPathReturnMode", "policyPathReturnYear",
     "policyPathCanvas", "policyPathTable",
-    "overviewPage", "detailsPage", "policyPage", "methodologyPage"
+    "overviewPage", "spendingPage", "detailsPage", "policyPage", "methodologyPage"
   ];
 
   function cacheElements() {
@@ -49,9 +54,11 @@
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
     Planner.DEFAULT_EXPENSES.forEach((flow) => addFlowRow(Planner.els.expenseRows, flow));
+    Planner.state.lifestyle = Planner.defaultLifestyle(currentYear);
     Planner.bindFormattedInputs(document);
     Planner.formatAllFormattedInputs(document);
     updateBetaModeControls();
+    Planner.renderLifestyleForm();
   }
 
   function rerender(render) {
@@ -74,8 +81,8 @@
       event.preventDefault();
       runSimulation();
     });
-    els.plannerForm.addEventListener("input", markDirty);
-    els.plannerForm.addEventListener("change", markDirty);
+    els.plannerForm.addEventListener("input", handleFormEdit);
+    els.plannerForm.addEventListener("change", handleFormEdit);
     els.betaMode.addEventListener("change", updateBetaModeControls);
     els.addIncome.addEventListener("click", () => addNewFlow(els.incomeRows, "Income"));
     els.addExpense.addEventListener("click", () => addNewFlow(els.expenseRows, "Expense"));
@@ -115,12 +122,12 @@
       if (resizeFrame) return;
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = null;
-        if (Planner.state.results) Planner.renderCharts(Planner.state.results);
+        Planner.renderCharts(Planner.state.results);
       });
     });
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
       Planner.resetChartTheme();
-      if (Planner.state.results) Planner.renderCharts(Planner.state.results);
+      Planner.renderCharts(Planner.state.results);
     });
     Planner.updateNetWorthZoomLabel();
   }
@@ -149,6 +156,32 @@
   function setStatus(text, tone = "") {
     Planner.els.runStatus.textContent = text;
     Planner.els.runStatus.classList.toggle("is-error", tone === "error");
+  }
+
+  // Every user edit in the inputs pane: update the lifestyle builder, mark the
+  // results stale, and autosave. Renaming the plan doesn't stale the results.
+  function handleFormEdit(event) {
+    const target = event.target;
+    if (target === Planner.els.planName) {
+      Planner.noteUserEdit();
+      return;
+    }
+    const isItemAmount = target.classList.contains("ls-item-amount");
+    Planner.handleLifestyleInput(event);
+    Planner.refreshLifestyle({ keepItemRows: isItemAmount && event.type === "input" });
+    noteEdit();
+  }
+
+  // Edits that don't come through a form event (adding or removing rows, kid
+  // and line-item buttons).
+  function noteEdit() {
+    markDirty();
+    Planner.noteUserEdit();
+  }
+
+  function noteLifestyleEdit() {
+    Planner.refreshLifestyle();
+    noteEdit();
   }
 
   function markDirty() {
@@ -193,7 +226,7 @@
     });
     Planner.formatAllFormattedInputs(container.lastElementChild);
     container.lastElementChild.querySelector('[data-field="name"]').focus();
-    markDirty();
+    noteEdit();
   }
 
   function addFlowRow(container, flow) {
@@ -207,7 +240,7 @@
     field("endYear").value = flow.endYear;
     node.querySelector(".remove-flow").addEventListener("click", () => {
       node.remove();
-      markDirty();
+      noteEdit();
     });
     [field("startMode"), field("endMode")].forEach((select) => {
       select.addEventListener("change", () => updateFlowYearInputs(node));
@@ -255,6 +288,32 @@
       .filter((flow) => Number.isFinite(flow.amount) && flow.amount > 0 && flow.startYear <= flow.endYear);
   }
 
+  // Manual expenditure rows count as "other" spending; lifestyle lines carry
+  // their own categories.
+  function readCashFlows(years) {
+    const manualExpenses = readFlowRows(Planner.els.expenseRows, years).map((flow) => ({ ...flow, category: "other" }));
+    const lifestyleExpenses = Planner.lifestyleItemsToFlows(Planner.getLifestyleItems(years.currentYear, years.deathYear));
+    return {
+      income: readFlowRows(Planner.els.incomeRows, years),
+      expenses: [...lifestyleExpenses, ...manualExpenses]
+    };
+  }
+
+  // Cash flows for the Spending view, which needs only valid plan years.
+  function readCashFlowInputs() {
+    const years = {
+      currentYear: Planner.numberFromInput(Planner.els.currentYear),
+      deathYear: Planner.numberFromInput(Planner.els.deathYear)
+    };
+    Planner.validatePlanYear(years.currentYear, "Current year");
+    Planner.validatePlanYear(years.deathYear, "Year of death");
+    if (years.deathYear < years.currentYear) throw new Error("Year of death must not be before the current year.");
+    if (years.deathYear - years.currentYear + 1 > Planner.MAX_PLAN_LENGTH_YEARS) {
+      throw new Error(`Plan length cannot exceed ${Planner.MAX_PLAN_LENGTH_YEARS} years.`);
+    }
+    return { ...years, ...readCashFlows(years) };
+  }
+
   function readScenario() {
     const { els } = Planner;
     const scenario = {
@@ -297,8 +356,7 @@
       throw new Error(`This run would create ${Planner.formatNumber(simulationYearRows)} simulation-years. Keep simulations × plan years under ${Planner.formatNumber(Planner.MAX_SIMULATION_YEAR_ROWS)}.`);
     }
 
-    scenario.income = readFlowRows(els.incomeRows, scenario);
-    scenario.expenses = readFlowRows(els.expenseRows, scenario);
+    Object.assign(scenario, readCashFlows(scenario));
     return scenario;
   }
 
@@ -316,8 +374,10 @@
 
     const runVersion = state.inputVersion;
     let scenario;
+    let planState;
     try {
       scenario = readScenario();
+      planState = Planner.getPlanState();
     } catch (error) {
       setStatus(error.message, "error");
       return;
@@ -345,7 +405,7 @@
       results.seed = seed;
       state.results = results;
       state.isDirty = state.inputVersion !== runVersion;
-      Planner.updateShareUrl(scenario, seed);
+      if (state.inputVersion === runVersion) Planner.syncShareUrl(planState, seed);
       Planner.renderResults(results);
       setStatus(`${Planner.formatNumber(scenario.simulationCount)} simulations in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
     } catch (error) {
@@ -363,15 +423,18 @@
     setStatus,
     updateBetaModeControls,
     addFlowRow,
-    readScenario
+    readScenario,
+    readCashFlowInputs
   });
 
   document.addEventListener("DOMContentLoaded", async () => {
     Planner.mountSectionHeaders();
     cacheElements();
+    Planner.initLifestyleBuilder(noteLifestyleEdit);
     setDefaults();
-    const sharedPlan = Planner.applySharedPlanFromUrl();
     bindEvents();
+    Planner.bindSavedPlanControls(markDirty);
+    const restored = await Planner.restoreInitialPlan();
     Planner.resetDetailsControls();
     Planner.switchPage(Planner.getPageFromUrl());
     updateRunState();
@@ -379,14 +442,18 @@
     markDirty();
     if (!loaded) return;
 
-    if (sharedPlan?.error) {
-      setStatus(sharedPlan.error, "error");
-    } else if (sharedPlan) {
-      Planner.state.nextSimulationSeed = sharedPlan.seed;
-      setStatus("Shared plan loaded.");
+    if (restored?.error) {
+      setStatus(restored.error, "error");
+    } else if (restored?.source === "share" && Number.isInteger(restored.seed)) {
+      Planner.state.nextSimulationSeed = restored.seed;
+      setStatus("Plan loaded from the link.");
       await runSimulation();
+    } else if (restored?.source === "share") {
+      setStatus("Plan loaded from the link. Press Run.");
+    } else if (restored?.source === "draft") {
+      setStatus("Restored your last session. Press Run.");
     } else {
-      setStatus("Adjust the plan, then press Run.");
+      setStatus("Describe your plan, then press Run.");
     }
   });
 })(window.Planner = window.Planner || {});

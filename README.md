@@ -2,18 +2,37 @@
 
 A static browser-based financial planning simulator built around dynamic SPX-beta optimization. Rather than assuming one allocation throughout a plan, it uses backward dynamic programming to recommend an SPX beta for each year and wealth level, minimizing estimated portfolio-depletion risk and using expected terminal wealth to break ties. Its Monte Carlo simulations draw from historical S&P 500 total returns, 3-month T-bill returns, and CPI inflation.
 
-The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, annual income, and annual expenditures. It then shows:
+The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, and annual income, then describe spending with a lifestyle builder instead of computing every expense by hand (manual expenditure rows are still available for anything else). It then shows:
 
 - probability of running out of money before the expected year of death
 - expected (mean) terminal wealth in current dollars, with the median alongside
 - current SPX beta for the first plan year
 - historical return span used by the model
 - an Overview with, in order: simulated current-dollar net worth paths, the dynamic-beta frontier comparing expected terminal wealth against run-out risk, simulated SPX beta paths, and a depletion-year distribution (hover a bar for its probability)
+- a Spending view (live from the inputs, no run needed) with stacked annual spending by category, income overlaid, and a per-category table of this year, peak, and lifetime totals
 - a Simulation view for one selected simulation's net worth path and annual return/cash-flow rows, with a CSV of all sampled paths
 - a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
-- shareable links that restore the plan inputs and rerun the same seeded simulation paths
+- saved plans and an autosaved draft in the browser, plus shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
-By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, and `50,000` simulations.
+By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, `50,000` simulations, `$200,000` of take-home pay through 2045, and a lifestyle-builder default of a couple renting for `$5,000`/month in a very-high-cost area with comfortable everyday spending and modest economy travel.
+
+## Lifestyle Builder
+
+The Lifestyle card turns a described lifestyle into dated annual expenses in today's dollars (`js/lifestyle.js` holds every price; `js/lifestyle-ui.js` is the form). It is live: changing a kid's birth year, the housing choice, or a travel setting regenerates every affected line immediately.
+
+- **Household**: area cost tier (very high, high, medium, low; local costs such as childcare, private school, help, and everyday living are priced for SF/NYC and scaled down), one or two adults, and your birth year (for Medicare at 65).
+- **Kids**: any number of kids with past or future birth years. Each kid gets childcare for ages 0–4 (none, daycare, nanny share, full-time nanny), school for 5–17 (public, typical private, top private), college for 18–21 (none, public in-state, public out-of-state, private), activities and camps for 5–17, and basics (food, clothes, gear) for 0–17.
+- **Housing**: rent (you enter the monthly rent), buy with cash or with a mortgage in a purchase year (rent until then; price plus 2% closing as a one-time cost, or down payment plus closing and an amortized payment), or already own (value plus an optional existing mortgage). Owning adds property tax, insurance, and upkeep as a percent of the home value (2.5% by default).
+- **Household help**: one level while any kid is at home and another before kids and after they leave (none, weekly housekeeper, after-school nanny plus housekeeper, household manager, full staff).
+- **Travel**: domestic and international trips per year and nights per trip; economy, premium economy, business, first, or private jet; mid-range to ultra-luxury hotels. Commercial fares are per traveler and kids travel until 18; private charter is priced per trip for the whole plane, so it does not grow with the family.
+- **Everyday living**: modest, comfortable, affluent, or lavish, itemized into groceries, dining, cars, utilities, and personal spending.
+- **Health**: employer coverage (no cost) until a chosen year, then private insurance, then Medicare at 65.
+
+Every generated line shows its amount and years. Typing a new amount overrides that line (reset restores the preset), and the move-out button turns a line into a manual expenditure row with fixed years and stops generating it. Taxes and above-inflation cost growth (for example tuition) are not modeled; mortgage payments are held flat in today's dollars, which is conservative. Lifestyle lines are added to the scenario's expenditures along with the manual rows, tagged with a category for the Spending view.
+
+## Saving Plans
+
+The inputs autosave to the browser's local storage as you edit, so closing or refreshing the page never loses work; opening the app again restores the last session. `Save` stores the current inputs under the plan name in local storage, and the Saved plans menu reopens or deletes them (Save reads "Saved" while the open plan matches what's stored). Saved plans live only in that browser; use Share to move a plan elsewhere.
 
 ## How It Works
 
@@ -35,7 +54,7 @@ The frontier costs two extra backward sweeps rather than one per policy: the min
 
 ## Sharing Plans
 
-Each successful run updates the browser address bar to a share URL containing the current plan inputs, beta mode, and the run's simulation seed in the `p` query parameter. The active tab is stored separately in the `tab` query parameter so refreshes and copied links reopen the same view. Click `Share` to copy that URL. Opening it restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database.
+The `p` query parameter carries the whole plan state (name, plan inputs, income and manual expense rows, and the lifestyle builder) as deflate-compressed JSON in base64url (`z.` prefix; `j.` for uncompressed JSON when the browser lacks `CompressionStream`), plus the run's seed when there is one. The address bar follows your edits and each completed run, and the active tab is stored separately in the `tab` query parameter, so refreshes and copied addresses reopen the same plan and view. Click `Share` to copy a link with a seed; opening a link with a seed restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database. A shared link never overwrites the recipient's saved plans or draft until they edit or save it. Older `seed~plan~income~expenses` links still open, with the lifestyle builder switched off.
 
 ## Run Locally
 

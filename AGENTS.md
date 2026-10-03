@@ -18,11 +18,14 @@ There is no package manager, build pipeline, framework, backend, or test runner 
 2. `js/util.js` — CSV export (chunked, accepts generators), select/table helpers, math, nice axis ticks, canvas sizing
 3. `js/format.js` — display formatting and money/integer inputs
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
-5. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep)
-6. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
-7. `js/results.js` — metrics, inspection tables, policy views, CSV downloads, tab switching
-8. `js/share.js` — share-link encode/decode
-9. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
+5. `js/lifestyle.js` — lifestyle builder prices/options and the pure generator (`buildLifestyleItems`, `normalizeLifestyle`), plus `SPENDING_CATEGORIES`
+6. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep)
+7. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
+8. `js/results.js` — metrics, inspection tables, policy views, Spending view (`renderSpendingView`, `getSpendingModel`), CSV downloads, tab switching
+9. `js/share.js` — share-link encode/decode (v2 compressed plan state; v1 decode only), address-bar sync
+10. `js/plan-store.js` — plan-state snapshot/apply/normalize, localStorage draft autosave and named saved plans
+11. `js/lifestyle-ui.js` — lifestyle builder form binding, kid rows, editable line items
+12. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
 
 Each module exports only what other modules use. Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, and the chart primitives in `charts.js` such as `beginChart`, `drawYAxis`, `drawXAxis`, `drawLegend`, `drawTooltip`) instead of copying UI or chart logic.
 
@@ -38,7 +41,9 @@ The simulation path is:
 4. `renderResults()`
 5. `renderSimulationSelect()`, `renderSimulationPathTable()`, `renderDynamicPolicyControls()`, and `renderCharts()`
 
-`renderCharts(results)` draws every chart registered in `CHARTS` for the active page; `renderChart(key)` redraws one. Chart render functions take only `results` and read any control values from `Planner.els`.
+`renderCharts(results)` draws every chart registered in `CHARTS` for the active page; `renderChart(key)` redraws one. Chart render functions take only `results` and read any control values from `Planner.els`. A chart with `fromInputs: true` (the Spending chart) instead takes `Planner.getSpendingModel()`, which is built from the current inputs and renders before any run.
+
+Input edits go through `handleFormEdit()` in `app.js`: it updates `Planner.state.lifestyle` (the builder's source of truth, bound by `data-ls` paths), calls `refreshLifestyle()` (line items, section totals, Spending view), marks results dirty, and calls `noteUserEdit()` (debounced draft autosave and address-bar sync). `readScenario()` merges lifestyle lines (`lifestyleItemsToFlows`) with manual rows; every expense flow carries a `category`.
 
 The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over time, depletion year distribution. The frontier is computed as part of every dynamic run (no separate button). The Simulation tab (`details` page id) uses the `detail` chart and `renderSimulationPathTable()`. The `#simulationSelect` dropdown controls both the selected net worth plot and the annual rows table.
 
@@ -46,7 +51,8 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 
 - Default inputs are set in `setDefaults()`.
 - SPX beta currently defaults to `0.8`.
-- Share links use the `p` query parameter to store compact current plan inputs plus a seeded simulation value; shared links restore inputs and auto-run after market data loads.
+- Share links use the `p` query parameter to store the full plan state (`getPlanState()`) as compressed JSON plus an optional seed; links with a seed restore inputs and auto-run after market data loads. Saved plans, the draft, and share links all pass through `normalizePlanState()` because they are untrusted; extend it (and `normalizeLifestyle()`) whenever plan state gains a field.
+- On load, a `p` link wins over the localStorage draft; with neither, defaults are used.
 - Runs store only `sampledRowIndexes` (one historical-row index per simulation-year). `getSimulationYearRows(results, simulation)` replays a simulation's annual rows deterministically; keep its arithmetic in lockstep with `simulateScenario()`.
 - Keep the random-number call order in `simulateScenario()` stable (one draw per active year, then the reservoir draw); share links depend on it.
 - Colors live in CSS custom properties; canvas code reads `--chart-*` tokens through `chartTheme()`. Do not hardcode colors in JS.
@@ -79,7 +85,9 @@ Manual smoke test:
 - Click `Run`; progress appears and results render.
 - Top metric values stay inside their cards, including large median wealth values.
 - Overview charts render and resize correctly.
-- Click `Share`; the copied URL restores the same inputs and reruns with the seeded paths.
+- Click `Share`; the copied URL restores the same inputs (including the lifestyle builder) and reruns with the seeded paths.
+- Lifestyle builder: add kids, switch housing modes, override a line amount (reset appears), move a line to manual rows; section totals and the Spending tab update live.
+- `Save` a named plan, edit, reload (inputs persist), reopen the saved plan from the menu, and open the bare URL to restore the draft.
 - Switch to Simulation.
 - The simulation dropdown, CSV button, selected simulation chart, and annual rows table are in one visual section.
 - Changing the selected simulation updates both the chart and table.

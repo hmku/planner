@@ -11,7 +11,7 @@ Planner.MAX_SHARED_FLOWS = 100;
 Planner.DEFAULT_SPX_BETA = 0.8;
 Planner.BETA_MODE_FIXED = "fixed";
 Planner.BETA_MODE_DYNAMIC = "dynamic";
-Planner.PAGE_IDS = ["overview", "details", "policy", "methodology"];
+Planner.PAGE_IDS = ["overview", "spending", "details", "policy", "methodology"];
 Planner.DYNAMIC_BETA_VALUES = Array.from({ length: 16 }, (_, index) => Number((index * 0.1).toFixed(1)));
 Planner.DYNAMIC_WEALTH_BUCKETS = 180;
 Planner.DYNAMIC_MIN_POSITIVE_WEALTH_BUCKET = 10000;
@@ -21,10 +21,8 @@ Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS = [0.01, 0.03, 0.1, 0.3, 1, 3, 10,
 Planner.DYNAMIC_POLICY_PROGRESS_SHARE = 0.75;
 Planner.EPSILON = 0.000000001;
 Planner.DEFAULT_INCOME = [
-  { name: "Salary", amount: 120000, startMode: "current", startYear: 2026, endMode: "fixed", endYear: 2045 }
+  { name: "Take-home pay", amount: 200000, startMode: "current", startYear: 2026, endMode: "fixed", endYear: 2045 }
 ];
 
-Planner.DEFAULT_EXPENSES = [
-  { name: "Living expenses", amount: 85000, startMode: "current", startYear: 2026, endMode: "death", endYear: 2070 },
-  { name: "Healthcare", amount: 22000, startMode: "fixed", startYear: 2046, endMode: "death", endYear: 2070 }
-];
+// The lifestyle builder supplies default spending; manual rows are for extras.
+Planner.DEFAULT_EXPENSES = [];

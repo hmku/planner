@@ -1,39 +1,26 @@
 (function (Planner) {
-  // Share payload (the `p` query parameter), sections joined by "~":
-  //   seed ~ currentYear,deathYear,netWorth,spxBeta,simulationCount,betaMode ~ income ~ expenses
-  // Cash flows are ";"-separated rows of name,amount,startMode,startYear,endMode,endYear,
-  // where a year is only written for "fixed" modes.
+  // Share payload (the `p` query parameter):
+  //   v2: "z." + base64url(deflate-raw(JSON)) or "j." + base64url(JSON), where the
+  //       JSON is a plan state (see plan-store.js) plus an optional `seed`. A seed
+  //       means the link reproduces a run, so opening it reruns automatically.
+  //   v1 (still read): seed ~ currentYear,deathYear,netWorth,spxBeta,simulationCount,betaMode
+  //       ~ income ~ expenses, where cash flows are ";"-separated rows of
+  //       name,amount,startMode,startYear,endMode,endYear and a year is only
+  //       written for "fixed" modes.
 
   const FLOW_MODE_CODES = { current: "c", death: "d", fixed: "f" };
+  const MAX_PAYLOAD_LENGTH = 50000;
 
-  function applySharedPlanFromUrl() {
+  // Returns { state, seed } | { error } | null.
+  async function readSharedPlanFromUrl() {
     const encodedPlan = getRawQueryParam("p");
     if (!encodedPlan) return null;
-
     try {
-      const { seed, scenario } = decodeSharePayload(encodedPlan);
-      applySharedScenario(scenario);
-      return { seed: Planner.normalizeSeed(seed) };
+      const { state, seed } = await decodeSharePayload(encodedPlan);
+      return { state, seed: seed === null ? null : Planner.normalizeSeed(seed) };
     } catch (error) {
       return { error: `Could not load the shared plan. ${error.message}` };
     }
-  }
-
-
-  function applySharedScenario(scenario) {
-    Planner.els.currentYear.value = scenario.currentYear;
-    Planner.els.deathYear.value = scenario.deathYear;
-    Planner.els.netWorth.value = scenario.netWorth;
-    Planner.els.betaMode.value = scenario.betaMode;
-    Planner.els.spxBeta.value = scenario.spxBeta;
-    Planner.els.simulationCount.value = scenario.simulationCount;
-    Planner.updateBetaModeControls();
-
-    Planner.els.incomeRows.replaceChildren();
-    Planner.els.expenseRows.replaceChildren();
-    scenario.income.forEach((flow) => Planner.addFlowRow(Planner.els.incomeRows, flow));
-    scenario.expenses.forEach((flow) => Planner.addFlowRow(Planner.els.expenseRows, flow));
-    Planner.formatAllFormattedInputs(document);
   }
 
 
@@ -56,11 +43,12 @@
     let seed;
     let url;
     try {
-      const scenario = Planner.readScenario();
+      Planner.readScenario();
+      const state = Planner.getPlanState();
       seed = Planner.state.results && !Planner.state.isDirty && Number.isInteger(Planner.state.results.seed)
         ? Planner.state.results.seed
         : Planner.generateSimulationSeed();
-      url = buildShareUrl(scenario, seed);
+      url = await buildShareUrl(state, seed);
     } catch (error) {
       Planner.setStatus(`Fix inputs before sharing. ${error.message}`, "error");
       return;
@@ -78,9 +66,9 @@
   }
 
 
-  function buildShareUrl(scenario, seed) {
+  async function buildShareUrl(state, seed) {
     const url = new URL(window.location.href);
-    const parts = [`p=${encodeSharePayload(scenario, seed)}`];
+    const parts = [`p=${await encodeSharePayload(state, seed)}`];
     const page = normalizePage(Planner.state.activePage);
     if (page !== "overview") parts.push(`tab=${encodeURIComponent(page)}`);
     return `${url.origin}${url.pathname}?${parts.join("&")}`;
@@ -94,8 +82,19 @@
   }
 
 
-  function updateShareUrl(scenario, seed) {
-    replaceUrl(buildShareUrl(scenario, seed));
+  // Keeps the address bar on the current inputs (and the last run's seed, when
+  // given) so a refresh or a copied address restores the same plan. Encoding is
+  // async, so a newer call wins over an older one still in flight.
+  let syncVersion = 0;
+
+  async function syncShareUrl(state, seed) {
+    const version = ++syncVersion;
+    try {
+      const url = await buildShareUrl(state, seed);
+      if (version === syncVersion) replaceUrl(url);
+    } catch (error) {
+      // Leave the address bar as is; sharing still works from the button.
+    }
   }
 
 
@@ -108,26 +107,68 @@
   }
 
 
-  function encodeSharePayload(scenario, seed) {
-    const plan = [
-      scenario.currentYear,
-      scenario.deathYear,
-      scenario.netWorth,
-      Number.isFinite(scenario.spxBeta) ? scenario.spxBeta : 0,
-      scenario.simulationCount
-    ].map(Planner.formatShareNumber);
-    plan.push(scenario.betaMode === Planner.BETA_MODE_DYNAMIC ? "d" : "f");
-
-    return [
-      Planner.formatShareNumber(seed),
-      plan.join(","),
-      scenario.income.map(encodeSharedFlow).join(";"),
-      scenario.expenses.map(encodeSharedFlow).join(";")
-    ].join("~");
+  async function encodeSharePayload(state, seed) {
+    const json = JSON.stringify(Number.isInteger(seed) ? { ...state, seed } : state);
+    const bytes = new TextEncoder().encode(json);
+    if (typeof CompressionStream === "function") {
+      try {
+        return `z.${toBase64Url(await pipeBytes(bytes, new CompressionStream("deflate-raw")))}`;
+      } catch (error) {
+        // Fall through to uncompressed JSON.
+      }
+    }
+    return `j.${toBase64Url(bytes)}`;
   }
 
 
-  function decodeSharePayload(payload) {
+  async function decodeSharePayload(payload) {
+    if (payload.length > MAX_PAYLOAD_LENGTH) throw new Error("The link is too long.");
+    if (payload.includes("~")) return decodeLegacySharePayload(payload);
+
+    const kind = payload.slice(0, 2);
+    let bytes = fromBase64Url(payload.slice(2));
+    if (kind === "z.") {
+      if (typeof DecompressionStream !== "function") throw new Error("This browser can't read compressed links.");
+      bytes = await pipeBytes(bytes, new DecompressionStream("deflate-raw"));
+    } else if (kind !== "j.") {
+      throw new Error("The link format is not supported.");
+    }
+    let raw;
+    try {
+      raw = JSON.parse(new TextDecoder().decode(bytes));
+    } catch (error) {
+      throw new Error("The link is damaged.");
+    }
+    const seed = Number.isInteger(raw?.seed) ? raw.seed : null;
+    return { state: Planner.normalizePlanState(raw), seed };
+  }
+
+
+  async function pipeBytes(bytes, transform) {
+    const stream = new Blob([bytes]).stream().pipeThrough(transform);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+
+  function toBase64Url(bytes) {
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+
+  function fromBase64Url(text) {
+    if (!/^[A-Za-z0-9_-]*$/.test(text)) throw new Error("The link is damaged.");
+    const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  }
+
+
+  // v1 links predate the lifestyle builder, so they open with it switched off.
+  function decodeLegacySharePayload(payload) {
     const parts = payload.split("~");
     if (parts.length !== 4) {
       throw new Error("The link format is not supported.");
@@ -144,21 +185,14 @@
       simulationCount: parseSharedNumber(plan[4], "simulation count"),
       betaMode: plan[5] === "d" ? Planner.BETA_MODE_DYNAMIC : Planner.BETA_MODE_FIXED
     };
-    scenario.income = decodeSharedFlows(parts[2], "income", scenario);
-    scenario.expenses = decodeSharedFlows(parts[3], "expense", scenario);
-    return { seed: parseSharedNumber(parts[0], "simulation seed"), scenario };
-  }
-
-
-  function encodeSharedFlow(flow) {
-    return [
-      encodeShareText(flow.name),
-      Planner.formatShareNumber(flow.amount),
-      FLOW_MODE_CODES[flow.startMode] || "f",
-      flow.startMode === "fixed" ? Planner.formatShareNumber(flow.startYear) : "",
-      FLOW_MODE_CODES[flow.endMode] || "f",
-      flow.endMode === "fixed" ? Planner.formatShareNumber(flow.endYear) : ""
-    ].join(",");
+    const state = Planner.normalizePlanState({
+      name: "",
+      plan: scenario,
+      income: decodeSharedFlows(parts[2], "income", scenario),
+      expenses: decodeSharedFlows(parts[3], "expense", scenario),
+      lifestyle: { enabled: false }
+    });
+    return { seed: parseSharedNumber(parts[0], "simulation seed"), state };
   }
 
 
@@ -199,11 +233,6 @@
       throw new Error(`The shared ${label} is invalid.`);
     }
     return number;
-  }
-
-
-  function encodeShareText(text) {
-    return encodeURIComponent(text).replace(/%20/g, "+").replace(/~/g, "%7E");
   }
 
 
@@ -273,12 +302,12 @@
   }
 
   Object.assign(Planner, {
-    applySharedPlanFromUrl,
+    readSharedPlanFromUrl,
     normalizeBetaMode,
     normalizePage,
     getPageFromUrl,
     sharePlan,
-    updateShareUrl,
+    syncShareUrl,
     updatePageUrl
   });
 })(window.Planner = window.Planner || {});

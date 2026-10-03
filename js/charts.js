@@ -28,7 +28,8 @@
       positive: token("--chart-positive"),
       tooltipBg: token("--chart-tooltip-bg"),
       tooltipInk: token("--chart-tooltip-ink"),
-      ramp: token("--chart-ramp").split(",").map((stop) => parseHex(stop.trim()))
+      ramp: token("--chart-ramp").split(",").map((stop) => parseHex(stop.trim())),
+      categorical: Array.from({ length: 7 }, (_, index) => token(`--chart-cat-${index + 1}`))
     };
     return themeCache;
   }
@@ -393,12 +394,18 @@
     detail: { canvas: "selectedSimulationCanvas", page: "details", render: renderSelectedSimulationChart, find: findNearestX },
     policyBucket: { canvas: "dynamicPolicyCanvas", page: "policy", render: renderPolicyBucketChart, find: findNearestX },
     policyPath: { canvas: "policyPathCanvas", page: "policy", render: renderPolicyPathChart, find: findCell },
-    frontier: { canvas: "frontierCanvas", page: "overview", render: renderFrontierChart, find: findNearestPoint }
+    frontier: { canvas: "frontierCanvas", page: "overview", render: renderFrontierChart, find: findNearestPoint },
+    // Drawn from the current inputs, so it works before any run.
+    spending: { canvas: "spendingCanvas", page: "spending", render: renderSpendingChart, find: findBar, fromInputs: true }
   };
 
+  function chartData(chart, results = Planner.state.results) {
+    return chart.fromInputs ? Planner.getSpendingModel() : results;
+  }
+
   function renderChart(chartKey) {
-    const results = Planner.state.results;
-    if (results) CHARTS[chartKey].render(results);
+    const data = chartData(CHARTS[chartKey]);
+    if (data) CHARTS[chartKey].render(data);
   }
 
   function scheduleHoverRender(chartKey) {
@@ -414,7 +421,7 @@
       const canvas = Planner.els[chart.canvas];
       canvas.addEventListener("mousemove", (event) => {
         const meta = hitMetaByChart[chartKey];
-        if (!Planner.state.results || Planner.state.activePage !== chart.page || !meta) return;
+        if (!chartData(chart) || Planner.state.activePage !== chart.page || !meta) return;
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -431,9 +438,12 @@
     });
   }
 
+  // Draws the active page's charts; result charts are skipped until a run exists.
   function renderCharts(results) {
     Object.values(CHARTS).forEach((chart) => {
-      if (chart.page === Planner.state.activePage) chart.render(results);
+      if (chart.page !== Planner.state.activePage) return;
+      const data = chartData(chart, results);
+      if (data) chart.render(data);
     });
   }
 
@@ -911,6 +921,98 @@
         `Expected terminal: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
         `Current beta: ${Planner.formatBeta(row.currentBeta)}`
       ]);
+    }
+  }
+
+  // ---------- Spending ----------
+
+  // Stacked annual spending by category with income as a step line. The y-axis
+  // fits recurring spending and income; one-time spikes (a home purchase) are
+  // clipped at the top and labeled so they don't flatten everything else.
+  function renderSpendingChart(model) {
+    const frame = beginChart(Planner.els.spendingCanvas, { top: 42, right: 20, bottom: 30, left: 64 });
+    const { ctx, theme } = frame;
+    hitMetaByChart.spending = { items: [], frame };
+    if (model.error) {
+      drawEmptyState(frame, model.error);
+      return;
+    }
+    const { years, categories, totals, recurringTotals, income } = model;
+    const scaleMax = Math.max(...recurringTotals, ...income, 1) * 1.04;
+    const yScale = Planner.niceZeroScale(scaleMax, 4);
+    const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
+    drawAxisTitle(frame, "Per year (today's $)");
+    drawYAxis(frame, yScale.ticks, yOf, Planner.formatCompactCurrency);
+
+    const band = frame.plotWidth / years.length;
+    const gap = band > 6 ? 2 : band > 3 ? 1 : 0;
+    const segmentGap = band > 4 ? 1 : 0;
+    const items = years.map((year, index) => ({
+      key: year,
+      index,
+      x0: frame.left + index * band,
+      x1: frame.left + (index + 1) * band
+    }));
+    hitMetaByChart.spending.items = items;
+    const hover = resolveHover("spending", items);
+
+    withPlotClip(frame, () => {
+      items.forEach((item) => {
+        let base = 0;
+        const x = item.x0 + gap / 2;
+        const width = Math.max(1, band - gap);
+        const stack = categories.filter((category) => category.values[item.index] > 0);
+        stack.forEach((category, stackIndex) => {
+          const value = category.values[item.index];
+          const y0 = yOf(base);
+          const y1 = yOf(base + value);
+          base += value;
+          ctx.fillStyle = theme.categorical[category.colorIndex];
+          const height = Math.max(0, y0 - y1 - (stackIndex > 0 ? segmentGap : 0));
+          if (stackIndex === stack.length - 1) fillRoundedTop(ctx, x, y1, width, height, Math.min(3, width / 2));
+          else ctx.fillRect(x, y1, width, height);
+        });
+      });
+      if (hover) {
+        ctx.fillStyle = theme.path;
+        ctx.fillRect(hover.item.x0, frame.top, band, frame.plotHeight);
+      }
+      // Income as a step line over the bars.
+      if (income.some((value) => value > 0)) {
+        ctx.beginPath();
+        items.forEach((item) => {
+          const y = yOf(income[item.index]);
+          if (item.index === 0) ctx.moveTo(item.x0, y);
+          else ctx.lineTo(item.x0, y);
+          ctx.lineTo(item.x1, y);
+        });
+        ctx.strokeStyle = theme.ink;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      }
+    });
+
+    // Label clipped one-time spikes.
+    ctx.font = font(frame, 11, 600);
+    ctx.fillStyle = theme.text;
+    ctx.textAlign = "center";
+    items.forEach((item) => {
+      if (totals[item.index] <= yScale.max) return;
+      const x = Planner.clamp((item.x0 + item.x1) / 2, frame.left + 24, frame.right - 24);
+      ctx.fillText(`↑ ${Planner.formatCompactCurrency(totals[item.index])}`, x, frame.top - 6);
+    });
+
+    drawXAxis(frame, yearTicks(years[0], years[years.length - 1], frame.plotWidth), (year) => frame.left + (year - years[0] + 0.5) * band, String);
+
+    if (hover) {
+      const { index } = hover.item;
+      const lines = categories
+        .filter((category) => category.values[index] > 0)
+        .map((category) => `${category.label}: ${Planner.formatCurrency(category.values[index])}`);
+      lines.push(`Total: ${Planner.formatCurrency(totals[index])}`);
+      if (income[index] > 0) lines.push(`Income: ${Planner.formatCurrency(income[index])}`);
+      drawTooltip(frame, hover.x, hover.y, String(years[index]), lines);
     }
   }
 

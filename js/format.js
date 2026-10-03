@@ -140,11 +140,6 @@
     return isMissing(value) ? "--" : betaFormat.format(value);
   }
 
-  function formatShareNumber(value) {
-    const text = String(Number(value));
-    return text.startsWith("0.") ? text.slice(1) : text;
-  }
-
   function formatNumber(value) {
     return numberFormat.format(value);
   }
@@ -152,7 +147,6 @@
   Object.assign(Planner, {
     bindFormattedInputs,
     formatAllFormattedInputs,
-    formatShareNumber,
     formatCurrency,
     formatCompactCurrency,
     formatPercent,
