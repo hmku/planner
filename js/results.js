@@ -84,7 +84,7 @@
     if (!hasDynamicPolicy(results)) {
       text = "Set beta mode to Dynamic and run a simulation to see the risk/wealth tradeoff.";
     } else {
-      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies. The orange point is the min-risk policy used for the simulation.`;
+      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies, each simulated on the same ${Planner.formatNumber(Planner.FRONTIER_PATHS)} paths. Highlighted points are the min-risk policy used for the run.`;
     }
     Planner.els.frontierSummary.textContent = text;
   }

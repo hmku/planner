@@ -17,6 +17,8 @@ when they ship.
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
 - Income presets: salary until a quit year, then a founder salary or other runway scenarios.
 
+- Default policy choice: simulated frontiers show small-risk-penalty policies matching the min-risk policy's run-out risk with much higher median wealth (the min-risk solve is only grid-optimal); consider defaulting to the best simulated point or letting the user pick a frontier point.
+
 ### Lifestyle builder
 - Avoid double counting when a full-time nanny (childcare) overlaps after-school nanny help.
 - Optional second home and charitable giving sections.
@@ -29,6 +31,7 @@ when they ship.
 
 ## Done
 
+- Frontier shows expected and median terminal wealth; each policy is simulated on 10,000 shared paths instead of read from the solver's grid estimates.
 - Home-aware beta policy: the solver has an after-sale layer and an owned layer with the sell-and-rent fallback inside the backward induction (a $3M cash home at $8M: 5.3% → 1.3% run-out risk). The rent-vs-own comparison uses the T-bill rate, since the model's home is riskless. Engine split into `js/engine.js` (shared core and path step), `js/policy.js` (solver), and `js/simulation.js` (runs, replay, and required net worth through one path stepper).
 - Owning a home: the home is an asset (real appreciation, equity in net worth and terminal wealth), sold for renting if the portfolio would run out, with a one-line rent-vs-own comparison; mortgage payments and balances shrink with inflation.
 - Unification pass: one chart lifecycle (standard padding, `trackHover`, HTML legends that wrap on phones), shared chart helpers (sample paths, year axis, adaptive log ticks, hover point, reference line, bar layout, labels), consistent color roles and "run-out risk" wording, one icon-button component, one compact-control size, and one table renderer.

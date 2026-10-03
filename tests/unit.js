@@ -93,6 +93,9 @@ async function main() {
   const frontier = first.dynamicPolicy.frontier;
   check(frontier.length > 1 && frontier.some((point) => point.isMinRisk), "frontier is computed with the run and includes the min-risk policy");
   check(frontier.every((point, index) => index === 0 || point.depletionRisk >= frontier[index - 1].depletionRisk), "frontier is sorted by risk");
+  check(frontier.every((point) => point.medianTerminalWealth >= 0 && !("policy" in point)), "frontier points carry a simulated median and no policy tables");
+  const minRiskPoint = frontier.find((point) => point.isMinRisk);
+  check(Math.abs(minRiskPoint.depletionRisk - first.risk) < 0.02, `simulated min-risk frontier point agrees with the run (${(minRiskPoint.depletionRisk * 100).toFixed(2)}% vs ${(first.risk * 100).toFixed(2)}%)`);
 
   const inspected = first.inspectionPaths[0];
   const replayed = Planner.getSimulationYearRows(first, inspected.simulation);

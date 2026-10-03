@@ -1,6 +1,8 @@
 window.Planner = window.Planner || {};
 Planner.MAX_VISUAL_PATHS = 200;
 Planner.REQUIRED_WEALTH_PATHS = 20000;
+// Frontier policies are simulated on the first this-many required-wealth paths.
+Planner.FRONTIER_PATHS = 10000;
 // Risk levels labeled on the How much you need chart; the metric card uses
 // REQUIRED_WEALTH_TARGET.
 Planner.REQUIRED_WEALTH_LABELS = [0.1, 0.05, 0.01, 0.001];

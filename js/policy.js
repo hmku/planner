@@ -265,7 +265,6 @@
     const frontier = [minRiskPoint];
     addFrontierPoint(frontier, maxWealthPoint);
     penaltyPolicies.forEach((policy) => addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, wealthBuckets, false)));
-    frontier.sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
 
     return {
       betaValues: Planner.DYNAMIC_BETA_VALUES,
@@ -294,7 +293,10 @@
       isMinRisk,
       depletionRisk: policy.valueByYear[0]?.[bucketIndex] ?? null,
       expectedTerminalWealth: policy.expectedWealthByYear[0]?.[bucketIndex] ?? null,
-      currentBeta: policy.policyByYear[0]?.[bucketIndex] ?? null
+      currentBeta: policy.policyByYear[0]?.[bucketIndex] ?? null,
+      // Solver estimates above; simulateScenario() replaces them with simulated
+      // values (and the median) and drops this.
+      policy: { wealthBuckets, policyByYear: policy.policyByYear, soldPolicyByYear: policy.soldPolicyByYear }
     };
   }
 

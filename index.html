@@ -331,7 +331,7 @@
             data-summary-text="Run a dynamic beta simulation to see the risk/wealth tradeoff."
           >
             <div class="canvas-wrap">
-              <canvas id="frontierCanvas" class="chart-medium" aria-label="Dynamic beta policy frontier showing expected terminal wealth versus run-out risk"></canvas>
+              <canvas id="frontierCanvas" class="chart-medium" aria-label="Dynamic beta policy frontier showing expected and median terminal wealth versus run-out risk"></canvas>
             </div>
           </section>
           <section
@@ -591,7 +591,7 @@
               </article>
               <article>
                 <h3>Frontier</h3>
-                <p>Each dynamic run also solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
+                <p>Each dynamic run also solves the policy with scenario-calibrated risk penalties. Every resulting policy is simulated from your net worth on the same 10,000 extra paths, and the chart plots its expected and median terminal wealth against its run-out risk. Expected wealth is pulled up by a few very good paths; the median is the typical outcome.</p>
               </article>
               <article>
                 <h3>How much you need</h3>

@@ -940,6 +940,9 @@
 
   // ---------- Overview: frontier ----------
 
+  // Expected and median terminal wealth against run-out risk for each policy,
+  // simulated on shared paths. Log wealth axis: the mean and the median of
+  // these skewed outcomes can be far apart.
   function renderFrontierChart(results, frame) {
     const { ctx, theme } = frame;
     const rows = results.dynamicPolicy?.frontier || [];
@@ -948,36 +951,49 @@
       return;
     }
 
+    const series = [
+      { key: "expected", label: "Expected", color: theme.seriesStrong, value: (row) => row.expectedTerminalWealth },
+      { key: "median", label: "Median", color: theme.series, value: (row) => row.medianTerminalWealth }
+    ];
+    const wealthValues = rows.flatMap((row) => series.map((line) => line.value(row))).filter((value) => value > 0);
+    const minWealth = wealthValues.length ? Math.min(...wealthValues) / 1.25 : 1;
+    const maxWealth = Math.max(minWealth * 10, ...wealthValues) * 1.25;
     const riskScale = paddedScale(rows.map((row) => row.depletionRisk), 0, 1, 0.08);
-    const wealthScale = paddedScale(rows.map((row) => row.expectedTerminalWealth), 0, Number.POSITIVE_INFINITY, 0.08);
     const xOf = linearScale(riskScale.min, riskScale.max, frame.left, frame.right);
-    const yOf = linearScale(wealthScale.min, wealthScale.max, frame.bottom, frame.top);
+    const yOf = logScale(minWealth, maxWealth, frame.bottom, frame.top);
 
-    drawAxisTitle(frame, "Expected terminal wealth");
-    drawYAxis(frame, Planner.niceTicks(wealthScale.min, wealthScale.max, 4), yOf, Planner.formatCompactCurrency);
+    drawAxisTitle(frame, "Terminal wealth");
+    drawYAxis(frame, logAxisTicks(minWealth, maxWealth, yOf, 22), yOf, Planner.formatCompactCurrency);
     const xTicks = spaceTicks(Planner.niceTicks(riskScale.min, riskScale.max, 5), xOf, 52);
     drawXAxis(frame, xTicks, xOf, Planner.formatPolicyRiskPercent);
     drawXAxisTitle(frame, "Run-out risk");
 
-    const items = rows.map((row) => ({ key: row.label, row, x: xOf(row.depletionRisk), y: yOf(row.expectedTerminalWealth) }));
+    const items = series.flatMap((line) => rows.map((row) => ({
+      key: `${line.key}:${row.label}`,
+      row,
+      line,
+      x: xOf(row.depletionRisk),
+      y: yOf(Math.max(minWealth, line.value(row)))
+    })));
     const hover = trackHover(frame, items);
-    const colorOf = (row) => (row.isMinRisk ? theme.highlight : theme.series);
+    const colorOf = (item) => (item.row.isMinRisk ? theme.highlight : item.line.color);
 
-    withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
-    items.forEach((item) => drawDot(frame, item.x, item.y, item.row.isMinRisk ? 5.5 : 4.5, colorOf(item.row)));
+    series.forEach((line) => withPlotClip(frame, () => strokePolyline(ctx, items.filter((item) => item.line === line), line.color, 2)));
+    items.forEach((item) => drawDot(frame, item.x, item.y, item.row.isMinRisk ? 5.5 : 4, colorOf(item)));
 
     drawLegend(frame, [
-      { label: "Min-risk policy (simulated)", color: theme.highlight, shape: "dot" },
-      { label: "Risk-penalty policies", color: theme.series, shape: "dot" }
+      ...series.map((line) => ({ label: line.label, color: line.color, shape: "line" })),
+      { label: "Min-risk policy (the one simulated)", color: theme.highlight, shape: "dot" }
     ]);
     if (hover) {
       const { row } = hover.item;
       drawHoverPoint(frame, hover.item, {
-        color: colorOf(row),
+        color: colorOf(hover.item),
         title: row.label,
         lines: [
           `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
           `Expected terminal wealth: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,
+          `Median terminal wealth: ${Planner.formatCurrency(row.medianTerminalWealth)}`,
           `Current beta: ${Planner.formatBeta(row.currentBeta)}`
         ]
       });
