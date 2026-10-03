@@ -95,10 +95,10 @@
   }
 
 
-  function cashFlowForYear(flows, year) {
+  function cashFlowForYear(flows, year, skipHomeCosts = false) {
     return flows.reduce((sum, flow) => {
-      if (year < flow.startYear || year > flow.endYear) return sum;
-      return sum + flow.amount;
+      if (year < flow.startYear || year > flow.endYear || (skipHomeCosts && flow.homeCost)) return sum;
+      return sum + Planner.flowAmountForYear(flow, year);
     }, 0);
   }
 
@@ -106,10 +106,11 @@
   // Spending that income doesn't cover comes from the portfolio, and selling
   // to fund it costs tax: covering a shortfall S at rate t takes S / (1 - t)
   // of withdrawals. Every engine path (simulation, policy, replay, required
-  // net worth, policy explorer) gets its cash flows from here.
-  function cashFlowsForYear(scenario, year) {
+  // net worth, policy explorer) gets its cash flows from here. After a home
+  // sale, its ownership costs stop and rent at its rent-equivalent starts.
+  function cashFlowsForYear(scenario, year, { homeSold = false, rent = 0 } = {}) {
     const income = cashFlowForYear(scenario.income, year);
-    const expenses = cashFlowForYear(scenario.expenses, year);
+    const expenses = cashFlowForYear(scenario.expenses, year, homeSold) + rent;
     const rate = scenario.withdrawalTaxRate || 0;
     const withdrawalTax = rate > 0 ? Math.max(0, expenses - income) * rate / (1 - rate) : 0;
     return { income, expenses, withdrawalTax, net: income - expenses - withdrawalTax };
@@ -118,6 +119,60 @@
 
   function netCashFlowsByYear(scenario, years) {
     return years.map((year) => cashFlowsForYear(scenario, year));
+  }
+
+
+  // Cash flows for simulated paths, which may sell an owned home: the flows
+  // as entered (owned), the flows after a sale (home costs stop, rent at the
+  // home's rent-equivalent starts), what a sale would raise (value less
+  // selling costs and mortgage), and the home equity counted in net worth.
+  function buildPathCashFlows(scenario, years) {
+    const owned = netCashFlowsByYear(scenario, years);
+    const home = scenario.home;
+    const netOf = (flows) => Float64Array.from(flows, (flow) => flow.net);
+    if (!home) {
+      const none = new Float64Array(years.length);
+      const ownedNet = netOf(owned);
+      return { owned, sold: owned, ownedNet, soldNet: ownedNet, saleProceeds: none, equity: none };
+    }
+    const sold = years.map((year, index) => cashFlowsForYear(scenario, year, { homeSold: true, rent: home.values[index] * home.rentYield }));
+    return {
+      owned,
+      sold,
+      ownedNet: netOf(owned),
+      soldNet: netOf(sold),
+      saleProceeds: Float64Array.from(years, (_, index) => Math.max(0, home.values[index] * (1 - home.sellingCost) - home.balances[index])),
+      equity: Float64Array.from(years, (_, index) => Math.max(0, home.values[index] - home.balances[index]))
+    };
+  }
+
+
+  // One year of one path; state is { wealth, sold }. If the portfolio would run
+  // out and the home is still owned, the home is sold at the start of the year
+  // (once) and the year is replayed on the sold cash flows. Returns the ending
+  // portfolio (<= 0 means depleted) and sets state.soldThisYear. Every engine
+  // path that follows simulated years (run, replay, required net worth) uses it.
+  function stepPathYear(cash, state, yearIndex, growth, cashFactor) {
+    const net = state.sold ? cash.soldNet : cash.ownedNet;
+    let ending = state.wealth * growth + net[yearIndex] * cashFactor;
+    state.soldThisYear = false;
+    if (ending <= 0 && !state.sold && cash.saleProceeds[yearIndex] > 0) {
+      state.wealth += cash.saleProceeds[yearIndex];
+      state.sold = true;
+      state.soldThisYear = true;
+      ending = state.wealth * growth + cash.soldNet[yearIndex] * cashFactor;
+    }
+    return ending;
+  }
+
+
+  function createGrowthFactorCache(returnRows) {
+    const logGrowthFor = createLogGrowthLookup(returnRows);
+    const factorsByBeta = new Map();
+    return (beta) => {
+      if (!factorsByBeta.has(beta)) factorsByBeta.set(beta, createGrowthFactors(logGrowthFor(beta)));
+      return factorsByBeta.get(beta);
+    };
   }
 
 
@@ -141,8 +196,8 @@
       ? await buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel)
       : null;
     const policyShare = isDynamicBeta ? Planner.DYNAMIC_POLICY_PROGRESS_SHARE : 0;
-    const cashFlows = netCashFlowsByYear(scenario, years);
-    const logGrowthFor = createLogGrowthLookup(returnRows);
+    const cash = buildPathCashFlows(scenario, years);
+    const factorsFor = createGrowthFactorCache(returnRows);
     const realSpxReturns = returnRows.map((row) => buildReturnMetrics(row, 0).realSpxReturn);
 
     // Only the sampled historical row index per simulation-year is stored; every
@@ -166,34 +221,38 @@
       throwIfCanceled(shouldCancel);
 
       const offset = i * yearCount;
-      let wealth = scenario.netWorth;
+      const state = { wealth: scenario.netWorth, sold: false, soldThisYear: false };
       let failureYear = null;
       let sampledCount = 0;
       let realSpxReturnSum = 0;
+      let netWorth = state.wealth;
 
       for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
         let beta = null;
-        if (wealth > 0) {
+        if (state.wealth > 0) {
           const rowIndex = Planner.randomIndex(returnRows.length, random);
-          beta = betaForYear(scenario, dynamicPolicy, yearIndex, wealth);
-          const endingWealth = advanceWealth(wealth, cashFlows[yearIndex].net, logGrowthFor(beta)[rowIndex]);
+          beta = betaForYear(scenario, dynamicPolicy, yearIndex, state.wealth);
+          const { growth, cashFactor } = factorsFor(beta);
+          const endingWealth = stepPathYear(cash, state, yearIndex, growth[rowIndex], cashFactor[rowIndex]);
           sampledRowIndexes[offset + yearIndex] = rowIndex;
           sampledCount += 1;
           realSpxReturnSum += realSpxReturns[rowIndex];
-          wealth = Math.max(0, endingWealth);
+          state.wealth = Math.max(0, endingWealth);
           if (endingWealth <= 0) failureYear = years[yearIndex];
           betaSums[yearIndex] += beta;
           betaCounts[yearIndex] += 1;
         }
-        wealthSums[yearIndex] += wealth;
-        pathWealth[yearIndex] = wealth;
+        // Net worth counts home equity while the home is owned.
+        netWorth = state.wealth + (state.sold ? 0 : cash.equity[yearIndex]);
+        wealthSums[yearIndex] += netWorth;
+        pathWealth[yearIndex] = netWorth;
         pathBeta[yearIndex] = beta;
       }
 
       const summary = {
         simulation: i + 1,
         failureYear,
-        terminalWealth: wealth,
+        terminalWealth: netWorth,
         averageRealSpxReturn: sampledCount ? realSpxReturnSum / sampledCount : null
       };
       simulationRows[i] = summary;
@@ -248,21 +307,25 @@
     if (!Number.isInteger(simulation) || simulation < 1 || simulation > scenario.simulationCount) return [];
 
     const offset = (simulation - 1) * years.length;
-    const cashFlows = netCashFlowsByYear(scenario, years);
+    const cash = buildPathCashFlows(scenario, years);
+    const factorsFor = createGrowthFactorCache(returnRows);
     const rows = [];
-    let wealth = scenario.netWorth;
+    const state = { wealth: scenario.netWorth, sold: false, soldThisYear: false };
     let failureYear = null;
 
     years.forEach((year, yearIndex) => {
-      if (wealth <= 0) {
+      if (state.wealth <= 0) {
         rows.push(createEmptySimulationYearRow(simulation, year, failureYear));
         return;
       }
-      const row = returnRows[sampledRowIndexes[offset + yearIndex]];
-      const spxBetaUsed = betaForYear(scenario, dynamicPolicy, yearIndex, wealth);
+      const rowIndex = sampledRowIndexes[offset + yearIndex];
+      const row = returnRows[rowIndex];
+      const startingWealth = state.wealth;
+      const spxBetaUsed = betaForYear(scenario, dynamicPolicy, yearIndex, startingWealth);
       const metrics = buildReturnMetrics(row, spxBetaUsed);
-      const { income, expenses, withdrawalTax, net } = cashFlows[yearIndex];
-      const endingWealth = advanceWealth(wealth, net, Math.log(metrics.realGrowthFactor));
+      const { growth, cashFactor } = factorsFor(spxBetaUsed);
+      const endingWealth = stepPathYear(cash, state, yearIndex, growth[rowIndex], cashFactor[rowIndex]);
+      const { income, expenses, withdrawalTax, net } = (state.sold ? cash.sold : cash.owned)[yearIndex];
       const depleted = endingWealth <= 0;
       if (depleted) failureYear = year;
 
@@ -270,7 +333,8 @@
         simulation,
         year,
         historicalReturnYear: row.year,
-        startingWealth: wealth,
+        startingWealth,
+        homeSaleProceeds: state.soldThisYear ? cash.saleProceeds[yearIndex] : 0,
         income,
         expenses,
         withdrawalTax,
@@ -285,10 +349,12 @@
         realRiskFreeReturn: metrics.realRiskFreeReturn,
         portfolioRealReturn: metrics.realGrowthFactor - 1,
         endingWealth: Math.max(0, endingWealth),
+        homeEquity: state.sold ? 0 : cash.equity[yearIndex],
+        homeSoldThisYear: state.soldThisYear,
         depletedThisYear: depleted,
         depletionYear: depleted ? year : ""
       });
-      wealth = Math.max(0, endingWealth);
+      state.wealth = Math.max(0, endingWealth);
     });
     return rows;
   }
@@ -300,6 +366,7 @@
       year,
       historicalReturnYear: "",
       startingWealth: 0,
+      homeSaleProceeds: 0,
       income: 0,
       expenses: 0,
       withdrawalTax: 0,
@@ -314,6 +381,8 @@
       realRiskFreeReturn: "",
       portfolioRealReturn: "",
       endingWealth: 0,
+      homeEquity: 0,
+      homeSoldThisYear: false,
       depletedThisYear: false,
       depletionYear: failureYear || ""
     };
@@ -401,24 +470,21 @@
     const sampledRows = new Uint8Array(pathCount * yearCount);
     for (let index = 0; index < sampledRows.length; index += 1) sampledRows[index] = Planner.randomIndex(rowCount, random);
 
-    const cashFlows = netCashFlowsByYear(scenario, years).map((flow) => flow.net);
-    const logGrowthFor = createLogGrowthLookup(returnRows);
-    const factorsByBeta = new Map();
-    const factorsFor = (beta) => {
-      if (!factorsByBeta.has(beta)) factorsByBeta.set(beta, createGrowthFactors(logGrowthFor(beta)));
-      return factorsByBeta.get(beta);
-    };
+    const cash = buildPathCashFlows(scenario, years);
+    const factorsFor = createGrowthFactorCache(returnRows);
     const fixedFactors = dynamicPolicy ? null : factorsFor(scenario.spxBeta);
     const topWealth = Planner.DYNAMIC_MAX_WEALTH_BUCKET;
+    const state = { wealth: 0, sold: false, soldThisYear: false };
 
     const survives = (path, startingWealth) => {
-      let wealth = startingWealth;
+      state.wealth = startingWealth;
+      state.sold = false;
       const offset = path * yearCount;
       for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
-        const { growth, cashFactor } = fixedFactors || factorsFor(selectDynamicBeta(dynamicPolicy, yearIndex, wealth));
+        const { growth, cashFactor } = fixedFactors || factorsFor(selectDynamicBeta(dynamicPolicy, yearIndex, state.wealth));
         const row = sampledRows[offset + yearIndex];
-        wealth = wealth * growth[row] + cashFlows[yearIndex] * cashFactor[row];
-        if (wealth <= 0) return false;
+        state.wealth = stepPathYear(cash, state, yearIndex, growth[row], cashFactor[row]);
+        if (state.wealth <= 0) return false;
       }
       return true;
     };

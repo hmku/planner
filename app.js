@@ -300,7 +300,9 @@
     const lifestyleExpenses = Planner.lifestyleItemsToFlows(Planner.getLifestyleItems(years.currentYear, years.deathYear));
     return {
       income: readFlowRows(Planner.els.incomeRows, years),
-      expenses: [...lifestyleExpenses, ...manualExpenses]
+      expenses: [...lifestyleExpenses, ...manualExpenses],
+      // An owned home counts as an asset and can be sold if the portfolio runs low.
+      home: Planner.buildHomeModel(Planner.state.lifestyle, years.currentYear, years.deathYear)
     };
   }
 

@@ -79,6 +79,14 @@
   }
 
 
+  // A cash flow's amount in a given year, in today's dollars. Fixed-dollar
+  // payments (a mortgage) carry deflateRate and shrink with inflation from
+  // deflateFrom; everything else is flat in today's dollars.
+  function flowAmountForYear(flow, year) {
+    return flow.deflateRate ? flow.amount / (1 + flow.deflateRate) ** (year - flow.deflateFrom) : flow.amount;
+  }
+
+
   function validatePlanYear(year, label) {
     if (!Number.isInteger(year) || year < Planner.MIN_PLAN_YEAR || year > Planner.MAX_PLAN_YEAR) {
       throw new Error(`${label} must be a whole year between ${Planner.MIN_PLAN_YEAR} and ${Planner.MAX_PLAN_YEAR}.`);
@@ -227,6 +235,7 @@
   }
 
   Object.assign(Planner, {
+    flowAmountForYear,
     downloadCsvFile,
     populateSelect,
     renderTableBody,

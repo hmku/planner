@@ -110,6 +110,7 @@ async function main() {
     await page.click('[data-ls-section="housing"] summary');
     await page.selectOption('[data-ls="housing.mode"]', "buyMortgage");
     check(await page.locator('[data-item-key="housing.mortgage"]').count() === 1, "buying with a mortgage adds a mortgage line");
+    check(/Owning this .* home costs about .*renting a similar home is about/.test(await text(page, "#homeComparison")) && await page.isVisible('[data-ls="housing.appreciationPct"]'), "owning shows appreciation and a rent-vs-own comparison");
     await page.click('[data-ls-section="everyday"] summary');
     const groceries = page.locator('[data-item-key="everyday.groceries"] .ls-item-amount');
     await groceries.fill("30000");
@@ -131,7 +132,7 @@ async function main() {
     const options = await page.$$eval("#simulationSelect option", (items) => items.map((item) => item.value));
     await page.selectOption("#simulationSelect", options[Math.min(3, options.length - 1)]);
     check(await page.locator("#simulationPathTable tr").count() === 61, "Simulation table shows one row per plan year");
-    check(await page.locator("#simulationPathTable tr:first-child td").count() === 16, "Simulation table includes the withdrawal tax column");
+    check(await page.locator("#simulationPathTable tr:first-child td").count() === 17, "Simulation table includes the withdrawal tax and home equity columns");
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#downloadCsv")]);
     const csvLines = fs.readFileSync(await download.path(), "utf8").trim().split("\n").length;
     check(csvLines === options.length * 61 + 1, "CSV has a row per sampled path per year", `${csvLines} lines`);

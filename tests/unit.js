@@ -99,6 +99,30 @@ async function main() {
   const lastRow = replayed[replayed.length - 1];
   check(Math.abs(lastRow.endingWealth - inspected.terminalWealth) < 1e-6, "row replay matches the simulated terminal wealth");
 
+  console.log("Owned home");
+  const owner = Planner.defaultLifestyle(currentYear);
+  owner.housing = { ...owner.housing, mode: "buyCash", homePrice: 3000000, purchaseYear: currentYear, appreciationPct: 1 };
+  const home = Planner.buildHomeModel(owner, currentYear, deathYear);
+  check(Math.abs(home.values[10] - 3000000 * 1.01 ** 10) < 1e-6 && home.balances.every((balance) => balance === 0), "cash purchase: value appreciates, no mortgage");
+  const mortgaged = { ...owner, housing: { ...owner.housing, mode: "buyMortgage", downPaymentPct: 20, mortgageRate: 6.5, mortgageYears: 30 } };
+  const mortgageHome = Planner.buildHomeModel(mortgaged, currentYear, deathYear);
+  check(Math.abs(mortgageHome.balances[0] - 2400000) < 1 && mortgageHome.balances[29] > 0 && mortgageHome.balances[30] === 0, "mortgage balance starts at the loan and is paid off after the term");
+  const ownerFlows = Planner.lifestyleItemsToFlows(Planner.buildLifestyleItems(owner, currentYear, deathYear));
+  check(ownerFlows.some((flow) => flow.homeCost && /tax, insurance/.test(flow.name)), "ownership costs are tagged so a sale can stop them");
+  const ownerScenario = { ...scenario, netWorth: 6000000, income: [], expenses: ownerFlows, withdrawalTaxRate: 0.15 };
+  const withHome = await Planner.simulateScenario({ ...ownerScenario, home }, returnRows, Planner.createSeededRandom(9));
+  const withoutHome = await Planner.simulateScenario({ ...ownerScenario, home: null }, returnRows, Planner.createSeededRandom(9));
+  check(withHome.risk < withoutHome.risk, `selling the home when needed lowers run-out risk (${(withoutHome.risk * 100).toFixed(2)}% → ${(withHome.risk * 100).toFixed(2)}%)`);
+  check(withHome.expectedTerminalWealth > withoutHome.expectedTerminalWealth, "home equity counts toward terminal wealth");
+  const soldPath = withHome.inspectionPaths.find((path) => Planner.getSimulationYearRows(withHome, path.simulation).some((row) => row.homeSoldThisYear));
+  check(Boolean(soldPath), "some inspected paths sell the home");
+  const anyPath = withHome.inspectionPaths[withHome.inspectionPaths.length - 1];
+  const anyRows = Planner.getSimulationYearRows(withHome, anyPath.simulation);
+  const lastAny = anyRows[anyRows.length - 1];
+  check(Math.abs(lastAny.endingWealth + lastAny.homeEquity - anyPath.terminalWealth) < 1e-6, "row replay matches the run with a home (portfolio + equity)");
+  const comparison = Planner.homeOwnershipComparison(owner);
+  check(Math.abs(comparison.owning - 3000000 * (0.025 + 0.05 - 0.01)) < 1 && comparison.renting === 120000, "rent-vs-own comparison");
+
   console.log("Withdrawal tax");
   const taxed = { ...scenario, withdrawalTaxRate: 0.15 };
   const earlyYear = Planner.cashFlowsForYear(taxed, 2030);

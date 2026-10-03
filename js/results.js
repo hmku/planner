@@ -150,7 +150,8 @@
 
 
   function describeRowStatus(row) {
-    if (row.depletedThisYear) return "Depleted";
+    if (row.depletedThisYear) return row.homeSoldThisYear ? "Sold home, depleted" : "Depleted";
+    if (row.homeSoldThisYear) return `Sold home (+${Planner.formatCompactCurrency(row.homeSaleProceeds)})`;
     return row.depletionYear ? `After depletion (${row.depletionYear})` : "Active";
   }
 
@@ -170,6 +171,7 @@
     { render: (row) => Planner.formatPercent(row.nominalPortfolioReturn) },
     { render: (row) => Planner.formatPercent(row.portfolioRealReturn) },
     { render: (row) => Planner.formatCurrency(row.endingWealth) },
+    { render: (row) => Planner.formatCurrency(row.homeEquity) },
     {
       render: describeRowStatus,
       className: (row) => row.depletedThisYear ? "text status-depleted" : row.depletionYear ? "text status-after" : "text"
@@ -479,6 +481,8 @@
       "real_risk_free_return",
       "portfolio_real_return",
       "ending_wealth_current_dollars",
+      "home_equity_current_dollars",
+      "home_sale_proceeds_current_dollars",
       "depleted_this_year",
       "depletion_year",
       "terminal_wealth_current_dollars",
@@ -508,6 +512,8 @@
             row.realRiskFreeReturn,
             row.portfolioRealReturn,
             row.endingWealth,
+            row.homeEquity,
+            row.homeSaleProceeds,
             row.depletedThisYear ? "yes" : "no",
             row.depletionYear,
             summary.terminalWealth,
@@ -581,12 +587,13 @@
     const recurringTotals = new Float64Array(years.length);
     const income = new Float64Array(years.length);
     spread(inputs.expenses, (flow, index) => {
-      (byKey.get(flow.category) || byKey.get("other")).values[index] += flow.amount;
-      totals[index] += flow.amount;
-      if (!flow.oneTime) recurringTotals[index] += flow.amount;
+      const amount = Planner.flowAmountForYear(flow, first + index);
+      (byKey.get(flow.category) || byKey.get("other")).values[index] += amount;
+      totals[index] += amount;
+      if (!flow.oneTime) recurringTotals[index] += amount;
     });
     spread(inputs.income, (flow, index) => {
-      income[index] += flow.amount;
+      income[index] += Planner.flowAmountForYear(flow, first + index);
     });
     // Tax on portfolio withdrawals, same rule as the engine.
     const rate = inputs.withdrawalTaxRate;

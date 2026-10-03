@@ -7,13 +7,13 @@ when they ship.
 ## Open
 
 ### Modeling
+- Home: let the beta policy account for the sell-and-rent fallback (it currently assumes the home is kept); optionally expose selling costs and rent yield as inputs.
 - Flexible versus crucial expenditures (tag lifestyle lines and manual rows).
 - Spending guardrails: when projected wealth runs low, cut flexible spending and keep crucial spending.
 - Leverage cost: betas above 1 (the dynamic grid goes to 1.5) are financed at the T-bill rate, which is optimistic; add a borrowing spread.
 - Borrow-instead-of-sell mode (securities-backed line of credit): loan balance at T-bill + spread, LTV cap with forced selling, step-up in basis at death.
 - Richer tax modeling: gain share rising over time, brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
-- Mortgage payments are held flat in today's dollars; deflate them by an inflation assumption instead.
 - Income presets: salary until a quit year, then a founder salary or other runway scenarios.
 
 ### Lifestyle builder
@@ -28,6 +28,7 @@ when they ship.
 
 ## Done
 
+- Owning a home: the home is an asset (real appreciation, equity in net worth and terminal wealth), sold for renting if the portfolio would run out, with a one-line rent-vs-own comparison; mortgage payments and balances shrink with inflation.
 - Unification pass: one chart lifecycle (standard padding, `trackHover`, HTML legends that wrap on phones), shared chart helpers (sample paths, year axis, adaptive log ticks, hover point, reference line, bar layout, labels), consistent color roles and "run-out risk" wording, one icon-button component, one compact-control size, and one table renderer.
 - How much you need chart: dots without labels (hover or tap for details) and finer ticks on zoomed axes.
 - Tax on withdrawals: editable plan setting (default 15%) that grosses up spending income doesn't cover; shown in the Spending view, Simulation table, and CSV.

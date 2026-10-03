@@ -101,7 +101,7 @@
   }
 
   function totalForYear(items, year) {
-    return items.reduce((sum, item) => (item.startYear <= year && year <= item.endYear ? sum + item.amount : sum), 0);
+    return items.reduce((sum, item) => (item.startYear <= year && year <= item.endYear ? sum + Planner.flowAmountForYear(item, year) : sum), 0);
   }
 
   function peakOf(items, years) {
@@ -200,6 +200,23 @@
     window.scrollTo({ top: Math.max(0, rectTop + window.scrollY - topBarHeight - 12), behavior: "smooth" });
   }
 
+  // One line under Housing comparing the all-in yearly cost of owning with
+  // renting a similar home.
+  function updateHomeComparison() {
+    const comparison = Planner.homeOwnershipComparison(Planner.state.lifestyle);
+    const element = document.getElementById("homeComparison");
+    if (!comparison) {
+      element.textContent = "";
+      return;
+    }
+    const money = Planner.formatCompactCurrency;
+    const { owning, renting, price } = comparison;
+    const verdict = owning > renting * 1.05
+      ? `about ${money(owning - renting)}/yr more than renting`
+      : owning < renting * 0.95 ? `about ${money(renting - owning)}/yr less than renting` : "about the same as renting";
+    element.textContent = `Owning this ${money(price)} home costs about ${money(owning)}/yr all-in (upkeep, tax, and the return the money would earn invested, less appreciation); renting a similar home is about ${money(renting)}/yr. Owning is ${verdict}.`;
+  }
+
   // ---------- Assumptions tables (Methodology tab) ----------
 
   // Built from the same constants the generator prices with, so the tables
@@ -262,10 +279,16 @@
       },
       {
         title: "Housing",
-        note: "Rent is whatever you enter. Mortgage payments are monthly amortization held flat in today's dollars.",
+        note: "Rent is whatever you enter. An owned home is an asset: its value grows at the appreciation rate and counts toward net worth; if the portfolio would run out, it is sold and rent at its rent-equivalent replaces its costs. Mortgage payments are fixed in dollars, so they (and the balance) shrink in today's dollars with inflation.",
         headers: ["Rule", "Value"],
         rows: [
           ["Closing costs on a purchase (one time)", `${prices.closingCostShare * 100}% of price`],
+          ["Home appreciation, after inflation (default, editable)", `${Planner.defaultLifestyle(0).housing.appreciationPct}% per year`],
+          ["Selling costs if sold", `${prices.homeSellingCostShare * 100}% of value`],
+          ["Rent for a similar home after selling", `${prices.homeRentYield * 100}% of value per year`],
+          ["Return the money would earn invested (for the rent-vs-own comparison)", `${prices.opportunityRealReturn * 100}% per year, real`],
+          ["Existing mortgage balance (Already own)", `remaining payments valued at ${prices.existingMortgageRatePct}%`],
+          ["Inflation that shrinks mortgage payments and balance", `${prices.mortgageInflation * 100}% per year`],
           ["Property tax, insurance, upkeep (default, editable)", `${Planner.defaultLifestyle(0).housing.carryingPct}% of value per year`],
           ["Mortgage defaults (editable)", `${Planner.defaultLifestyle(0).housing.downPaymentPct}% down, ${Planner.defaultLifestyle(0).housing.mortgageRate}%, ${Planner.defaultLifestyle(0).housing.mortgageYears} years`]
         ]
@@ -353,6 +376,7 @@
     updateConditionalFields();
     if (!keepItemRows) renderItems();
     updateSummaries(years);
+    updateHomeComparison();
     renderLifestyleAssumptions();
     Planner.renderSpendingView();
   }

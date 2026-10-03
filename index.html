@@ -175,8 +175,14 @@
                     <span>Paid off in</span>
                     <input data-ls="housing.mortgageEndYear" type="number" min="1900" max="2200" step="1">
                   </label>
+                  <label class="field" data-ls-show="housing.mode=buyCash,buyMortgage,own">
+                    <span>Appreciation (real)</span>
+                    <span class="input-suffix"><input data-ls="housing.appreciationPct" type="number" min="-10" max="20" step="0.1"><em>%/yr</em></span>
+                  </label>
                 </div>
-                <p class="ls-hint">Rent is too personal to preset, so enter yours. Mortgage payments are held flat in today&apos;s dollars, which is conservative.</p>
+                <p id="homeComparison" class="ls-hint" data-ls-show="housing.mode=buyCash,buyMortgage,own"></p>
+                <p class="ls-hint" data-ls-show="housing.mode=rent,buyCash,buyMortgage">Rent is too personal to preset, so enter yours.</p>
+                <p class="ls-hint" data-ls-show="housing.mode=buyCash,buyMortgage,own">Counts toward net worth (leave it out of Current net worth); sold for renting if the portfolio would run out.</p>
                 <div class="ls-items" data-ls-items="housing"></div>
               </details>
 
@@ -433,11 +439,12 @@
                     <th>Portfolio nominal</th>
                     <th>Portfolio real</th>
                     <th>End wealth</th>
+                    <th>Home equity</th>
                     <th class="text">Status</th>
                   </tr>
                 </thead>
                 <tbody id="simulationPathTable">
-                  <tr><td class="empty" colspan="16">No results yet.</td></tr>
+                  <tr><td class="empty" colspan="17">No results yet.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -589,6 +596,10 @@
               <article>
                 <h3>How much you need</h3>
                 <p>After each run, 20,000 extra paths of historical years are drawn. For each one, a bisection finds the least starting net worth that survives it under the same policy and cash flows. The share of paths whose threshold is above an amount is the run-out risk at that amount, so the needed net worth for a target risk is a percentile of the thresholds.</p>
+              </article>
+              <article>
+                <h3>Home</h3>
+                <p>An owned home is an asset: its value grows at the plan&apos;s real appreciation rate and its equity (value less mortgage) counts toward net worth and terminal wealth. If a path&apos;s portfolio would run out, the home is sold that year for its value less 6% selling costs and the mortgage, its costs stop, and rent at 4% of its value starts. Run-out risk means running out even after selling. The beta policy itself assumes the home is kept. Mortgage payments and balances shrink with an assumed 2.5% inflation.</p>
               </article>
               <article>
                 <h3>Taxes</h3>
