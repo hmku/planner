@@ -11,7 +11,7 @@ when they ship.
 - Spending guardrails: when projected wealth runs low, cut flexible spending and keep crucial spending.
 - Leverage cost: betas above 1 (the dynamic grid goes to 1.5) are financed at the T-bill rate, which is optimistic; add a borrowing spread.
 - Borrow-instead-of-sell mode (securities-backed line of credit): loan balance at T-bill + spread, LTV cap with forced selling, step-up in basis at death.
-- Taxes: gross up portfolio withdrawals (California taxes long-term gains as ordinary income; ~18% effective was a reasonable planning assumption), then richer account modeling (taxable, tax-deferred, Roth).
+- Richer tax modeling: gain share rising over time, brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
 - Mortgage payments are held flat in today's dollars; deflate them by an inflation assumption instead.
 - Income presets: salary until a quit year, then a founder salary or other runway scenarios.
@@ -28,6 +28,8 @@ when they ship.
 
 ## Done
 
+- Tax on withdrawals: editable plan setting (default 15%) that grosses up spending income doesn't cover; shown in the Spending view, Simulation table, and CSV.
+- How much you need is the third Overview pane, labels the net worth needed for 10%, 5%, 1%, and 0.1% risk on a zoomed log-risk chart (no dropdown), and uses 20,000 paths; the metric card shows the 1% amount.
 - How much you need: needed starting net worth for a 1%–20% run-out risk (metric card and Overview chart), from per-path survival thresholds.
 - Runs execute in a Web Worker; dynamic-beta solver about 1.6x faster with identical results (precomputed growth factors, pooled bucket weights). A 50,000-simulation run went from 4.7s to 1.8s in the test browser.
 - Automated tests: `tests/unit.js` (Node) and `tests/smoke.js` (headless browser, includes offline and phone checks).

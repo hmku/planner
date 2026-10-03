@@ -44,6 +44,7 @@
   --chart-cat-5: #e87ba4;
   --chart-cat-6: #008300;
   --chart-cat-7: #4a3aa7;
+  --chart-cat-8: #e34948;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -91,6 +92,7 @@
     --chart-cat-5: #d55181;
     --chart-cat-6: #008300;
     --chart-cat-7: #9085e9;
+    --chart-cat-8: #e66767;
   }
 }
 

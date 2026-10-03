@@ -17,7 +17,7 @@
   const ELEMENT_IDS = [
     "plannerForm", "runSimulation", "runProgress", "runProgressBar", "runStatus", "sharePlan", "savePlan",
     "planName", "savedPlanSelect", "deletePlan",
-    "currentYear", "deathYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount",
+    "currentYear", "deathYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount", "withdrawalTax",
     "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate", "expenseHeading",
     "lifestyleBody", "lifestyleTotal", "kidRows", "addKid", "lifestyleAssumptions", "lifestyleAssumptionsSummary",
     "lifestyleAssumptionsSection",
@@ -25,7 +25,7 @@
     "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
     "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote",
     "requiredWealthMetricLabel", "requiredWealthMetric", "requiredWealthMetricNote",
-    "requiredWealthSummary", "requiredTargetSelect", "requiredWealthCanvas",
+    "requiredWealthSummary", "requiredWealthCanvas",
     "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary",
     "netWorthZoom", "netWorthZoomLabel", "showDepleted",
     "distributionCanvas", "pathsCanvas", "betaCanvas", "frontierCanvas", "selectedSimulationCanvas",
@@ -54,15 +54,11 @@
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = Planner.DEFAULT_SPX_BETA;
     Planner.els.simulationCount.value = 10000;
+    Planner.els.withdrawalTax.value = Planner.DEFAULT_WITHDRAWAL_TAX_PCT;
 
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
     Planner.DEFAULT_EXPENSES.forEach((flow) => addFlowRow(Planner.els.expenseRows, flow));
     Planner.state.lifestyle = Planner.defaultLifestyle(currentYear);
-    Planner.populateSelect(Planner.els.requiredTargetSelect, Planner.REQUIRED_WEALTH_TARGETS, {
-      getValue: (target) => target,
-      getLabel: (target) => `${Planner.formatPercent(target)} run-out risk`
-    });
-    Planner.els.requiredTargetSelect.value = String(Planner.DEFAULT_REQUIRED_WEALTH_TARGET);
     Planner.bindFormattedInputs(document);
     Planner.formatAllFormattedInputs(document);
     updateBetaModeControls();
@@ -106,11 +102,6 @@
       Planner.updateNetWorthZoomLabel();
       Planner.renderChart("netWorth");
     });
-    els.requiredTargetSelect.addEventListener("change", rerender((results) => {
-      Planner.clearHover();
-      Planner.updateRequiredWealth(results);
-      Planner.renderChart("requiredWealth");
-    }));
     els.showDepleted.addEventListener("change", rerender((results) => {
       Planner.updateScenarioSummary(results);
       Planner.renderChart("distribution");
@@ -313,6 +304,14 @@
     };
   }
 
+  function readWithdrawalTaxRate() {
+    const percent = Planner.numberFromInput(Planner.els.withdrawalTax);
+    if (!Number.isFinite(percent) || percent < 0 || percent > Planner.MAX_WITHDRAWAL_TAX_PCT) {
+      throw new Error(`Enter a tax on withdrawals between 0% and ${Planner.MAX_WITHDRAWAL_TAX_PCT}%.`);
+    }
+    return percent / 100;
+  }
+
   // Cash flows for the Spending view, which needs only valid plan years.
   function readCashFlowInputs() {
     const years = {
@@ -325,7 +324,7 @@
     if (years.deathYear - years.currentYear + 1 > Planner.MAX_PLAN_LENGTH_YEARS) {
       throw new Error(`Plan length cannot exceed ${Planner.MAX_PLAN_LENGTH_YEARS} years.`);
     }
-    return { ...years, ...readCashFlows(years) };
+    return { ...years, ...readCashFlows(years), withdrawalTaxRate: readWithdrawalTaxRate() };
   }
 
   function readScenario() {
@@ -336,7 +335,8 @@
       netWorth: Planner.numberFromInput(els.netWorth),
       betaMode: Planner.normalizeBetaMode(els.betaMode.value),
       spxBeta: Planner.numberFromInput(els.spxBeta),
-      simulationCount: Planner.numberFromInput(els.simulationCount)
+      simulationCount: Planner.numberFromInput(els.simulationCount),
+      withdrawalTaxRate: readWithdrawalTaxRate()
     };
 
     Planner.validatePlanYear(scenario.currentYear, "Current year");

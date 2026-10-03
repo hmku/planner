@@ -33,17 +33,11 @@
   }
 
 
-  function getRequiredTarget() {
-    const value = Number(Planner.els.requiredTargetSelect.value);
-    return Number.isFinite(value) && value > 0 ? value : Planner.DEFAULT_REQUIRED_WEALTH_TARGET;
-  }
-
-
   // The "Needed for X% risk" metric and the How much you need summary.
   function updateRequiredWealth(results) {
     const { els } = Planner;
     const { scenario, requiredWealth } = results;
-    const target = getRequiredTarget();
+    const target = Planner.REQUIRED_WEALTH_TARGET;
     const targetLabel = Planner.formatPercent(target);
     const needed = Planner.requiredWealthForRisk(requiredWealth, target);
     const policyText = hasDynamicPolicy(results)
@@ -55,7 +49,7 @@
       els.requiredWealthMetric.textContent = "Out of reach";
       els.requiredWealthMetric.title = "";
       els.requiredWealthMetricNote.textContent = `No starting amount up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_MAX_WEALTH_BUCKET)} gets below ${targetLabel}`;
-      els.requiredWealthSummary.textContent = `With ${policyText}, more than ${Planner.formatPercent(target)} of simulated paths run out at any starting net worth the model covers.`;
+      els.requiredWealthSummary.textContent = describeRequiredWealthLadder(results, policyText);
       return;
     }
     const gap = scenario.netWorth - needed;
@@ -66,10 +60,22 @@
       : gap >= 0
         ? `${Planner.formatCompactCurrency(gap)} less than you have`
         : `${Planner.formatCompactCurrency(-gap)} more than you have`;
-    els.requiredWealthSummary.textContent =
-      `With ${policyText}, starting with ${Planner.formatCompactCurrency(needed)} gives a ${targetLabel} run-out risk. ` +
-      `Estimated from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths, where your ${Planner.formatCompactCurrency(scenario.netWorth)} has a ` +
-      `${Planner.formatPolicyRiskPercent(Planner.riskAtWealth(requiredWealth, scenario.netWorth))} risk.`;
+    els.requiredWealthSummary.textContent = describeRequiredWealthLadder(results, policyText);
+  }
+
+
+  // "Needed for 10% risk: $X · 5%: $Y · …", then where you stand.
+  function describeRequiredWealthLadder(results, policyText) {
+    const { scenario, requiredWealth } = results;
+    const steps = Planner.REQUIRED_WEALTH_LABELS.map((risk, index) => {
+      const needed = Planner.requiredWealthForRisk(requiredWealth, risk);
+      const amount = Number.isFinite(needed) ? Planner.formatCompactCurrency(needed) : "out of reach";
+      return index === 0 ? `${Planner.formatPercent(risk)} risk: ${amount}` : `${Planner.formatPercent(risk)}: ${amount}`;
+    });
+    const yourRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
+    return `Starting net worth needed with ${policyText}. ${steps.join(" · ")}. ` +
+      `Your ${Planner.formatCompactCurrency(scenario.netWorth)} has a ${Planner.formatPolicyRiskPercent(yourRisk)} risk ` +
+      `(from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths).`;
   }
 
 
@@ -154,6 +160,7 @@
     { render: (row) => Planner.formatCurrency(row.startingWealth) },
     { render: (row) => Planner.formatCurrency(row.income) },
     { render: (row) => Planner.formatCurrency(row.expenses) },
+    { render: (row) => Planner.formatCurrency(row.withdrawalTax) },
     { render: (row) => Planner.formatPercent(row.nominalSpxReturn) },
     { render: (row) => Planner.formatPercent(row.nominalRiskFreeReturn) },
     { render: (row) => Planner.formatPercent(row.nominalSpxExcessReturn) },
@@ -366,7 +373,7 @@
       const year = years[yearIndex];
       const startingWealth = wealth;
       if (!depleted) {
-        const netCashFlow = Planner.cashFlowForYear(scenario.income, year) - Planner.cashFlowForYear(scenario.expenses, year);
+        const netCashFlow = Planner.cashFlowsForYear(scenario, year).net;
         const yearResult = Planner.applyContinuousYear(wealth, netCashFlow, metrics.realGrowthFactor);
         wealth = yearResult.endingWealth;
         depleted = yearResult.depleted;
@@ -460,6 +467,7 @@
       "starting_wealth_current_dollars",
       "income_current_dollars",
       "expenses_current_dollars",
+      "withdrawal_tax_current_dollars",
       "net_cash_flow_current_dollars",
       "nominal_spx_return",
       "risk_free_return",
@@ -488,6 +496,7 @@
             row.startingWealth,
             row.income,
             row.expenses,
+            row.withdrawalTax,
             row.netCashFlow,
             row.nominalSpxReturn,
             row.nominalRiskFreeReturn,
@@ -579,6 +588,17 @@
     spread(inputs.income, (flow, index) => {
       income[index] += flow.amount;
     });
+    // Tax on portfolio withdrawals, same rule as the engine.
+    const rate = inputs.withdrawalTaxRate;
+    if (rate > 0) {
+      const taxes = byKey.get("taxes");
+      years.forEach((_, index) => {
+        const tax = Math.max(0, totals[index] - income[index]) * rate / (1 - rate);
+        taxes.values[index] = tax;
+        totals[index] += tax;
+        recurringTotals[index] += tax;
+      });
+    }
     return { years, categories, totals, recurringTotals, income };
   }
 
@@ -670,7 +690,6 @@
   Object.assign(Planner, {
     getSpendingModel,
     renderSpendingView,
-    getRequiredTarget,
     updateRequiredWealth,
     hasDynamicPolicy,
     renderResults,

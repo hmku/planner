@@ -58,7 +58,7 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 - On load, a `p` link wins over the localStorage draft; with neither, defaults are used.
 - Results cross the worker boundary by structured clone, so keep them plain data (no functions); `returnRows` is reattached on the page.
 - The policy solver's hot loop pools each node's return rows into the few buckets they land in; check changes there for agreement with the previous version (policies, frontier, and simulated paths) and time them.
-- Required net worth comes from per-path survival thresholds over 10,000 extra paths drawn after the main run (so the main random stream is untouched), not from the policy solver's value table, which overstates risk between wealth buckets.
+- Required net worth comes from per-path survival thresholds over 20,000 extra paths drawn after the main run (so the main random stream is untouched), not from the policy solver's value table, which overstates risk between wealth buckets.
 - Runs store only `sampledRowIndexes` (one historical-row index per simulation-year). `getSimulationYearRows(results, simulation)` replays a simulation's annual rows deterministically; keep its arithmetic in lockstep with `simulateScenario()`.
 - Keep the random-number call order in `simulateScenario()` stable (one draw per active year, then the reservoir draw); share links depend on it.
 - Colors live in CSS custom properties; canvas code reads `--chart-*` tokens through `chartTheme()`. Do not hardcode colors in JS.

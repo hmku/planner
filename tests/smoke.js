@@ -84,16 +84,23 @@ async function main() {
     watchErrors(page, errors, "desktop");
     await openApp(page, base);
     check(await page.inputValue("#simulationCount") === "10,000", "default simulation count is 10,000");
+    check(await page.inputValue("#withdrawalTax") === "15", "default tax on withdrawals is 15%");
     await page.selectOption("#betaMode", "fixed");
     check(await page.inputValue("#spxBeta") === "0.8", "default fixed SPX beta is 0.8");
     await page.selectOption("#betaMode", "dynamic");
     await page.click("#runSimulation");
     await waitForRun(page);
     check(/%$/.test(await text(page, "#riskMetric")), "run-out risk renders", await text(page, "#riskMetric"));
-    check(/^Needed for 5% risk$/.test(await text(page, "#requiredWealthMetricLabel")) && /\$/.test(await text(page, "#requiredWealthMetric")), "needed net worth renders");
+    check(/^Needed for 1% risk$/.test(await text(page, "#requiredWealthMetricLabel")) && /\$/.test(await text(page, "#requiredWealthMetric")), "needed net worth renders for the default 1% target");
     check(/dynamic beta policies/.test(await text(page, "#frontierSummary")), "frontier renders with the run");
-    await page.selectOption("#requiredTargetSelect", "0.01");
-    check(/1% risk/.test(await text(page, "#requiredWealthMetricLabel")), "changing the target risk updates the metric");
+    check(/10% risk: .* · 5%: .* · 1%: .* · 0\.1%: /.test(await text(page, "#requiredWealthSummary")), "How much you need lists 10%, 5%, 1%, 0.1%");
+    const overviewTitles = await page.$$eval("#overviewPage h2", (titles) => titles.map((title) => title.textContent));
+    check(overviewTitles[2] === "How much you need", "How much you need is the third Overview section", overviewTitles.join(", "));
+    await page.fill("#withdrawalTax", "30");
+    await page.click('[data-page="spending"]');
+    check(await page.locator("#spendingLegend li", { hasText: "Taxes on withdrawals" }).count() === 1, "withdrawal tax shows in the Spending view");
+    await page.fill("#withdrawalTax", "15");
+    await page.click('[data-page="overview"]');
 
     console.log("Lifestyle builder");
     await page.click('[data-ls-section="kids"] summary');
@@ -124,6 +131,7 @@ async function main() {
     const options = await page.$$eval("#simulationSelect option", (items) => items.map((item) => item.value));
     await page.selectOption("#simulationSelect", options[Math.min(3, options.length - 1)]);
     check(await page.locator("#simulationPathTable tr").count() === 61, "Simulation table shows one row per plan year");
+    check(await page.locator("#simulationPathTable tr:first-child td").count() === 16, "Simulation table includes the withdrawal tax column");
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#downloadCsv")]);
     const csvLines = fs.readFileSync(await download.path(), "utf8").trim().split("\n").length;
     check(csvLines === options.length * 61 + 1, "CSV has a row per sampled path per year", `${csvLines} lines`);

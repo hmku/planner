@@ -47,7 +47,8 @@
         netWorth: numberOrNull(els.netWorth),
         betaMode: els.betaMode.value,
         spxBeta: numberOrNull(els.spxBeta),
-        simulationCount: numberOrNull(els.simulationCount)
+        simulationCount: numberOrNull(els.simulationCount),
+        withdrawalTaxPct: numberOrNull(els.withdrawalTax)
       },
       income: readFlowSpecs(els.incomeRows),
       expenses: readFlowSpecs(els.expenseRows),
@@ -79,7 +80,9 @@
   }
 
   // Returns a fresh, validated copy; never shares objects with its input.
-  function normalizePlanState(raw) {
+  // Plans saved before the withdrawal tax existed get missingTaxPct (the
+  // default for saved plans; 0 for share links so they reproduce exactly).
+  function normalizePlanState(raw, { missingTaxPct = Planner.DEFAULT_WITHDRAWAL_TAX_PCT } = {}) {
     if (!raw || typeof raw !== "object") throw new Error("The plan is empty.");
     const plan = raw.plan && typeof raw.plan === "object" ? raw.plan : {};
     const currentYear = finiteOrNull(plan.currentYear);
@@ -92,7 +95,8 @@
         netWorth: finiteOrNull(plan.netWorth),
         betaMode: Planner.normalizeBetaMode(plan.betaMode),
         spxBeta: finiteOrNull(plan.spxBeta),
-        simulationCount: finiteOrNull(plan.simulationCount)
+        simulationCount: finiteOrNull(plan.simulationCount),
+        withdrawalTaxPct: "withdrawalTaxPct" in plan ? finiteOrNull(plan.withdrawalTaxPct) : missingTaxPct
       },
       income: normalizeFlows(raw.income),
       expenses: normalizeFlows(raw.expenses),
@@ -109,6 +113,7 @@
     els.betaMode.value = state.plan.betaMode;
     els.spxBeta.value = state.plan.spxBeta ?? Planner.DEFAULT_SPX_BETA;
     els.simulationCount.value = state.plan.simulationCount ?? "";
+    els.withdrawalTax.value = state.plan.withdrawalTaxPct ?? "";
     Planner.updateBetaModeControls();
 
     els.incomeRows.replaceChildren();

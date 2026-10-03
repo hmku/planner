@@ -120,7 +120,8 @@
     { key: "travel", label: "Travel" },
     { key: "everyday", label: "Everyday living" },
     { key: "health", label: "Health" },
-    { key: "other", label: "Other" }
+    { key: "other", label: "Other" },
+    { key: "taxes", label: "Taxes on withdrawals" }
   ];
 
   const OPTIONS = {

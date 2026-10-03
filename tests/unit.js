@@ -99,6 +99,17 @@ async function main() {
   const lastRow = replayed[replayed.length - 1];
   check(Math.abs(lastRow.endingWealth - inspected.terminalWealth) < 1e-6, "row replay matches the simulated terminal wealth");
 
+  console.log("Withdrawal tax");
+  const taxed = { ...scenario, withdrawalTaxRate: 0.15 };
+  const earlyYear = Planner.cashFlowsForYear(taxed, 2030);
+  check(earlyYear.withdrawalTax === 0, "no tax while income covers spending");
+  const lateYear = Planner.cashFlowsForYear(taxed, 2050);
+  check(Math.abs(lateYear.withdrawalTax - 133000 * 0.15 / 0.85) < 1e-6 && Math.abs(lateYear.net + 133000 / 0.85) < 1e-6, "a shortfall S costs S / (1 - t) of withdrawals");
+  const taxedRun = await Planner.simulateScenario(taxed, returnRows, Planner.createSeededRandom(42));
+  check(taxedRun.risk > first.risk, `withdrawal tax raises run-out risk (${(first.risk * 100).toFixed(2)}% → ${(taxedRun.risk * 100).toFixed(2)}%)`);
+  const taxedRows = Planner.getSimulationYearRows(taxedRun, taxedRun.inspectionPaths[0].simulation);
+  check(Math.abs(taxedRows[taxedRows.length - 1].endingWealth - taxedRun.inspectionPaths[0].terminalWealth) < 1e-6, "row replay matches with the tax");
+
   console.log("How much you need");
   const { requiredWealth } = first;
   const samples = [0, 1e4, 1e5, 3e5, 1e6, 3e6, 1e7].map((wealth) => Planner.riskAtWealth(requiredWealth, wealth));

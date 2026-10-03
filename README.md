@@ -5,7 +5,7 @@ A static browser-based financial planning simulator built around dynamic SPX-bet
 The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, and annual income, then describe spending with a lifestyle builder instead of computing every expense by hand (manual expenditure rows are still available for anything else). It then shows:
 
 - probability of running out of money before the expected year of death
-- the starting net worth needed for a target run-out risk (1%–20%), with a run-out risk vs starting net worth chart
+- the starting net worth needed for a 1% run-out risk, and a How much you need chart (third on the Overview) labeling the net worth needed for 10%, 5%, 1%, and 0.1% risk
 - expected (mean) terminal wealth in current dollars, with the median alongside
 - current SPX beta for the first plan year
 - historical return span used by the model
@@ -57,7 +57,11 @@ The frontier costs two extra backward sweeps rather than one per policy: the min
 
 ## How Much You Need
 
-After each run, 10,000 extra paths of historical years are drawn. For each path, a bisection finds the least starting net worth that survives it under the same beta policy and cash flows. Sorted, those thresholds give the run-out risk at every starting net worth at once: the risk at an amount is the share of paths whose threshold is above it, and the net worth needed for a target risk is a percentile of the thresholds. The "Needed for X% risk" metric and the How much you need chart on the Overview read from this, and changing the target is instant. (The policy solver's own value table is not used here because its grid interpolation overstates risk.)
+After each run, 20,000 extra paths of historical years are drawn. For each path, a bisection finds the least starting net worth that survives it under the same beta policy and cash flows. Sorted, those thresholds give the run-out risk at every starting net worth at once: the risk at an amount is the share of paths whose threshold is above it, and the net worth needed for a target risk is a percentile of the thresholds. The "Needed for 1% risk" metric and the How much you need chart read from this. The chart is zoomed to roughly 10% down to 0.1% risk with a log risk axis, so each step (5% → 1% → 0.1%) reads as a distance, and labels the net worth needed at 10%, 5%, 1%, and 0.1%. (The policy solver's own value table is not used here because its grid interpolation overstates risk.)
+
+## Taxes
+
+Income is entered after tax. Spending that income doesn't cover is withdrawn from the portfolio, and selling costs tax on the gains. The plan's "Tax on withdrawals" (default 15%, editable from 0% to 60%) turns a shortfall S into S / (1 − t) of withdrawals; the extra shows as "Taxes on withdrawals" in the Spending view and as a Withdrawal tax column in the Simulation table and CSV. 15% approximates California taxes on a taxable account where about 60% of each sale is gain; use less for recent money or a no-income-tax state, more for decades-old gains at top California rates. Plans saved before this setting existed open at 15%; share links made before it open at 0% so they reproduce the original run.
 
 ## Performance
 

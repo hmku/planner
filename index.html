@@ -82,6 +82,10 @@
                 <span>Simulations</span>
                 <input id="simulationCount" name="simulationCount" type="text" inputmode="numeric" data-format="integer" autocomplete="off" required>
               </label>
+              <label class="field" title="Tax on portfolio withdrawals: applied to spending your income doesn't cover. 15% is a rough California figure for a taxable account; lower if you hold recent money or live in a no-income-tax state.">
+                <span>Tax on withdrawals</span>
+                <span class="input-suffix"><input id="withdrawalTax" name="withdrawalTax" type="number" min="0" max="60" step="1" required><em>%</em></span>
+              </label>
             </div>
           </section>
 
@@ -280,7 +284,7 @@
             <small id="currentBetaMetricNote">Allocation for the first plan year</small>
           </article>
           <article class="metric">
-            <span id="requiredWealthMetricLabel" class="metric-label">Needed for 5% risk</span>
+            <span id="requiredWealthMetricLabel" class="metric-label">Needed for 1% risk</span>
             <strong id="requiredWealthMetric">--</strong>
             <small id="requiredWealthMetricNote">Starting net worth for the target run-out risk</small>
           </article>
@@ -327,6 +331,17 @@
           <section
             class="card content-section"
             data-section-header
+            data-title="How much you need"
+            data-summary-id="requiredWealthSummary"
+            data-summary-text="Run a simulation to see how much starting net worth each run-out risk needs."
+          >
+            <div class="canvas-wrap">
+              <canvas id="requiredWealthCanvas" class="chart-tall" aria-label="Run-out risk by starting net worth, with the net worth needed for the target risk"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
             data-title="SPX beta over time"
             data-summary-id="betaPathSummary"
             data-summary-text="Average beta and downsampled simulation paths."
@@ -350,19 +365,6 @@
             </div>
             <div class="canvas-wrap">
               <canvas id="distributionCanvas" class="chart-medium" aria-label="Probability distribution of years where money runs out"></canvas>
-            </div>
-          </section>
-          <section
-            class="card content-section"
-            data-section-header
-            data-title="How much you need"
-            data-summary-id="requiredWealthSummary"
-            data-summary-text="Run a simulation to see run-out risk by starting net worth."
-            data-picker-label="Target risk"
-            data-picker-id="requiredTargetSelect"
-          >
-            <div class="canvas-wrap">
-              <canvas id="requiredWealthCanvas" class="chart-medium" aria-label="Run-out risk by starting net worth, with the net worth needed for the target risk"></canvas>
             </div>
           </section>
         </div>
@@ -422,6 +424,7 @@
                     <th>Start wealth</th>
                     <th>Income</th>
                     <th>Expenses</th>
+                    <th>Withdrawal tax</th>
                     <th>SPX return</th>
                     <th>Risk-free</th>
                     <th>SPX excess</th>
@@ -435,7 +438,7 @@
                   </tr>
                 </thead>
                 <tbody id="simulationPathTable">
-                  <tr><td class="empty" colspan="15">No results yet.</td></tr>
+                  <tr><td class="empty" colspan="16">No results yet.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -586,11 +589,15 @@
               </article>
               <article>
                 <h3>How much you need</h3>
-                <p>After each run, 10,000 extra paths of historical years are drawn. For each one, a bisection finds the least starting net worth that survives it under the same policy and cash flows. The share of paths whose threshold is above an amount is the run-out risk at that amount, so the needed net worth for a target risk is a percentile of the thresholds.</p>
+                <p>After each run, 20,000 extra paths of historical years are drawn. For each one, a bisection finds the least starting net worth that survives it under the same policy and cash flows. The share of paths whose threshold is above an amount is the run-out risk at that amount, so the needed net worth for a target risk is a percentile of the thresholds.</p>
+              </article>
+              <article>
+                <h3>Taxes</h3>
+                <p>Income is entered after tax. Spending that income doesn&apos;t cover is withdrawn from the portfolio, and selling costs tax on the gains: covering a shortfall S at the plan&apos;s withdrawal tax rate t takes S / (1 &minus; t). The default 15% approximates California taxes on a taxable account where about 60% of each sale is gain. Dividends taxed while invested, account types, and borrowing against the portfolio are not modeled.</p>
               </article>
               <article>
                 <h3>Lifestyle builder</h3>
-                <p>The builder prices a described lifestyle as dated annual expenses in today&apos;s dollars. Kid costs follow each kid&apos;s age: childcare to 4, school 5&ndash;17, college 18&ndash;21. Local costs (childcare, school, help, everyday living) are priced for SF/NYC and scaled down for cheaper areas. Every line can be overridden or moved to a manual row. Taxes and above-inflation cost growth are not modeled.</p>
+                <p>The builder prices a described lifestyle as dated annual expenses in today&apos;s dollars. Kid costs follow each kid&apos;s age: childcare to 4, school 5&ndash;17, college 18&ndash;21. Local costs (childcare, school, help, everyday living) are priced for SF/NYC and scaled down for cheaper areas. Every line can be overridden or moved to a manual row. Above-inflation cost growth is not modeled; taxes are handled by the plan&apos;s withdrawal tax.</p>
               </article>
               <article>
                 <h3>Cash flows</h3>

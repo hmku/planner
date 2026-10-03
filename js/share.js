@@ -152,7 +152,7 @@
       throw new Error("The link is damaged.");
     }
     const seed = Number.isInteger(raw?.seed) ? raw.seed : null;
-    return { state: Planner.normalizePlanState(raw), seed };
+    return { state: Planner.normalizePlanState(raw, { missingTaxPct: 0 }), seed };
   }
 
 
@@ -203,7 +203,7 @@
       income: decodeSharedFlows(parts[2], "income", scenario),
       expenses: decodeSharedFlows(parts[3], "expense", scenario),
       lifestyle: { enabled: false }
-    });
+    }, { missingTaxPct: 0 });
     return { seed: parseSharedNumber(parts[0], "simulation seed"), state };
   }
 

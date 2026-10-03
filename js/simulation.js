@@ -103,12 +103,21 @@
   }
 
 
+  // Spending that income doesn't cover comes from the portfolio, and selling
+  // to fund it costs tax: covering a shortfall S at rate t takes S / (1 - t)
+  // of withdrawals. Every engine path (simulation, policy, replay, required
+  // net worth, policy explorer) gets its cash flows from here.
+  function cashFlowsForYear(scenario, year) {
+    const income = cashFlowForYear(scenario.income, year);
+    const expenses = cashFlowForYear(scenario.expenses, year);
+    const rate = scenario.withdrawalTaxRate || 0;
+    const withdrawalTax = rate > 0 ? Math.max(0, expenses - income) * rate / (1 - rate) : 0;
+    return { income, expenses, withdrawalTax, net: income - expenses - withdrawalTax };
+  }
+
+
   function netCashFlowsByYear(scenario, years) {
-    return years.map((year) => {
-      const income = cashFlowForYear(scenario.income, year);
-      const expenses = cashFlowForYear(scenario.expenses, year);
-      return { income, expenses, net: income - expenses };
-    });
+    return years.map((year) => cashFlowsForYear(scenario, year));
   }
 
 
@@ -252,7 +261,7 @@
       const row = returnRows[sampledRowIndexes[offset + yearIndex]];
       const spxBetaUsed = betaForYear(scenario, dynamicPolicy, yearIndex, wealth);
       const metrics = buildReturnMetrics(row, spxBetaUsed);
-      const { income, expenses, net } = cashFlows[yearIndex];
+      const { income, expenses, withdrawalTax, net } = cashFlows[yearIndex];
       const endingWealth = advanceWealth(wealth, net, Math.log(metrics.realGrowthFactor));
       const depleted = endingWealth <= 0;
       if (depleted) failureYear = year;
@@ -264,6 +273,7 @@
         startingWealth: wealth,
         income,
         expenses,
+        withdrawalTax,
         netCashFlow: net,
         nominalSpxReturn: metrics.nominalSpxReturn,
         nominalRiskFreeReturn: metrics.nominalRiskFreeReturn,
@@ -292,6 +302,7 @@
       startingWealth: 0,
       income: 0,
       expenses: 0,
+      withdrawalTax: 0,
       netCashFlow: 0,
       nominalSpxReturn: "",
       nominalRiskFreeReturn: "",
@@ -384,7 +395,7 @@
   // thresholds give run-out risk at every starting net worth at once. Paths
   // draw their years after the main run so its random stream is unchanged.
   function buildRequiredWealth(scenario, returnRows, years, dynamicPolicy, random) {
-    const pathCount = Math.min(scenario.simulationCount, Planner.REQUIRED_WEALTH_PATHS);
+    const pathCount = Planner.REQUIRED_WEALTH_PATHS;
     const yearCount = years.length;
     const rowCount = returnRows.length;
     const sampledRows = new Uint8Array(pathCount * yearCount);
@@ -754,9 +765,9 @@
     nominalSpxReturnOf,
     buildReturnMetrics,
     applyContinuousYear,
-    cashFlowForYear,
     simulateScenario,
     getSimulationYearRows,
+    cashFlowsForYear,
     riskAtWealth,
     requiredWealthForRisk,
     selectDynamicBeta,

@@ -1,8 +1,12 @@
 window.Planner = window.Planner || {};
 Planner.MAX_VISUAL_PATHS = 200;
-Planner.REQUIRED_WEALTH_PATHS = 10000;
-Planner.REQUIRED_WEALTH_TARGETS = [0.01, 0.02, 0.05, 0.1, 0.2];
-Planner.DEFAULT_REQUIRED_WEALTH_TARGET = 0.05;
+Planner.REQUIRED_WEALTH_PATHS = 20000;
+// Risk levels labeled on the How much you need chart; the metric card uses
+// REQUIRED_WEALTH_TARGET.
+Planner.REQUIRED_WEALTH_LABELS = [0.1, 0.05, 0.01, 0.001];
+Planner.REQUIRED_WEALTH_TARGET = 0.01;
+Planner.DEFAULT_WITHDRAWAL_TAX_PCT = 15;
+Planner.MAX_WITHDRAWAL_TAX_PCT = 60;
 Planner.SIMULATION_CHUNK_SIZE = 100;
 Planner.MIN_PLAN_YEAR = 1900;
 Planner.MAX_PLAN_YEAR = 2200;

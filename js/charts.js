@@ -29,7 +29,7 @@
       tooltipBg: token("--chart-tooltip-bg"),
       tooltipInk: token("--chart-tooltip-ink"),
       ramp: token("--chart-ramp").split(",").map((stop) => parseHex(stop.trim())),
-      categorical: Array.from({ length: 7 }, (_, index) => token(`--chart-cat-${index + 1}`))
+      categorical: Array.from({ length: 8 }, (_, index) => token(`--chart-cat-${index + 1}`))
     };
     return themeCache;
   }
@@ -940,46 +940,45 @@
   }
 
   // Run-out risk by starting net worth (from per-path survival thresholds),
-  // with the target risk, what you have, and what you need.
+  // zoomed to the region that matters (about 10% risk down to 0.1%) with a log
+  // risk axis, so each step down (5% → 1% → 0.1%) reads as a distance. The
+  // labeled points are the net worth needed for each REQUIRED_WEALTH_LABELS risk.
   function renderRequiredWealthChart(results) {
     const frame = beginChart(Planner.els.requiredWealthCanvas, { top: 36, right: 24, bottom: 44, left: 56 });
     const { ctx, theme } = frame;
     const { requiredWealth, scenario } = results;
     hitMetaByChart.requiredWealth = { items: [], frame };
-    const target = Planner.getRequiredTarget();
-    const needed = Planner.requiredWealthForRisk(requiredWealth, target);
-    const finite = requiredWealth.thresholds.filter((value) => value > 0 && Number.isFinite(value));
-    if (!finite.length) {
-      drawEmptyState(frame, needed === 0
-        ? "Income covers spending on almost every simulated path."
-        : "No starting net worth in range reaches the target risk.");
+
+    const labels = Planner.REQUIRED_WEALTH_LABELS
+      .map((risk) => ({ risk, wealth: Planner.requiredWealthForRisk(requiredWealth, risk) }))
+      .filter((point) => point.wealth > 0 && Number.isFinite(point.wealth));
+    if (!labels.length) {
+      const anyPositive = requiredWealth.thresholds.some((value) => value > 0 && Number.isFinite(value));
+      drawEmptyState(frame, anyPositive
+        ? "Run-out risk stays high at every starting net worth the model covers."
+        : "Income covers spending on almost every simulated path.");
       return;
     }
 
-    // Show from about 90% risk to past the 1% point, always including you and
-    // the target point.
-    const quantile = (share) => finite[Math.min(finite.length - 1, Math.floor(share * finite.length))];
-    const anchors = [quantile(0.1), quantile(0.99), scenario.netWorth, Number.isFinite(needed) ? needed : null]
-      .filter((value) => value > 0);
-    const minWealth = Math.max(1000, Math.min(...anchors) / 1.4);
-    const maxWealth = Math.max(minWealth * 10, Math.max(...anchors) * 1.4);
+    const minRisk = Math.min(...Planner.REQUIRED_WEALTH_LABELS) / 2;
+    const maxRisk = Math.max(...Planner.REQUIRED_WEALTH_LABELS) * 1.5;
+    const minWealth = Math.max(1000, Math.min(...labels.map((point) => point.wealth)) / 1.3);
+    const maxWealth = Math.max(minWealth * 4, Math.max(...labels.map((point) => point.wealth)) * 1.3);
     const xOf = logScale(minWealth, maxWealth, frame.left, frame.right);
-    const samples = 160;
+    const yOf = logScale(minRisk, maxRisk, frame.bottom, frame.top);
+    const riskLabel = (risk) => Planner.formatPercent(risk);
+
+    const samples = 200;
     const items = Array.from({ length: samples }, (_, index) => {
       const wealth = Math.exp(Math.log(minWealth) + (index / (samples - 1)) * (Math.log(maxWealth) - Math.log(minWealth)));
-      return { key: index, wealth, risk: Planner.riskAtWealth(requiredWealth, wealth) };
-    });
-    const yScale = Planner.niceZeroScale(Math.max(target * 1.5, ...items.map((item) => item.risk)), 4);
-    const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
-    items.forEach((item) => {
-      item.x = xOf(item.wealth);
-      item.y = yOf(item.risk);
+      const risk = Planner.riskAtWealth(requiredWealth, wealth);
+      return { key: index, wealth, risk, x: xOf(wealth), y: yOf(Math.max(risk, minRisk)) };
     });
     hitMetaByChart.requiredWealth.items = items;
     const hover = resolveHover("requiredWealth", items);
 
-    drawAxisTitle(frame, "Run-out risk");
-    drawYAxis(frame, yScale.ticks, yOf, Planner.formatPercent);
+    drawAxisTitle(frame, "Run-out risk (log scale)");
+    drawYAxis(frame, [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1], yOf, riskLabel);
     // Keep labels at least ~52px apart so narrow screens don't run them together.
     const xTicks = logTicks125(minWealth, maxWealth).reduce((kept, tick) => {
       if (!kept.length || xOf(tick) - xOf(kept[kept.length - 1]) >= 52) kept.push(tick);
@@ -988,29 +987,49 @@
     drawXAxis(frame, xTicks, xOf, Planner.formatCompactCurrency);
     drawXAxisTitle(frame, "Starting net worth (log scale)");
 
-    withPlotClip(frame, () => {
-      ctx.save();
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = theme.muted;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(frame.left, yOf(target));
-      ctx.lineTo(frame.right, yOf(target));
-      ctx.stroke();
-      ctx.restore();
-      strokePolyline(ctx, items, theme.series, 2);
+    withPlotClip(frame, () => strokePolyline(ctx, items, theme.series, 2));
+
+    // Labeled points: dot plus "$X at 1%", placed to the right unless that
+    // would run off the plot.
+    ctx.font = font(frame, 12, 600);
+    ctx.textBaseline = "middle";
+    labels.forEach((point) => {
+      const x = xOf(point.wealth);
+      const y = yOf(point.risk);
+      drawDot(frame, x, y, 5, theme.highlight);
+      const label = `${Planner.formatCompactCurrency(point.wealth)} for ${riskLabel(point.risk)}`;
+      const width = ctx.measureText(label).width;
+      const toLeft = x + 10 + width > frame.right;
+      ctx.fillStyle = theme.ink;
+      ctx.textAlign = toLeft ? "right" : "left";
+      ctx.fillText(label, toLeft ? x - 10 : x + 10, y - 12);
     });
 
-    const youRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
-    drawDot(frame, xOf(scenario.netWorth), yOf(youRisk), 5.5, theme.seriesStrong);
-    if (Number.isFinite(needed) && needed > 0) {
-      drawDot(frame, xOf(needed), yOf(target), 5.5, theme.highlight);
+    // You: on the curve when in range, otherwise an arrow at the edge.
+    const yourRisk = Planner.riskAtWealth(requiredWealth, scenario.netWorth);
+    const youText = `You: ${Planner.formatCompactCurrency(scenario.netWorth)}, ${Planner.formatPolicyRiskPercent(yourRisk)}`;
+    ctx.font = font(frame, 12, 600);
+    ctx.fillStyle = theme.text;
+    if (scenario.netWorth >= minWealth && scenario.netWorth <= maxWealth && yourRisk >= minRisk && yourRisk <= maxRisk) {
+      const x = xOf(scenario.netWorth);
+      const y = yOf(yourRisk);
+      drawDot(frame, x, y, 5.5, theme.seriesStrong);
+      ctx.fillStyle = theme.text;
+      const toLeft = x + 10 + ctx.measureText(youText).width > frame.right;
+      ctx.textAlign = toLeft ? "right" : "left";
+      ctx.fillText(youText, toLeft ? x - 10 : x + 10, y + 14);
+    } else {
+      // The curve runs top-left to bottom-right, so the opposite corners are free.
+      const below = scenario.netWorth < minWealth || yourRisk > maxRisk;
+      ctx.textAlign = below ? "left" : "right";
+      ctx.fillText(below ? `◂ ${youText}` : `${youText} ▸`, below ? frame.left + 6 : frame.right - 6, below ? frame.bottom - 12 : frame.top + 10);
     }
+    ctx.textBaseline = "alphabetic";
 
     drawLegend(frame, [
       { label: "Run-out risk", color: theme.series, shape: "line" },
-      { label: "You", color: theme.seriesStrong, shape: "dot" },
-      { label: `Needed for ${Planner.formatPercent(target)}`, color: theme.highlight, shape: "dot" }
+      { label: "Needed", color: theme.highlight, shape: "dot" },
+      { label: "You", color: theme.seriesStrong, shape: "dot" }
     ]);
 
     if (hover) {
