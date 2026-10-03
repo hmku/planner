@@ -976,20 +976,20 @@
       y: yOf(Math.max(minWealth, line.value(row)))
     })));
     const hover = trackHover(frame, items);
-    const colorOf = (item) => (item.row.isMinRisk ? theme.highlight : item.line.color);
+    const colorOf = (item) => (item.row.isChosen ? theme.highlight : item.line.color);
 
     series.forEach((line) => withPlotClip(frame, () => strokePolyline(ctx, items.filter((item) => item.line === line), line.color, 2)));
-    items.forEach((item) => drawDot(frame, item.x, item.y, item.row.isMinRisk ? 5.5 : 4, colorOf(item)));
+    items.forEach((item) => drawDot(frame, item.x, item.y, item.row.isChosen ? 5.5 : 4, colorOf(item)));
 
     drawLegend(frame, [
       ...series.map((line) => ({ label: line.label, color: line.color, shape: "line" })),
-      { label: "Min-risk policy (the one simulated)", color: theme.highlight, shape: "dot" }
+      { label: "Policy the run uses", color: theme.highlight, shape: "dot" }
     ]);
     if (hover) {
       const { row } = hover.item;
       drawHoverPoint(frame, hover.item, {
         color: colorOf(hover.item),
-        title: row.label,
+        title: row.isChosen ? `${row.label} (used for the run)` : row.label,
         lines: [
           `Run-out risk: ${Planner.formatPolicyRiskPercent(row.depletionRisk)}`,
           `Expected terminal wealth: ${Planner.formatCurrency(row.expectedTerminalWealth)}`,

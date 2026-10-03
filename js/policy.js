@@ -12,8 +12,7 @@
   // then sums its own next-year risk and expected terminal wealth over those.
   // fallback ({ saleProceeds, soldNet, soldLayers }) routes draining rows into
   // the sold layer; terminalExtra (home equity at the end) is added to the
-  // terminal wealth of every bucket. Per-beta action tables are kept only for
-  // the objective at actionTablesFor.
+  // terminal wealth of every bucket.
   async function solvePolicyLayer({
     returnRows,
     years,
@@ -22,7 +21,6 @@
     net,
     terminalExtra = 0,
     fallback = null,
-    actionTablesFor = -1,
     shouldCancel,
     onYearComplete
   }) {
@@ -36,7 +34,7 @@
     const factorsFor = Planner.createGrowthFactorCache(returnRows);
     const factorsByBeta = betaValues.map(factorsFor);
 
-    const policies = objectives.map((objective, index) => {
+    const policies = objectives.map((objective) => {
       const valueByYear = new Array(years.length + 1);
       const expectedWealthByYear = new Array(years.length + 1);
       valueByYear[years.length] = new Float64Array(bucketCount);
@@ -45,8 +43,6 @@
         objective,
         valueByYear,
         expectedWealthByYear,
-        actionValueByYear: index === actionTablesFor ? new Array(years.length) : null,
-        actionExpectedWealthByYear: index === actionTablesFor ? new Array(years.length) : null,
         policyByYear: new Array(years.length)
       };
     });
@@ -89,17 +85,10 @@
       const currentValues = objectives.map(() => new Float64Array(bucketCount));
       const currentWealth = objectives.map(() => new Float64Array(bucketCount));
       const currentPolicy = objectives.map(() => new Float64Array(bucketCount));
-      const actionValues = actionTablesFor >= 0 ? new Array(bucketCount) : null;
-      const actionWealth = actionTablesFor >= 0 ? new Array(bucketCount) : null;
 
       for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
         const startingWealth = wealthBuckets[bucketIndex];
-        if (actionValues) {
-          actionValues[bucketIndex] = new Float64Array(betaCount);
-          actionWealth[bucketIndex] = new Float64Array(betaCount);
-        }
         if (startingWealth <= 0) {
-          if (actionValues) actionValues[bucketIndex].fill(1);
           for (let k = 0; k < objectiveCount; k += 1) {
             currentValues[k][bucketIndex] = 1;
             currentWealth[k][bucketIndex] = 0;
@@ -158,10 +147,6 @@
             }
             const risk = totalRisk / rowCount;
             const expectedWealth = totalWealth / rowCount;
-            if (k === actionTablesFor) {
-              actionValues[bucketIndex][betaIndex] = risk;
-              actionWealth[bucketIndex][betaIndex] = expectedWealth;
-            }
             if (isBetterAction(objectives[k], risk, expectedWealth, bestRisk[k], bestWealth[k])) {
               bestRisk[k] = risk;
               bestWealth[k] = expectedWealth;
@@ -183,10 +168,6 @@
         policy.valueByYear[yearIndex] = currentValues[k];
         policy.expectedWealthByYear[yearIndex] = currentWealth[k];
         policy.policyByYear[yearIndex] = currentPolicy[k];
-        if (k === actionTablesFor) {
-          policy.actionValueByYear[yearIndex] = actionValues;
-          policy.actionExpectedWealthByYear[yearIndex] = actionWealth;
-        }
       });
       await onYearComplete(yearIndex);
     }
@@ -209,10 +190,12 @@
   }
 
 
-  // Solves the min-risk policy (which drives the simulation) and the
-  // risk/wealth frontier in two sweeps: min-risk and max-expected-wealth
-  // together (which calibrates the risk-penalty scale), then every risk-penalty
-  // policy. Each sweep solves the sold layer first when there is a home.
+  // Solves the candidate policies in two sweeps: min-risk and
+  // max-expected-wealth together (which calibrates the risk-penalty scale),
+  // then every risk-penalty policy. Each sweep solves the sold layer first when
+  // there is a home. Returns the candidates as frontier points carrying their
+  // policy tables; simulateScenario() simulates them, picks the one the run
+  // uses, and drops the tables of the rest.
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = Planner.buildWealthBuckets(scenario);
     const cash = Planner.buildPlanCashFlows(scenario, years);
@@ -223,7 +206,7 @@
     const totalWeight = (sweepWeight(2) + sweepWeight(penaltyFactors.length)) * years.length;
     let completedWeight = 0;
 
-    const solveSweep = async (objectives, actionTablesFor = -1) => {
+    const solveSweep = async (objectives) => {
       const weight = sweepWeight(objectives.length) / layers;
       const common = {
         returnRows,
@@ -237,22 +220,21 @@
           if (yearIndex % 4 === 0) await Planner.yieldToBrowser();
         }
       };
-      if (!cash.hasHome) return solvePolicyLayer({ ...common, net: cash.ownedNet, actionTablesFor });
+      if (!cash.hasHome) return solvePolicyLayer({ ...common, net: cash.ownedNet });
       const soldLayers = await solvePolicyLayer({ ...common, net: cash.soldNet });
       const ownedLayers = await solvePolicyLayer({
         ...common,
         net: cash.ownedNet,
         terminalExtra: cash.equity[years.length - 1],
-        fallback: { saleProceeds: cash.saleProceeds, soldNet: cash.soldNet, soldLayers },
-        actionTablesFor
+        fallback: { saleProceeds: cash.saleProceeds, soldNet: cash.soldNet, soldLayers }
       });
-      return ownedLayers.map((policy, k) => ({ ...policy, soldPolicyByYear: soldLayers[k].policyByYear }));
+      return ownedLayers.map((policy, k) => ({ ...policy, sold: soldLayers[k] }));
     };
 
     const [minRiskPolicy, maxWealthPolicy] = await solveSweep([
       { type: "minRisk", label: "Minimum run-out risk" },
       { type: "riskPenalty", riskPenalty: 0, label: "Maximum expected wealth" }
-    ], 0);
+    ]);
     const minRiskPoint = buildFrontierPoint(minRiskPolicy, scenario, wealthBuckets, true);
     const maxWealthPoint = buildFrontierPoint(maxWealthPolicy, scenario, wealthBuckets, false);
     const riskPenaltyScale = calibrateRiskPenaltyScale(minRiskPoint, maxWealthPoint, scenario);
@@ -262,16 +244,10 @@
       return { type: "riskPenalty", riskPenalty, label: `Risk penalty ${Planner.formatCompactCurrency(riskPenalty)}` };
     }));
 
-    const frontier = [minRiskPoint];
-    addFrontierPoint(frontier, maxWealthPoint);
-    penaltyPolicies.forEach((policy) => addFrontierPoint(frontier, buildFrontierPoint(policy, scenario, wealthBuckets, false)));
-
-    return {
-      betaValues: Planner.DYNAMIC_BETA_VALUES,
-      wealthBuckets,
-      frontier,
-      ...minRiskPolicy
-    };
+    const candidates = [minRiskPoint];
+    addFrontierPoint(candidates, maxWealthPoint);
+    penaltyPolicies.forEach((policy) => addFrontierPoint(candidates, buildFrontierPoint(policy, scenario, wealthBuckets, false)));
+    return { betaValues: Planner.DYNAMIC_BETA_VALUES, wealthBuckets, candidates };
   }
 
 
@@ -285,8 +261,17 @@
   }
 
 
+  // A frontier point with the solver's estimates at your net worth (replaced by
+  // simulated values later) and the policy's tables: beta, run-out risk, and
+  // expected terminal wealth by year and bucket, plus the same for life after
+  // a home sale (sold) when there is a home.
   function buildFrontierPoint(policy, scenario, wealthBuckets, isMinRisk) {
     const bucketIndex = Planner.nearestBucketIndex(wealthBuckets, scenario.netWorth);
+    const tablesOf = (layer) => ({
+      policyByYear: layer.policyByYear,
+      valueByYear: layer.valueByYear,
+      expectedWealthByYear: layer.expectedWealthByYear
+    });
     return {
       label: policy.objective.label,
       riskPenalty: policy.objective.riskPenalty ?? null,
@@ -294,9 +279,7 @@
       depletionRisk: policy.valueByYear[0]?.[bucketIndex] ?? null,
       expectedTerminalWealth: policy.expectedWealthByYear[0]?.[bucketIndex] ?? null,
       currentBeta: policy.policyByYear[0]?.[bucketIndex] ?? null,
-      // Solver estimates above; simulateScenario() replaces them with simulated
-      // values (and the median) and drops this.
-      policy: { wealthBuckets, policyByYear: policy.policyByYear, soldPolicyByYear: policy.soldPolicyByYear }
+      policy: { wealthBuckets, ...tablesOf(policy), sold: policy.sold ? tablesOf(policy.sold) : null }
     };
   }
 
@@ -315,13 +298,62 @@
   // The policy's beta for a year and portfolio wealth, from the sold layer once
   // the home has been sold.
   function selectDynamicBeta(policy, yearIndex, wealth, sold = false) {
-    const policyRow = (sold && policy.soldPolicyByYear ? policy.soldPolicyByYear : policy.policyByYear)[yearIndex];
+    const policyRow = (sold && policy.sold ? policy.sold : policy).policyByYear[yearIndex];
     if (!policyRow) return Planner.DYNAMIC_BETA_VALUES[0];
     return policyRow[Planner.nearestBucketIndex(policy.wealthBuckets, wealth)] ?? Planner.DYNAMIC_BETA_VALUES[0];
   }
 
+  // Per-beta run-out risk and expected terminal wealth at one node of a
+  // policy, for the Beta Policy tab and policy CSV. Same arithmetic as the
+  // solver (linear interpolation into next year's tables, home sale fallback),
+  // computed on demand so the solver keeps no per-beta tables.
+  function createActionEvaluator(policy, scenario, returnRows, years) {
+    const cash = Planner.buildPlanCashFlows(scenario, years);
+    const factorsFor = Planner.createGrowthFactorCache(returnRows);
+    const { wealthBuckets } = policy;
+    const { upperBucketIndex } = Planner;
+    const lastBucket = wealthBuckets.length - 1;
+    const rowCount = returnRows.length;
+    // interpolateBucketValue() for both tables with one bucket search.
+    let risk = 0;
+    let wealth = 0;
+    const addNextYear = (values, wealths, ending) => {
+      if (ending >= wealthBuckets[lastBucket]) {
+        risk += values[lastBucket];
+        wealth += wealths[lastBucket];
+        return;
+      }
+      const upper = upperBucketIndex(wealthBuckets, ending);
+      const lower = upper - 1;
+      const t = (ending - wealthBuckets[lower]) / (wealthBuckets[upper] - wealthBuckets[lower]);
+      risk += values[lower] + (values[upper] - values[lower]) * t;
+      wealth += wealths[lower] + (wealths[upper] - wealths[lower]) * t;
+    };
+    return (yearIndex, startingWealth) => Planner.DYNAMIC_BETA_VALUES.map((beta) => {
+      if (startingWealth <= 0) return { beta, risk: 1, expectedWealth: 0 };
+      const { growth, cashFactor } = factorsFor(beta);
+      risk = 0;
+      wealth = 0;
+      for (let row = 0; row < rowCount; row += 1) {
+        let tables = policy;
+        let ending = startingWealth * growth[row] + cash.ownedNet[yearIndex] * cashFactor[row];
+        if (ending <= 0 && policy.sold && cash.saleProceeds[yearIndex] > 0) {
+          tables = policy.sold;
+          ending = (startingWealth + cash.saleProceeds[yearIndex]) * growth[row] + cash.soldNet[yearIndex] * cashFactor[row];
+        }
+        if (ending <= 0) {
+          risk += 1;
+          continue;
+        }
+        addNextYear(tables.valueByYear[yearIndex + 1], tables.expectedWealthByYear[yearIndex + 1], ending);
+      }
+      return { beta, risk: risk / rowCount, expectedWealth: wealth / rowCount };
+    });
+  }
+
   Object.assign(Planner, {
     buildDynamicBetaPolicy,
-    selectDynamicBeta
+    selectDynamicBeta,
+    createActionEvaluator
   });
 })(window.Planner = window.Planner || {});

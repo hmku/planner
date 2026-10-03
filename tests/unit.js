@@ -91,11 +91,20 @@ async function main() {
   check(first.risk === second.risk && first.terminalWealthSorted.every((value, index) => value === second.terminalWealthSorted[index]), "same seed, same results (share links rely on this)");
 
   const frontier = first.dynamicPolicy.frontier;
-  check(frontier.length > 1 && frontier.some((point) => point.isMinRisk), "frontier is computed with the run and includes the min-risk policy");
+  check(frontier.length > 1 && frontier.some((point) => point.isMinRisk) && frontier.filter((point) => point.isChosen).length === 1, "frontier is computed with the run, includes the min-risk policy, and marks the one the run uses");
   check(frontier.every((point, index) => index === 0 || point.depletionRisk >= frontier[index - 1].depletionRisk), "frontier is sorted by risk");
   check(frontier.every((point) => point.medianTerminalWealth >= 0 && !("policy" in point)), "frontier points carry a simulated median and no policy tables");
-  const minRiskPoint = frontier.find((point) => point.isMinRisk);
-  check(Math.abs(minRiskPoint.depletionRisk - first.risk) < 0.02, `simulated min-risk frontier point agrees with the run (${(minRiskPoint.depletionRisk * 100).toFixed(2)}% vs ${(first.risk * 100).toFixed(2)}%)`);
+  const chosen = frontier.find((point) => point.isChosen);
+  const allowedRisk = Math.max(Planner.ACCEPTABLE_RUN_OUT_RISK, ...frontier.map((point) => point.depletionRisk).slice(0, 1));
+  check(chosen.depletionRisk <= allowedRisk + 1e-12 && frontier.every((point) => point.depletionRisk > allowedRisk + 1e-12 || point.medianTerminalWealth <= chosen.medianTerminalWealth),
+    "the run uses the most median wealth within the acceptable (or lowest reachable) risk");
+  check(Math.abs(chosen.depletionRisk - first.risk) < 0.02, `the chosen frontier point agrees with the run (${(chosen.depletionRisk * 100).toFixed(2)}% vs ${(first.risk * 100).toFixed(2)}%)`);
+  const policy = first.dynamicPolicy;
+  const evaluate = Planner.createActionEvaluator(policy, scenario, returnRows, first.years);
+  const node = { year: 5, bucket: Planner.nearestBucketIndex(policy.wealthBuckets, 2000000) };
+  const recommended = evaluate(node.year, policy.wealthBuckets[node.bucket]).find((action) => Math.abs(action.beta - policy.policyByYear[node.year][node.bucket]) < 1e-9);
+  check(Math.abs(recommended.risk - policy.valueByYear[node.year][node.bucket]) < 1e-9 && Math.abs(recommended.expectedWealth / policy.expectedWealthByYear[node.year][node.bucket] - 1) < 1e-9,
+    "on-demand per-beta alternatives match the solver's tables");
 
   const inspected = first.inspectionPaths[0];
   const replayed = Planner.getSimulationYearRows(first, inspected.simulation);
@@ -115,7 +124,7 @@ async function main() {
   const ownerScenario = { ...scenario, netWorth: 6000000, income: [], expenses: ownerFlows, withdrawalTaxRate: 0.15 };
   const withHome = await Planner.simulateScenario({ ...ownerScenario, home }, returnRows, Planner.createSeededRandom(9));
   const withoutHome = await Planner.simulateScenario({ ...ownerScenario, home: null }, returnRows, Planner.createSeededRandom(9));
-  check(withHome.dynamicPolicy.soldPolicyByYear && !withoutHome.dynamicPolicy.soldPolicyByYear, "with a home, the beta policy has an after-sale layer");
+  check(withHome.dynamicPolicy.sold && !withoutHome.dynamicPolicy.sold, "with a home, the beta policy has an after-sale layer");
   check(withHome.risk < withoutHome.risk, `selling the home when needed lowers run-out risk (${(withoutHome.risk * 100).toFixed(2)}% → ${(withHome.risk * 100).toFixed(2)}%)`);
   const fixedWithHome = await Planner.simulateScenario({ ...ownerScenario, betaMode: "fixed", home }, returnRows, Planner.createSeededRandom(9));
   const fixedWithoutHome = await Planner.simulateScenario({ ...ownerScenario, betaMode: "fixed", home: null }, returnRows, Planner.createSeededRandom(9));

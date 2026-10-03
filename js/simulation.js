@@ -38,8 +38,11 @@
     const yearCount = years.length;
     const simulationCount = scenario.simulationCount;
     const isDynamicBeta = scenario.betaMode === Planner.BETA_MODE_DYNAMIC;
+    // Extra paths (fixed sequences of historical years) serve the frontier and
+    // How much you need; they are drawn first, then the main run.
+    const extraPaths = drawExtraPaths(Planner.REQUIRED_WEALTH_PATHS, yearCount, returnRows.length, random);
     const dynamicPolicy = isDynamicBeta
-      ? await Planner.buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel)
+      ? choosePolicy(await Planner.buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel), scenario, returnRows, years, extraPaths)
       : null;
     const policyShare = isDynamicBeta ? Planner.DYNAMIC_POLICY_PROGRESS_SHARE : 0;
     const stepper = createPathStepper(scenario, returnRows, years, dynamicPolicy);
@@ -106,12 +109,7 @@
         betaPoints: years.map((year, index) => ({ year, beta: pathBeta[index] }))
       }));
     }
-    // Extra paths drawn after the main run, so its random stream is unchanged.
-    const extraPaths = drawExtraPaths(Planner.REQUIRED_WEALTH_PATHS, yearCount, returnRows.length, random);
     const requiredWealth = buildRequiredWealth(extraPaths, years, stepper);
-    if (dynamicPolicy) {
-      dynamicPolicy.frontier = simulateFrontier(dynamicPolicy.frontier, scenario, returnRows, years, extraPaths);
-    }
     onProgress(1);
 
     const terminalWealthSorted = simulationRows.map((row) => row.terminalWealth).sort((a, b) => a - b);
@@ -312,8 +310,8 @@
     const yearCount = years.length;
     const pathCount = Math.min(Planner.FRONTIER_PATHS, extraPaths.pathCount);
     const terminal = new Float64Array(pathCount);
-    return frontier.map(({ policy, ...point }) => {
-      const stepper = createPathStepper(scenario, returnRows, years, policy);
+    return frontier.map((point) => {
+      const stepper = createPathStepper(scenario, returnRows, years, point.policy);
       const state = stepper.newState(0);
       let depletedCount = 0;
       for (let path = 0; path < pathCount; path += 1) {
@@ -339,6 +337,30 @@
         medianTerminalWealth: pathCount % 2 ? terminal[middle] : (terminal[middle - 1] + terminal[middle]) / 2
       };
     }).sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
+  }
+
+
+  // The run's policy: simulate every candidate, then take the highest median
+  // terminal wealth among those whose run-out risk is at most the larger of
+  // ACCEPTABLE_RUN_OUT_RISK and the lowest risk any candidate reaches. Below
+  // that level, less risk isn't worth giving up wealth for; above it, the run
+  // never accepts more risk than the safest policy. Minimizing risk alone would
+  // trade large amounts of wealth for risk differences smaller than the
+  // solver's own grid error.
+  function choosePolicy({ betaValues, wealthBuckets, candidates }, scenario, returnRows, years, extraPaths) {
+    const simulated = simulateFrontier(candidates, scenario, returnRows, years, extraPaths);
+    const lowestRisk = Math.min(...simulated.map((point) => point.depletionRisk));
+    const allowedRisk = Math.max(Planner.ACCEPTABLE_RUN_OUT_RISK, lowestRisk);
+    const chosen = simulated
+      .filter((point) => point.depletionRisk <= allowedRisk + Planner.EPSILON)
+      .reduce((best, point) => (point.medianTerminalWealth > best.medianTerminalWealth ? point : best));
+    return {
+      ...chosen.policy,
+      betaValues,
+      wealthBuckets,
+      label: chosen.label,
+      frontier: simulated.map(({ policy, ...point }) => ({ ...point, isChosen: policy === chosen.policy }))
+    };
   }
 
 

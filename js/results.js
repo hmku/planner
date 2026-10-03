@@ -18,7 +18,7 @@
     Planner.els.currentBetaMetricLabel.textContent = isDynamic ? "Recommended SPX beta" : "SPX beta";
     Planner.els.currentBetaMetric.textContent = Planner.formatBeta(getCurrentBeta(results));
     Planner.els.currentBetaMetricNote.textContent = isDynamic
-      ? `Min-risk policy at ${Planner.formatCompactCurrency(scenario.netWorth)} in ${scenario.currentYear}`
+      ? `Dynamic policy at ${Planner.formatCompactCurrency(scenario.netWorth)} in ${scenario.currentYear}`
       : "Fixed for every year";
 
     updateScenarioSummary(results);
@@ -41,7 +41,7 @@
     const targetLabel = Planner.formatPercent(target);
     const needed = Planner.requiredWealthForRisk(requiredWealth, target);
     const policyText = hasDynamicPolicy(results)
-      ? "the min-risk dynamic beta policy"
+      ? "the run's dynamic beta policy"
       : `a fixed ${Planner.formatBeta(scenario.spxBeta)} SPX beta`;
     els.requiredWealthMetricLabel.textContent = `Needed for ${targetLabel} risk`;
 
@@ -84,7 +84,7 @@
     if (!hasDynamicPolicy(results)) {
       text = "Set beta mode to Dynamic and run a simulation to see the risk/wealth tradeoff.";
     } else {
-      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies, each simulated on the same ${Planner.formatNumber(Planner.FRONTIER_PATHS)} paths. Highlighted points are the min-risk policy used for the run.`;
+      text = `Risk/wealth tradeoff across ${Planner.formatNumber(results.dynamicPolicy.frontier.length)} dynamic beta policies, each simulated on the same ${Planner.formatNumber(Planner.FRONTIER_PATHS)} paths. Highlighted points are the policy the run uses: the most median wealth among policies whose run-out risk is at most ${Planner.formatPercent(Planner.ACCEPTABLE_RUN_OUT_RISK)} or the lowest any policy reaches.`;
     }
     Planner.els.frontierSummary.textContent = text;
   }
@@ -111,7 +111,7 @@
   function updateScenarioSummary(results) {
     const total = Planner.formatNumber(results.scenario.simulationCount);
     const modeText = hasDynamicPolicy(results)
-      ? "Dynamic beta, minimum run-out risk policy."
+      ? `Dynamic beta: the most median wealth at run-out risk under ${Planner.formatPercent(Planner.ACCEPTABLE_RUN_OUT_RISK)}, or the lowest risk reachable.`
       : `Fixed beta ${Planner.formatBeta(results.scenario.spxBeta)}.`;
     const chartText = Planner.els.showDepleted.checked
       ? "Bars show depleted paths only; probabilities use all simulations."
@@ -237,7 +237,7 @@
     const metricLabel = Planner.getPolicyMetric(view.metric).label;
     const wealthBuckets = results.dynamicPolicy.wealthBuckets;
     Planner.els.policyBucketPlotTitle.textContent = `${metricLabel} vs wealth`;
-    Planner.els.dynamicPolicySummary.textContent = `Minimum run-out risk policy for ${results.years[view.yearIndex]}. Plots show wealth buckets up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; the solver grid extends to ${Planner.formatCompactCurrency(wealthBuckets[wealthBuckets.length - 1])}.`;
+    Planner.els.dynamicPolicySummary.textContent = `Policy the run uses (${results.dynamicPolicy.label.toLowerCase()}) for ${results.years[view.yearIndex]}. Plots show wealth buckets up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)}; the solver grid extends to ${Planner.formatCompactCurrency(wealthBuckets[wealthBuckets.length - 1])}.`;
 
     const previousBucket = Planner.els.policyBucketSelect.value;
     Planner.populateSelect(Planner.els.policyBucketSelect, view.rows, {
@@ -282,19 +282,25 @@
   }
 
 
+  // Per-beta alternatives are computed on demand (the solver keeps no
+  // per-beta tables); one evaluator per run.
+  const actionEvaluators = new WeakMap();
+
   function getDynamicPolicyActionRows(results, yearIndex, bucketIndex) {
     const policy = results.dynamicPolicy;
-    const actionRiskRow = policy.actionValueByYear[yearIndex]?.[bucketIndex] || [];
-    const actionExpectedWealthRow = policy.actionExpectedWealthByYear[yearIndex]?.[bucketIndex] || [];
+    if (!actionEvaluators.has(results)) {
+      actionEvaluators.set(results, Planner.createActionEvaluator(policy, results.scenario, results.returnRows, results.years));
+    }
+    const wealth = policy.wealthBuckets[bucketIndex];
     const recommendedBeta = policy.policyByYear[yearIndex]?.[bucketIndex];
-    return policy.betaValues.map((beta, betaIndex) => ({
+    return actionEvaluators.get(results)(yearIndex, wealth).map((action) => ({
       bucketIndex,
-      wealth: policy.wealthBuckets[bucketIndex],
-      beta,
+      wealth,
+      beta: action.beta,
       recommendedBeta,
-      estimatedDepletionRisk: actionRiskRow[betaIndex],
-      expectedTerminalWealth: actionExpectedWealthRow[betaIndex],
-      isRecommended: Math.abs(beta - recommendedBeta) <= Planner.EPSILON
+      estimatedDepletionRisk: action.risk,
+      expectedTerminalWealth: action.expectedWealth,
+      isRecommended: Math.abs(action.beta - recommendedBeta) <= Planner.EPSILON
     }));
   }
 
