@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, "..");
 const context = { console, Math, Date, performance: require("perf_hooks").performance };
 context.window = context;
 vm.createContext(context);
-["js/constants.js", "js/util.js", "js/format.js", "js/lifestyle.js", "js/simulation.js"].forEach((file) => {
+["js/constants.js", "js/util.js", "js/format.js", "js/lifestyle.js", "js/engine.js", "js/policy.js", "js/simulation.js"].forEach((file) => {
   vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
 });
 const { Planner } = context;
@@ -112,8 +112,11 @@ async function main() {
   const ownerScenario = { ...scenario, netWorth: 6000000, income: [], expenses: ownerFlows, withdrawalTaxRate: 0.15 };
   const withHome = await Planner.simulateScenario({ ...ownerScenario, home }, returnRows, Planner.createSeededRandom(9));
   const withoutHome = await Planner.simulateScenario({ ...ownerScenario, home: null }, returnRows, Planner.createSeededRandom(9));
+  check(withHome.dynamicPolicy.soldPolicyByYear && !withoutHome.dynamicPolicy.soldPolicyByYear, "with a home, the beta policy has an after-sale layer");
   check(withHome.risk < withoutHome.risk, `selling the home when needed lowers run-out risk (${(withoutHome.risk * 100).toFixed(2)}% → ${(withHome.risk * 100).toFixed(2)}%)`);
-  check(withHome.expectedTerminalWealth > withoutHome.expectedTerminalWealth, "home equity counts toward terminal wealth");
+  const fixedWithHome = await Planner.simulateScenario({ ...ownerScenario, betaMode: "fixed", home }, returnRows, Planner.createSeededRandom(9));
+  const fixedWithoutHome = await Planner.simulateScenario({ ...ownerScenario, betaMode: "fixed", home: null }, returnRows, Planner.createSeededRandom(9));
+  check(fixedWithHome.expectedTerminalWealth > fixedWithoutHome.expectedTerminalWealth, "home equity counts toward terminal wealth");
   const soldPath = withHome.inspectionPaths.find((path) => Planner.getSimulationYearRows(withHome, path.simulation).some((row) => row.homeSoldThisYear));
   check(Boolean(soldPath), "some inspected paths sell the home");
   const anyPath = withHome.inspectionPaths[withHome.inspectionPaths.length - 1];
@@ -121,7 +124,7 @@ async function main() {
   const lastAny = anyRows[anyRows.length - 1];
   check(Math.abs(lastAny.endingWealth + lastAny.homeEquity - anyPath.terminalWealth) < 1e-6, "row replay matches the run with a home (portfolio + equity)");
   const comparison = Planner.homeOwnershipComparison(owner);
-  check(Math.abs(comparison.owning - 3000000 * (0.025 + 0.05 - 0.01)) < 1 && comparison.renting === 120000, "rent-vs-own comparison");
+  check(Math.abs(comparison.owning - 3000000 * (0.025 + 0.006 - 0.01)) < 1 && comparison.renting === 120000, "rent-vs-own comparison");
 
   console.log("Withdrawal tax");
   const taxed = { ...scenario, withdrawalTaxRate: 0.15 };

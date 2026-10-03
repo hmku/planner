@@ -2,7 +2,7 @@
 // during a run. Same code and seed as the inline path, so results are
 // identical. The page cancels a run by terminating the worker.
 self.window = self;
-importScripts("constants.js", "util.js", "format.js", "simulation.js");
+importScripts("constants.js", "util.js", "format.js", "engine.js", "policy.js", "simulation.js");
 
 // Nothing to yield to here; progress is posted as messages instead.
 Planner.yieldToBrowser = () => Promise.resolve();

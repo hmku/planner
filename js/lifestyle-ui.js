@@ -214,7 +214,7 @@
     const verdict = owning > renting * 1.05
       ? `about ${money(owning - renting)}/yr more than renting`
       : owning < renting * 0.95 ? `about ${money(renting - owning)}/yr less than renting` : "about the same as renting";
-    element.textContent = `Owning this ${money(price)} home costs about ${money(owning)}/yr all-in (upkeep, tax, and the return the money would earn invested, less appreciation); renting a similar home is about ${money(renting)}/yr. Owning is ${verdict}.`;
+    element.textContent = `Owning this ${money(price)} home costs about ${money(owning)}/yr all-in (upkeep and tax, plus the ${Planner.LIFESTYLE_PRICES.riskFreeRealReturn * 100}% T-bill return the money would earn, less appreciation); renting a similar home is about ${money(renting)}/yr. Owning is ${verdict}. This assumes the home's value never falls, so it is as safe as T-bills; the beta policy takes more stock risk with the rest.`;
   }
 
   // ---------- Assumptions tables (Methodology tab) ----------
@@ -286,7 +286,7 @@
           ["Home appreciation, after inflation (default, editable)", `${Planner.defaultLifestyle(0).housing.appreciationPct}% per year`],
           ["Selling costs if sold", `${prices.homeSellingCostShare * 100}% of value`],
           ["Rent for a similar home after selling", `${prices.homeRentYield * 100}% of value per year`],
-          ["Return the money would earn invested (for the rent-vs-own comparison)", `${prices.opportunityRealReturn * 100}% per year, real`],
+          ["Safe return the money would earn in T-bills (for the rent-vs-own comparison; the home is riskless in the model)", `${prices.riskFreeRealReturn * 100}% per year, real`],
           ["Existing mortgage balance (Already own)", `remaining payments valued at ${prices.existingMortgageRatePct}%`],
           ["Inflation that shrinks mortgage payments and balance", `${prices.mortgageInflation * 100}% per year`],
           ["Property tax, insurance, upkeep (default, editable)", `${Planner.defaultLifestyle(0).housing.carryingPct}% of value per year`],

@@ -22,13 +22,15 @@ There is no package manager, build pipeline, framework, or backend.
 3. `js/format.js` — display formatting and money/integer inputs
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
 5. `js/lifestyle.js` — lifestyle builder prices/options and the pure generator (`buildLifestyleItems`, `normalizeLifestyle`), plus `SPENDING_CATEGORIES`
-6. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep), and required net worth (`buildRequiredWealth`, `riskAtWealth`, `requiredWealthForRisk`). `js/simulation-worker.js` runs `simulateScenario()` in a Web Worker by loading modules 1–3 and 6.
-7. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`); see Chart conventions below
-8. `js/results.js` — metrics, inspection tables, policy views, Spending view (`renderSpendingView`, `getSpendingModel`), CSV downloads, tab switching
-9. `js/share.js` — share-link encode/decode (v2 compressed plan state; v1 decode only), address-bar sync
-10. `js/plan-store.js` — plan-state snapshot/apply/normalize, localStorage draft autosave and named saved plans
-11. `js/lifestyle-ui.js` — lifestyle builder form binding, kid rows, editable line items
-12. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
+6. `js/engine.js` — engine core: return math, growth-factor cache, cash flows (`buildPlanCashFlows`: owned and after-sale), the one-year path step with the home sale (`stepPathYear`), wealth buckets
+7. `js/policy.js` — dynamic-beta solver (`solvePolicyLayer` solves several objectives in one backward sweep; `buildDynamicBetaPolicy` solves an after-sale layer, then the owned layer with the sale fallback) plus frontier, and `selectDynamicBeta(policy, year, wealth, sold)`
+8. `js/simulation.js` — Monte Carlo runs, per-simulation row replay (`getSimulationYearRows`), and required net worth (`buildRequiredWealth`, `riskAtWealth`, `requiredWealthForRisk`), all stepping paths through one `createPathStepper()`. `js/simulation-worker.js` runs `simulateScenario()` in a Web Worker by loading modules 1–3 and 6–8.
+9. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`); see Chart conventions below
+10. `js/results.js` — metrics, inspection tables, policy views, Spending view (`renderSpendingView`, `getSpendingModel`), CSV downloads, tab switching
+11. `js/share.js` — share-link encode/decode (v2 compressed plan state; v1 decode only), address-bar sync
+12. `js/plan-store.js` — plan-state snapshot/apply/normalize, localStorage draft autosave and named saved plans
+13. `js/lifestyle-ui.js` — lifestyle builder form binding, kid rows, editable line items
+14. `app.js` — `Planner.state`, `Planner.els`, form inputs, `runSimulation()`
 
 Each module exports only what other modules use. Prefer extending shared helpers (`populateSelect`, `renderTableBody`, `downloadCsvFile`, and the chart helpers in `charts.js`) instead of copying UI or chart logic.
 
@@ -72,6 +74,7 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 - On load, a `p` link wins over the localStorage draft; with neither, defaults are used.
 - Results cross the worker boundary by structured clone, so keep them plain data (no functions); `returnRows` is reattached on the page.
 - The policy solver's hot loop pools each node's return rows into the few buckets they land in; check changes there for agreement with the previous version (policies, frontier, and simulated paths) and time them.
+- An owned home sells (once) at the start of the year a path would run out (`stepPathYear`). The policy solver models the same rule with two layers (after-sale, then owned), so a run, the replay, required net worth, and the solver must all use `stepPathYear`/`createPathStepper` semantics; a plan without a home must stay bit-identical to the one-layer solve.
 - Required net worth comes from per-path survival thresholds over 20,000 extra paths drawn after the main run (so the main random stream is untouched), not from the policy solver's value table, which overstates risk between wealth buckets.
 - Owned homes: `buildHomeModel()` (lifestyle) gives the engine `scenario.home` (value and mortgage balance by year). Every engine path that follows simulated years (main run, `getSimulationYearRows`, required net worth) advances a year with `stepPathYear()` over `buildPathCashFlows()`, which sells the home once when the portfolio would run out; keep them on that one function. The policy solver uses the owned cash flows only. Lines tagged `homeCost` stop after a sale; lines with `deflateRate` (mortgages) shrink with inflation via `flowAmountForYear()` (in `util.js` so the worker has it).
 - Runs store only `sampledRowIndexes` (one historical-row index per simulation-year). `getSimulationYearRows(results, simulation)` replays a simulation's annual rows deterministically; keep its arithmetic in lockstep with `simulateScenario()`.

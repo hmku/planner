@@ -104,7 +104,10 @@
     // sold, then replaced by renting, if the portfolio would otherwise run out.
     homeSellingCostShare: 0.06,
     homeRentYield: 0.04,
-    opportunityRealReturn: 0.05,
+    // The model's home never loses value, so it is a safe asset like T-bills;
+    // the money in it gives up the T-bill real return (about 0.6% a year,
+    // 1950-2025), not the stock market's. Used for the rent-vs-own comparison.
+    riskFreeRealReturn: 0.006,
     existingMortgageRatePct: 6.5,
     // Mortgage payments are fixed in dollars, so they shrink in today's
     // dollars at this assumed inflation rate (as does the balance).
@@ -579,7 +582,7 @@
     const appreciation = (housing.appreciationPct || 0) / 100;
     return {
       price,
-      owning: price * (carrying + PRICES.opportunityRealReturn - appreciation),
+      owning: price * (carrying + PRICES.riskFreeRealReturn - appreciation),
       renting: price * PRICES.homeRentYield
     };
   }

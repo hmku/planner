@@ -599,7 +599,7 @@
               </article>
               <article>
                 <h3>Home</h3>
-                <p>An owned home is an asset: its value grows at the plan&apos;s real appreciation rate and its equity (value less mortgage) counts toward net worth and terminal wealth. If a path&apos;s portfolio would run out, the home is sold that year for its value less 6% selling costs and the mortgage, its costs stop, and rent at 4% of its value starts. Run-out risk means running out even after selling. The beta policy itself assumes the home is kept. Mortgage payments and balances shrink with an assumed 2.5% inflation.</p>
+                <p>An owned home is an asset: its value grows at the plan&apos;s real appreciation rate and its equity (value less mortgage) counts toward net worth and terminal wealth. If a path&apos;s portfolio would run out, the home is sold that year for its value less 6% selling costs and the mortgage, its costs stop, and rent at 4% of its value starts. Run-out risk means running out even after selling. The beta policy knows about the sale: it is solved first for life after a sale and then for owning, so it can take more stock risk while the home backs the portfolio. Mortgage payments and balances shrink with an assumed 2.5% inflation.</p>
               </article>
               <article>
                 <h3>Taxes</h3>
@@ -734,6 +734,8 @@
     <script src="js/format.js"></script>
     <script src="js/ui-shell.js"></script>
     <script src="js/lifestyle.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/policy.js"></script>
     <script src="js/simulation.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/results.js"></script>

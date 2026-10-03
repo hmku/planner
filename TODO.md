@@ -7,7 +7,8 @@ when they ship.
 ## Open
 
 ### Modeling
-- Home: let the beta policy account for the sell-and-rent fallback (it currently assumes the home is kept); optionally expose selling costs and rent yield as inputs.
+- Home price risk: draw real home-price returns from a home-price index (for example Case-Shiller) alongside each sampled year, instead of a riskless fixed appreciation.
+- Home: optionally expose selling costs and rent yield as inputs.
 - Flexible versus crucial expenditures (tag lifestyle lines and manual rows).
 - Spending guardrails: when projected wealth runs low, cut flexible spending and keep crucial spending.
 - Leverage cost: betas above 1 (the dynamic grid goes to 1.5) are financed at the T-bill rate, which is optimistic; add a borrowing spread.
@@ -28,6 +29,7 @@ when they ship.
 
 ## Done
 
+- Home-aware beta policy: the solver has an after-sale layer and an owned layer with the sell-and-rent fallback inside the backward induction (a $3M cash home at $8M: 5.3% → 1.3% run-out risk). The rent-vs-own comparison uses the T-bill rate, since the model's home is riskless. Engine split into `js/engine.js` (shared core and path step), `js/policy.js` (solver), and `js/simulation.js` (runs, replay, and required net worth through one path stepper).
 - Owning a home: the home is an asset (real appreciation, equity in net worth and terminal wealth), sold for renting if the portfolio would run out, with a one-line rent-vs-own comparison; mortgage payments and balances shrink with inflation.
 - Unification pass: one chart lifecycle (standard padding, `trackHover`, HTML legends that wrap on phones), shared chart helpers (sample paths, year axis, adaptive log ticks, hover point, reference line, bar layout, labels), consistent color roles and "run-out risk" wording, one icon-button component, one compact-control size, and one table renderer.
 - How much you need chart: dots without labels (hover or tap for details) and finer ticks on zoomed axes.
