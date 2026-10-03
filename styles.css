@@ -145,6 +145,7 @@ button {
 .topbar {
   position: sticky;
   top: 0;
+  padding-top: env(safe-area-inset-top);
   z-index: 10;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: saturate(1.4) blur(10px);
@@ -157,7 +158,7 @@ button {
   gap: 14px;
   max-width: 1480px;
   margin: 0 auto;
-  padding: 12px 24px;
+  padding: 12px max(24px, env(safe-area-inset-right)) 12px max(24px, env(safe-area-inset-left));
 }
 
 .site-home {
@@ -1177,7 +1178,7 @@ td.empty {
 @media (max-width: 640px) {
   .topbar-inner {
     flex-wrap: wrap;
-    padding: 10px 16px;
+    padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
   }
 
   .brand p {
@@ -1202,7 +1203,7 @@ td.empty {
   }
 
   .workspace {
-    padding: 16px 16px 32px;
+    padding: 16px max(16px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
 
   .content-section {

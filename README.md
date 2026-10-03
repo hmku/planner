@@ -36,7 +36,7 @@ The inputs autosave to the browser's local storage as you edit, so closing or re
 
 ## How It Works
 
-The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`. There is no build step, package manager, server API, or database. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
+The app is entirely client-side. `index.html` loads `styles.css`, the `js/` modules, `app.js`, and `data/spx-annual-returns.json`; `manifest.webmanifest`, `icons/`, and the `sw.js` service worker make it an installable, offline-capable app. There is no build step, package manager, server API, or database. The UI follows the system light/dark preference; chart colors are CSS custom properties (`--chart-*` in `styles.css`) that the canvas code reads at render time.
 
 To keep memory small, a run stores only the sampled historical year for each simulation-year (about 2 bytes each). The Simulation table, its chart, and the simulation CSV replay a simulation from those indices with the same arithmetic as the run, so the numbers match exactly. The simulation CSV exports the annual rows of the sampled inspection paths (up to 200, the same paths listed in the Simulation picker, in picker order with an `inspection_rank` column), so it stays small regardless of the simulation count.
 
@@ -55,6 +55,15 @@ The frontier costs two extra backward sweeps rather than one per policy: the min
 ## Sharing Plans
 
 The `p` query parameter carries the whole plan state (name, plan inputs, income and manual expense rows, and the lifestyle builder) as deflate-compressed JSON in base64url (`z.` prefix; `j.` for uncompressed JSON when the browser lacks `CompressionStream`), plus the run's seed when there is one. The address bar follows your edits and each completed run, and the active tab is stored separately in the `tab` query parameter, so refreshes and copied addresses reopen the same plan and view. Click `Share` to copy a link with a seed; opening a link with a seed restores the inputs and automatically reruns the seeded simulation, so the shared plan produces the same sampled paths without a backend or database. A shared link never overwrites the recipient's saved plans or draft until they edit or save it. Older `seed~plan~income~expenses` links still open, with the lifestyle builder switched off.
+
+## Install on Your Phone
+
+The planner is an installable web app (PWA), so there is no app store step:
+
+- **iPhone (Safari):** open the site, tap the Share button, then **Add to Home Screen**.
+- **Android (Chrome):** open the site, tap the menu, then **Install app** (or accept the install prompt).
+
+It opens full screen from its own icon and works offline (the service worker caches the app and market data; when online it always fetches the latest deploy first). Share opens the phone's native share sheet. On iPhone, the installed app keeps its own storage, separate from Safari, so saved plans don't carry over between them; send a plan across with a Share link and save it there.
 
 ## Run Locally
 
@@ -82,9 +91,6 @@ Use the repository's Pages settings and deploy from the root of the publishing b
 https://hmku.github.io/planner/
 ```
 
-## Future TODOs
+## TODO
 
-- Support flexible versus crucial expenditures.
-- Add spending guardrail logic: when projected wealth is running low, automatically reduce flexible expenditures and preserve only crucial expenditures.
-- Add richer tax/account modeling, including taxable, tax-deferred, and Roth accounts.
-- Add automated browser smoke tests for default load, running a simulation, switching tabs, changing inspected simulation, and downloading CSV.
+Open items and a log of shipped work live in [`TODO.md`](TODO.md).

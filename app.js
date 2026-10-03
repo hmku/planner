@@ -427,6 +427,16 @@
     readCashFlowInputs
   });
 
+  // Offline support for the installable app (see sw.js).
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
+  registerServiceWorker();
+
   document.addEventListener("DOMContentLoaded", async () => {
     Planner.mountSectionHeaders();
     cacheElements();

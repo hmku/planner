@@ -54,6 +54,18 @@
       return;
     }
 
+    // Phones get the native share sheet; elsewhere the link is copied.
+    if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+      try {
+        await navigator.share({ title: Planner.getPlanState().name || "Financial Runway Planner", url });
+        if (Planner.state.isDirty) Planner.state.nextSimulationSeed = seed;
+        return;
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        // Fall back to copying.
+      }
+    }
+
     try {
       await copyText(url);
       // The next run should use this seed so it matches what the link reproduces.

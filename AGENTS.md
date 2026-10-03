@@ -9,6 +9,8 @@ This is a dependency-free static web app:
 - `js/` contains shared runtime modules attached to the global `Planner` namespace.
 - `app.js` bootstraps the app: state, DOM wiring, inputs, and run orchestration.
 - `data/spx-annual-returns.json` is fetched at runtime and must be served over HTTP.
+- `manifest.webmanifest`, `icons/` (rendered from `icons/icon.svg`), and `sw.js` make the app an installable PWA that works offline.
+- `TODO.md` holds open items and a log of shipped work.
 
 There is no package manager, build pipeline, framework, backend, or test runner in the repo.
 
@@ -61,8 +63,15 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
 - The Details dropdown only lists downsampled inspection paths, not every simulation.
+- Lifestyle builder prices and options live in `js/lifestyle.js`; keep README's Lifestyle Builder section in sync when they change.
+- `sw.js` precaches the app shell for offline use. When `index.html` gains or loses a script, stylesheet, data file, or icon, update `APP_SHELL` and bump `CACHE_VERSION`. Fetches are network-first, so ordinary code edits need no version bump.
 - Keep edits scoped; this repo often has user changes in progress.
-- After making changes, update `README.md` when behavior or workflows change, then commit and push the completed work unless the user says not to.
+
+## Workflow
+
+- After making changes, update `README.md` when behavior or workflows change.
+- Update `TODO.md` in the same change: add follow-ups and ideas that come up (including ones the user mentions in passing), and move shipped items to Done, newest first.
+- Commit and push completed work straight to `master` (no feature branches or PRs) unless the user says otherwise. Pushing `master` deploys the live site (Vercel), so run the checks below before pushing.
 
 ## Testing Checklist
 
@@ -94,6 +103,7 @@ Manual smoke test:
 - CSV download creates simulation-year rows for the sampled inspection paths (up to 200 paths × plan years).
 - Switch to Methodology and back to verify tab state still renders.
 - Check dark mode (OS preference) and a ~390px-wide viewport.
+- PWA: after one online load, go offline and reload; the app still loads and runs.
 
 Command-line checks available in the current environment:
 
