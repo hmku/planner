@@ -55,6 +55,25 @@
   }
 
 
+  // advanceWealth() split into per-row factors so the policy solver's hot loop
+  // skips Math.exp: ending = start * growth + cashFlow * cashFactor, with the
+  // same operations (and so the same results) as advanceWealth().
+  function createGrowthFactors(logGrowth) {
+    const growth = new Float64Array(logGrowth.length);
+    const cashFactor = new Float64Array(logGrowth.length);
+    logGrowth.forEach((logReturn, index) => {
+      if (Math.abs(logReturn) < 0.0000001) {
+        growth[index] = 1;
+        cashFactor[index] = 1;
+      } else {
+        growth[index] = Math.exp(logReturn);
+        cashFactor[index] = (growth[index] - 1) / logReturn;
+      }
+    });
+    return { growth, cashFactor };
+  }
+
+
   // Wealth after one year with continuous compounding and a continuous cash flow.
   // May be negative; callers treat <= 0 as depletion.
   function advanceWealth(startingWealth, netCashFlow, logReturn) {
@@ -176,6 +195,7 @@
         betaPoints: years.map((year, index) => ({ year, beta: pathBeta[index] }))
       }));
     }
+    const requiredWealth = buildRequiredWealth(scenario, returnRows, years, dynamicPolicy, random);
     onProgress(1);
 
     const terminalWealthSorted = simulationRows.map((row) => row.terminalWealth).sort((a, b) => a - b);
@@ -191,6 +211,7 @@
       scenario,
       returnRows,
       dynamicPolicy,
+      requiredWealth,
       years,
       sampledRowIndexes,
       simulationRows,
@@ -356,6 +377,87 @@
   }
 
 
+  // Required starting net worth, from simulated paths. Each path is a fixed
+  // sequence of historical years; more starting wealth never hurts a path (for
+  // the min-risk policy, nearly never), so each path has a threshold: the least
+  // net worth that survives it, found by bisection in log wealth. Sorted, the
+  // thresholds give run-out risk at every starting net worth at once. Paths
+  // draw their years after the main run so its random stream is unchanged.
+  function buildRequiredWealth(scenario, returnRows, years, dynamicPolicy, random) {
+    const pathCount = Math.min(scenario.simulationCount, Planner.REQUIRED_WEALTH_PATHS);
+    const yearCount = years.length;
+    const rowCount = returnRows.length;
+    const sampledRows = new Uint8Array(pathCount * yearCount);
+    for (let index = 0; index < sampledRows.length; index += 1) sampledRows[index] = Planner.randomIndex(rowCount, random);
+
+    const cashFlows = netCashFlowsByYear(scenario, years).map((flow) => flow.net);
+    const logGrowthFor = createLogGrowthLookup(returnRows);
+    const factorsByBeta = new Map();
+    const factorsFor = (beta) => {
+      if (!factorsByBeta.has(beta)) factorsByBeta.set(beta, createGrowthFactors(logGrowthFor(beta)));
+      return factorsByBeta.get(beta);
+    };
+    const fixedFactors = dynamicPolicy ? null : factorsFor(scenario.spxBeta);
+    const topWealth = Planner.DYNAMIC_MAX_WEALTH_BUCKET;
+
+    const survives = (path, startingWealth) => {
+      let wealth = startingWealth;
+      const offset = path * yearCount;
+      for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
+        const { growth, cashFactor } = fixedFactors || factorsFor(selectDynamicBeta(dynamicPolicy, yearIndex, wealth));
+        const row = sampledRows[offset + yearIndex];
+        wealth = wealth * growth[row] + cashFlows[yearIndex] * cashFactor[row];
+        if (wealth <= 0) return false;
+      }
+      return true;
+    };
+
+    const thresholds = new Float64Array(pathCount);
+    for (let path = 0; path < pathCount; path += 1) {
+      if (survives(path, 1)) {
+        thresholds[path] = 0;
+      } else if (!survives(path, topWealth)) {
+        thresholds[path] = Number.POSITIVE_INFINITY;
+      } else {
+        let low = 0;
+        let high = Math.log(topWealth);
+        for (let step = 0; step < 18; step += 1) {
+          const middle = (low + high) / 2;
+          if (survives(path, Math.exp(middle))) high = middle;
+          else low = middle;
+        }
+        thresholds[path] = Math.exp(high);
+      }
+    }
+    thresholds.sort();
+    return { thresholds, pathCount };
+  }
+
+
+  // Share of paths that a starting net worth fails to survive (threshold above it).
+  function riskAtWealth(requiredWealth, wealth) {
+    const { thresholds, pathCount } = requiredWealth;
+    let low = 0;
+    let high = pathCount;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (thresholds[middle] <= wealth) low = middle + 1;
+      else high = middle;
+    }
+    return (pathCount - low) / pathCount;
+  }
+
+
+  // Least starting net worth with run-out risk at or below the target, or
+  // Infinity when no amount up to the model's wealth cap gets there.
+  function requiredWealthForRisk(requiredWealth, targetRisk) {
+    const { thresholds, pathCount } = requiredWealth;
+    const allowedFailures = Math.floor(targetRisk * pathCount + 1e-9);
+    const index = pathCount - allowedFailures - 1;
+    return index < 0 ? 0 : thresholds[index];
+  }
+
+
   function calibrateFrontierRiskPenaltyScale(minRiskPoint, maxWealthPoint, scenario) {
     const riskRange = Math.abs((maxWealthPoint.depletionRisk || 0) - (minRiskPoint.depletionRisk || 0));
     const wealthRange = Math.abs((maxWealthPoint.expectedTerminalWealth || 0) - (minRiskPoint.expectedTerminalWealth || 0));
@@ -380,9 +482,9 @@
     objectives,
     actionTablesFor,
     shouldCancel,
-    onPolicyYearComplete
+    onPolicyYearComplete,
+    betaValues = Planner.DYNAMIC_BETA_VALUES
   }) {
-    const betaValues = Planner.DYNAMIC_BETA_VALUES;
     const betaCount = betaValues.length;
     const objectiveCount = objectives.length;
     const bucketCount = wealthBuckets.length;
@@ -390,7 +492,7 @@
     const topWealth = wealthBuckets[lastBucket];
     const rowCount = returnRows.length;
     const logGrowthFor = createLogGrowthLookup(returnRows);
-    const logGrowthByBeta = betaValues.map(logGrowthFor);
+    const factorsByBeta = betaValues.map((beta) => createGrowthFactors(logGrowthFor(beta)));
     const cashFlows = netCashFlowsByYear(scenario, years);
 
     const policies = objectives.map((objective, index) => {
@@ -412,11 +514,12 @@
     let nextValues = policies.map((policy) => policy.valueByYear[years.length]);
     let nextExpectedWealth = policies.map((policy) => policy.expectedWealthByYear[years.length]);
 
-    // Per-beta scratch: interpolation endpoints for each in-range return row.
-    const lowerIndexes = new Int32Array(rowCount);
-    const weights = new Float64Array(rowCount);
-    const riskSums = new Float64Array(objectiveCount);
-    const wealthSums = new Float64Array(objectiveCount);
+    // Per-beta scratch: each in-range return row splits its weight between the
+    // two buckets around its ending wealth. Rows land in only a handful of
+    // buckets, so weights are pooled per bucket and every objective then sums
+    // over those few buckets instead of over every row.
+    const bucketWeights = new Float64Array(bucketCount);
+    const touchedBuckets = new Int32Array(bucketCount);
     const bestRisk = new Float64Array(objectiveCount);
     const bestWealth = new Float64Array(objectiveCount);
     const bestBeta = new Float64Array(objectiveCount);
@@ -451,12 +554,12 @@
         bestBeta.fill(betaValues[0]);
 
         for (let betaIndex = 0; betaIndex < betaCount; betaIndex += 1) {
-          const logGrowth = logGrowthByBeta[betaIndex];
+          const { growth, cashFactor } = factorsByBeta[betaIndex];
           let depletedCount = 0;
           let topCount = 0;
-          let interpolatedCount = 0;
+          let touchedCount = 0;
           for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-            const endingWealth = advanceWealth(startingWealth, netCashFlow, logGrowth[rowIndex]);
+            const endingWealth = startingWealth * growth[rowIndex] + netCashFlow * cashFactor[rowIndex];
             if (endingWealth <= 0) {
               depletedCount += 1;
             } else if (endingWealth >= topWealth) {
@@ -464,9 +567,16 @@
             } else {
               const upper = upperBucketIndex(wealthBuckets, endingWealth);
               const lower = upper - 1;
-              lowerIndexes[interpolatedCount] = lower;
-              weights[interpolatedCount] = (endingWealth - wealthBuckets[lower]) / (wealthBuckets[upper] - wealthBuckets[lower]);
-              interpolatedCount += 1;
+              const t = (endingWealth - wealthBuckets[lower]) / (wealthBuckets[upper] - wealthBuckets[lower]);
+              // Zero weights are skipped so a zero entry always means untouched.
+              if (t < 1) {
+                if (bucketWeights[lower] === 0) touchedBuckets[touchedCount++] = lower;
+                bucketWeights[lower] += 1 - t;
+              }
+              if (t > 0) {
+                if (bucketWeights[upper] === 0) touchedBuckets[touchedCount++] = upper;
+                bucketWeights[upper] += t;
+              }
             }
           }
 
@@ -475,11 +585,10 @@
             const expectedWealth = nextExpectedWealth[k];
             let totalDepletionRisk = depletedCount + topCount * values[lastBucket];
             let totalExpectedWealth = topCount * expectedWealth[lastBucket];
-            for (let i = 0; i < interpolatedCount; i += 1) {
-              const lower = lowerIndexes[i];
-              const t = weights[i];
-              totalDepletionRisk += values[lower] + (values[lower + 1] - values[lower]) * t;
-              totalExpectedWealth += expectedWealth[lower] + (expectedWealth[lower + 1] - expectedWealth[lower]) * t;
+            for (let i = 0; i < touchedCount; i += 1) {
+              const index = touchedBuckets[i];
+              totalDepletionRisk += bucketWeights[index] * values[index];
+              totalExpectedWealth += bucketWeights[index] * expectedWealth[index];
             }
             const actionDepletionRisk = totalDepletionRisk / rowCount;
             const actionExpectedWealthValue = totalExpectedWealth / rowCount;
@@ -493,6 +602,7 @@
               bestBeta[k] = betaValues[betaIndex];
             }
           }
+          for (let i = 0; i < touchedCount; i += 1) bucketWeights[touchedBuckets[i]] = 0;
         }
 
         for (let k = 0; k < objectiveCount; k += 1) {
@@ -647,6 +757,8 @@
     cashFlowForYear,
     simulateScenario,
     getSimulationYearRows,
+    riskAtWealth,
+    requiredWealthForRisk,
     selectDynamicBeta,
     interpolateBucketValue,
     nearestBucketIndex

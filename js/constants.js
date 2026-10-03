@@ -1,5 +1,8 @@
 window.Planner = window.Planner || {};
 Planner.MAX_VISUAL_PATHS = 200;
+Planner.REQUIRED_WEALTH_PATHS = 10000;
+Planner.REQUIRED_WEALTH_TARGETS = [0.01, 0.02, 0.05, 0.1, 0.2];
+Planner.DEFAULT_REQUIRED_WEALTH_TARGET = 0.05;
 Planner.SIMULATION_CHUNK_SIZE = 100;
 Planner.MIN_PLAN_YEAR = 1900;
 Planner.MAX_PLAN_YEAR = 2200;

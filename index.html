@@ -280,9 +280,9 @@
             <small id="currentBetaMetricNote">Allocation for the first plan year</small>
           </article>
           <article class="metric">
-            <span class="metric-label">Historical data</span>
-            <strong id="dataSpanMetric">--</strong>
-            <small id="dataSpanMetricNote">Annual returns sampled with replacement</small>
+            <span id="requiredWealthMetricLabel" class="metric-label">Needed for 5% risk</span>
+            <strong id="requiredWealthMetric">--</strong>
+            <small id="requiredWealthMetricNote">Starting net worth for the target run-out risk</small>
           </article>
         </div>
 
@@ -350,6 +350,19 @@
             </div>
             <div class="canvas-wrap">
               <canvas id="distributionCanvas" class="chart-medium" aria-label="Probability distribution of years where money runs out"></canvas>
+            </div>
+          </section>
+          <section
+            class="card content-section"
+            data-section-header
+            data-title="How much you need"
+            data-summary-id="requiredWealthSummary"
+            data-summary-text="Run a simulation to see run-out risk by starting net worth."
+            data-picker-label="Target risk"
+            data-picker-id="requiredTargetSelect"
+          >
+            <div class="canvas-wrap">
+              <canvas id="requiredWealthCanvas" class="chart-medium" aria-label="Run-out risk by starting net worth, with the net worth needed for the target risk"></canvas>
             </div>
           </section>
         </div>
@@ -570,6 +583,10 @@
               <article>
                 <h3>Frontier</h3>
                 <p>Each dynamic run also solves the policy with scenario-calibrated risk penalties and plots expected terminal wealth against run-out risk for each resulting policy.</p>
+              </article>
+              <article>
+                <h3>How much you need</h3>
+                <p>After each run, 10,000 extra paths of historical years are drawn. For each one, a bisection finds the least starting net worth that survives it under the same policy and cash flows. The share of paths whose threshold is above an amount is the run-out risk at that amount, so the needed net worth for a target risk is a percentile of the thresholds.</p>
               </article>
               <article>
                 <h3>Lifestyle builder</h3>

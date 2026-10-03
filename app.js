@@ -23,7 +23,9 @@
     "lifestyleAssumptionsSection",
     "spendingCanvas", "spendingLegend", "spendingSummary", "spendingTable", "spendingNowHeader",
     "riskMetric", "riskMetricNote", "terminalWealthMetric", "terminalWealthMetricNote",
-    "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote", "dataSpanMetric", "dataSpanMetricNote",
+    "currentBetaMetricLabel", "currentBetaMetric", "currentBetaMetricNote",
+    "requiredWealthMetricLabel", "requiredWealthMetric", "requiredWealthMetricNote",
+    "requiredWealthSummary", "requiredTargetSelect", "requiredWealthCanvas",
     "scenarioSummary", "netWorthSummary", "betaPathSummary", "frontierSummary",
     "netWorthZoom", "netWorthZoomLabel", "showDepleted",
     "distributionCanvas", "pathsCanvas", "betaCanvas", "frontierCanvas", "selectedSimulationCanvas",
@@ -56,6 +58,11 @@
     Planner.DEFAULT_INCOME.forEach((flow) => addFlowRow(Planner.els.incomeRows, flow));
     Planner.DEFAULT_EXPENSES.forEach((flow) => addFlowRow(Planner.els.expenseRows, flow));
     Planner.state.lifestyle = Planner.defaultLifestyle(currentYear);
+    Planner.populateSelect(Planner.els.requiredTargetSelect, Planner.REQUIRED_WEALTH_TARGETS, {
+      getValue: (target) => target,
+      getLabel: (target) => `${Planner.formatPercent(target)} run-out risk`
+    });
+    Planner.els.requiredTargetSelect.value = String(Planner.DEFAULT_REQUIRED_WEALTH_TARGET);
     Planner.bindFormattedInputs(document);
     Planner.formatAllFormattedInputs(document);
     updateBetaModeControls();
@@ -99,6 +106,11 @@
       Planner.updateNetWorthZoomLabel();
       Planner.renderChart("netWorth");
     });
+    els.requiredTargetSelect.addEventListener("change", rerender((results) => {
+      Planner.clearHover();
+      Planner.updateRequiredWealth(results);
+      Planner.renderChart("requiredWealth");
+    }));
     els.showDepleted.addEventListener("change", rerender((results) => {
       Planner.updateScenarioSummary(results);
       Planner.renderChart("distribution");
@@ -146,8 +158,6 @@
     }
     const years = Planner.state.marketData.returns.map((entry) => entry.year);
     const span = `${Math.min(...years)}–${Math.max(...years)}`;
-    Planner.els.dataSpanMetric.textContent = span;
-    Planner.els.dataSpanMetricNote.textContent = `${years.length} annual observations`;
     document.querySelectorAll("[data-data-span]").forEach((element) => {
       element.textContent = span;
     });
@@ -372,6 +382,7 @@
       state.cancelRequested = true;
       setStatus("Stopping…");
       updateRunState();
+      if (cancelActiveRun) cancelActiveRun();
       return;
     }
     if (!state.marketData || !state.isDirty) return;
@@ -399,13 +410,7 @@
 
     const startedAt = performance.now();
     try {
-      const results = await Planner.simulateScenario(
-        scenario,
-        state.marketData.returns,
-        Planner.createSeededRandom(seed),
-        setProgress,
-        () => state.cancelRequested
-      );
+      const results = await runSimulationJob(scenario, state.marketData.returns, seed);
       results.seed = seed;
       state.results = results;
       state.isDirty = state.inputVersion !== runVersion;
@@ -421,6 +426,66 @@
       els.runProgress.hidden = true;
       updateRunState();
     }
+  }
+
+  // Runs in a Web Worker when possible so the page stays responsive; otherwise
+  // inline. Both paths use the same seed and code, so results are identical.
+  let cancelActiveRun = null;
+
+  function cancellationError() {
+    const error = new Error("Simulation canceled.");
+    error.name = "SimulationCanceledError";
+    return error;
+  }
+
+  function runSimulationJob(scenario, returnRows, seed) {
+    const runInline = () => Planner.simulateScenario(
+      scenario,
+      returnRows,
+      Planner.createSeededRandom(seed),
+      setProgress,
+      () => Planner.state.cancelRequested
+    );
+    if (typeof Worker !== "function") return runInline();
+
+    return new Promise((resolve, reject) => {
+      let worker;
+      try {
+        worker = new Worker("js/simulation-worker.js");
+      } catch (error) {
+        runInline().then(resolve, reject);
+        return;
+      }
+      let started = false;
+      const finish = () => {
+        cancelActiveRun = null;
+        worker.terminate();
+      };
+      cancelActiveRun = () => {
+        finish();
+        reject(cancellationError());
+      };
+      worker.onmessage = ({ data }) => {
+        started = true;
+        if (data.type === "progress") {
+          setProgress(data.value);
+        } else if (data.type === "done") {
+          finish();
+          resolve({ ...data.results, returnRows });
+        } else if (data.type === "error") {
+          finish();
+          reject(new Error(data.message));
+        }
+      };
+      // A worker that can't load (blocked, offline without cache) falls back.
+      worker.onerror = (event) => {
+        event.preventDefault();
+        finish();
+        if (started) reject(new Error(event.message || "The simulation failed."));
+        else runInline().then(resolve, reject);
+      };
+      worker.postMessage({ scenario, returnRows, seed });
+    });
   }
 
   Object.assign(Planner, {

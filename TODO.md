@@ -9,6 +9,8 @@ when they ship.
 ### Modeling
 - Flexible versus crucial expenditures (tag lifestyle lines and manual rows).
 - Spending guardrails: when projected wealth runs low, cut flexible spending and keep crucial spending.
+- Leverage cost: betas above 1 (the dynamic grid goes to 1.5) are financed at the T-bill rate, which is optimistic; add a borrowing spread.
+- Borrow-instead-of-sell mode (securities-backed line of credit): loan balance at T-bill + spread, LTV cap with forced selling, step-up in basis at death.
 - Taxes: gross up portfolio withdrawals (California taxes long-term gains as ordinary income; ~18% effective was a reasonable planning assumption), then richer account modeling (taxable, tax-deferred, Roth).
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
 - Mortgage payments are held flat in today's dollars; deflate them by an inflation assumption instead.
@@ -21,13 +23,14 @@ when they ship.
 - Revisit prices periodically (tuition, fares, charter rates); they live in `js/lifestyle.js`.
 
 ### App
-- Speed up the dynamic-beta policy and frontier solve (about 2s of a default run on desktop, much longer on phones, regardless of simulation count): run it in a Web Worker so the page stays responsive, and/or coarsen the wealth grid.
 - Native App Store / Play Store builds (for example a Capacitor wrapper) if the installable web app isn't enough.
 - Sync saved plans across devices (saved plans currently live only in one browser; the installed iPhone app has storage separate from Safari).
-- Automated browser smoke tests: default load, run, tab switching, inspected simulation, CSV download, lifestyle builder, save/restore, share links.
 
 ## Done
 
+- How much you need: needed starting net worth for a 1%–20% run-out risk (metric card and Overview chart), from per-path survival thresholds.
+- Runs execute in a Web Worker; dynamic-beta solver about 1.6x faster with identical results (precomputed growth factors, pooled bucket weights). A 50,000-simulation run went from 4.7s to 1.8s in the test browser.
+- Automated tests: `tests/unit.js` (Node) and `tests/smoke.js` (headless browser, includes offline and phone checks).
 - "See spending" and "Assumptions" links switch tabs and scroll the target into view (needed on phones, where results sit below the inputs).
 - Mobile: zooming disabled (viewport, iOS gesture events, double-tap), 16px fields on touch screens so tapping one doesn't zoom, and the tab row scrolls horizontally only.
 - Lifestyle builder assumptions: full tables of prices and rules on the Methodology tab, generated from the builder's constants, with a "Your area" column; linked from the Lifestyle card.

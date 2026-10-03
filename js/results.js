@@ -24,11 +24,52 @@
     updateScenarioSummary(results);
     Planner.els.netWorthSummary.textContent = `Expected current-dollar net worth across ${Planner.formatNumber(scenario.simulationCount)} simulations, with ${Planner.formatNumber(results.visualPaths.length)} randomly sampled paths. Hover a path for details.`;
     updateFrontierSummary(results);
+    updateRequiredWealth(results);
 
     renderSimulationSelect(results);
     renderSimulationPathTable(results);
     renderDynamicPolicyControls(results);
     Planner.renderCharts(results);
+  }
+
+
+  function getRequiredTarget() {
+    const value = Number(Planner.els.requiredTargetSelect.value);
+    return Number.isFinite(value) && value > 0 ? value : Planner.DEFAULT_REQUIRED_WEALTH_TARGET;
+  }
+
+
+  // The "Needed for X% risk" metric and the How much you need summary.
+  function updateRequiredWealth(results) {
+    const { els } = Planner;
+    const { scenario, requiredWealth } = results;
+    const target = getRequiredTarget();
+    const targetLabel = Planner.formatPercent(target);
+    const needed = Planner.requiredWealthForRisk(requiredWealth, target);
+    const policyText = hasDynamicPolicy(results)
+      ? "the min-risk dynamic beta policy"
+      : `a fixed ${Planner.formatBeta(scenario.spxBeta)} SPX beta`;
+    els.requiredWealthMetricLabel.textContent = `Needed for ${targetLabel} risk`;
+
+    if (!Number.isFinite(needed)) {
+      els.requiredWealthMetric.textContent = "Out of reach";
+      els.requiredWealthMetric.title = "";
+      els.requiredWealthMetricNote.textContent = `No starting amount up to ${Planner.formatCompactCurrency(Planner.DYNAMIC_MAX_WEALTH_BUCKET)} gets below ${targetLabel}`;
+      els.requiredWealthSummary.textContent = `With ${policyText}, more than ${Planner.formatPercent(target)} of simulated paths run out at any starting net worth the model covers.`;
+      return;
+    }
+    const gap = scenario.netWorth - needed;
+    els.requiredWealthMetric.textContent = Planner.formatCompactCurrency(needed);
+    els.requiredWealthMetric.title = Planner.formatCurrency(needed);
+    els.requiredWealthMetricNote.textContent = needed === 0
+      ? "Income covers spending on almost every path"
+      : gap >= 0
+        ? `${Planner.formatCompactCurrency(gap)} less than you have`
+        : `${Planner.formatCompactCurrency(-gap)} more than you have`;
+    els.requiredWealthSummary.textContent =
+      `With ${policyText}, starting with ${Planner.formatCompactCurrency(needed)} gives a ${targetLabel} run-out risk. ` +
+      `Estimated from ${Planner.formatNumber(requiredWealth.pathCount)} simulated paths, where your ${Planner.formatCompactCurrency(scenario.netWorth)} has a ` +
+      `${Planner.formatPolicyRiskPercent(Planner.riskAtWealth(requiredWealth, scenario.netWorth))} risk.`;
   }
 
 
@@ -629,6 +670,8 @@
   Object.assign(Planner, {
     getSpendingModel,
     renderSpendingView,
+    getRequiredTarget,
+    updateRequiredWealth,
     hasDynamicPolicy,
     renderResults,
     resetDetailsControls,

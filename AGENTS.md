@@ -11,8 +11,9 @@ This is a dependency-free static web app:
 - `data/spx-annual-returns.json` is fetched at runtime and must be served over HTTP.
 - `manifest.webmanifest`, `icons/` (rendered from `icons/icon.svg`), and `sw.js` make the app an installable PWA that works offline.
 - `TODO.md` holds open items and a log of shipped work.
+- `tests/unit.js` (plain Node) and `tests/smoke.js` (Playwright, serves the repo itself) are the automated checks.
 
-There is no package manager, build pipeline, framework, backend, or test runner in the repo.
+There is no package manager, build pipeline, framework, or backend.
 
 ### JavaScript modules (load order matters)
 
@@ -21,7 +22,7 @@ There is no package manager, build pipeline, framework, backend, or test runner 
 3. `js/format.js` — display formatting and money/integer inputs
 4. `js/ui-shell.js` — shared section-header templates (`mountSectionHeaders`)
 5. `js/lifestyle.js` — lifestyle builder prices/options and the pure generator (`buildLifestyleItems`, `normalizeLifestyle`), plus `SPENDING_CATEGORIES`
-6. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), and dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep)
+6. `js/simulation.js` — Monte Carlo engine, per-simulation row replay (`getSimulationYearRows`), dynamic-beta policy plus frontier (`solveDynamicBetaPolicies` solves several objectives in one backward sweep), and required net worth (`buildRequiredWealth`, `riskAtWealth`, `requiredWealthForRisk`). `js/simulation-worker.js` runs `simulateScenario()` in a Web Worker by loading modules 1–3 and 6.
 7. `js/charts.js` — canvas charts, theme tokens, and a shared hover system (`CHARTS` registry, `bindChartHover`, `renderChart(key)`)
 8. `js/results.js` — metrics, inspection tables, policy views, Spending view (`renderSpendingView`, `getSpendingModel`), CSV downloads, tab switching
 9. `js/share.js` — share-link encode/decode (v2 compressed plan state; v1 decode only), address-bar sync
@@ -39,7 +40,7 @@ The simulation path is:
 
 1. `runSimulation()`
 2. `readScenario()`
-3. `simulateScenario()`
+3. `runSimulationJob()` → `simulateScenario()` in `js/simulation-worker.js` (inline fallback when workers are unavailable; Stop terminates the worker)
 4. `renderResults()`
 5. `renderSimulationSelect()`, `renderSimulationPathTable()`, `renderDynamicPolicyControls()`, and `renderCharts()`
 
@@ -55,6 +56,9 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 - SPX beta currently defaults to `0.8`.
 - Share links use the `p` query parameter to store the full plan state (`getPlanState()`) as compressed JSON plus an optional seed; links with a seed restore inputs and auto-run after market data loads. Saved plans, the draft, and share links all pass through `normalizePlanState()` because they are untrusted; extend it (and `normalizeLifestyle()`) whenever plan state gains a field.
 - On load, a `p` link wins over the localStorage draft; with neither, defaults are used.
+- Results cross the worker boundary by structured clone, so keep them plain data (no functions); `returnRows` is reattached on the page.
+- The policy solver's hot loop pools each node's return rows into the few buckets they land in; check changes there for agreement with the previous version (policies, frontier, and simulated paths) and time them.
+- Required net worth comes from per-path survival thresholds over 10,000 extra paths drawn after the main run (so the main random stream is untouched), not from the policy solver's value table, which overstates risk between wealth buckets.
 - Runs store only `sampledRowIndexes` (one historical-row index per simulation-year). `getSimulationYearRows(results, simulation)` replays a simulation's annual rows deterministically; keep its arithmetic in lockstep with `simulateScenario()`.
 - Keep the random-number call order in `simulateScenario()` stable (one draw per active year, then the reservoir draw); share links depend on it.
 - Colors live in CSS custom properties; canvas code reads `--chart-*` tokens through `chartTheme()`. Do not hardcode colors in JS.
@@ -87,7 +91,14 @@ Then open:
 http://127.0.0.1:8000/
 ```
 
-Manual smoke test:
+Automated checks (run both before pushing):
+
+```bash
+node tests/unit.js
+NODE_PATH=$(npm root -g) node tests/smoke.js
+```
+
+`tests/smoke.js` covers the manual list below; extend it when you add behavior. Manual smoke test:
 
 - Page loads without console errors.
 - Default SPX beta is `0.8`.
@@ -109,7 +120,7 @@ Command-line checks available in the current environment:
 
 ```bash
 curl -I http://127.0.0.1:8000/
-for f in js/*.js app.js; do node --check "$f"; done
+for f in js/*.js app.js sw.js tests/*.js; do node --check "$f"; done
 git diff --stat
 ```
 
@@ -134,7 +145,7 @@ Open `http://127.0.0.1:8000/`. The **Run** button stays disabled until market da
 There is no ESLint config. Use:
 
 ```bash
-for f in js/*.js app.js; do node --check "$f"; done
+for f in js/*.js app.js sw.js tests/*.js; do node --check "$f"; done
 ```
 
 ### Browser testing

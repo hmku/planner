@@ -4,7 +4,7 @@
 // loads, and bump CACHE_VERSION when that list changes. The page is cached as
 // "./" only: hosts with clean URLs redirect /index.html, and a cached redirect
 // can't answer a navigation.
-const CACHE_VERSION = "planner-v1";
+const CACHE_VERSION = "planner-v2";
 const APP_SHELL = [
   "./",
   "styles.css",
@@ -15,6 +15,7 @@ const APP_SHELL = [
   "js/ui-shell.js",
   "js/lifestyle.js",
   "js/simulation.js",
+  "js/simulation-worker.js",
   "js/charts.js",
   "js/results.js",
   "js/share.js",

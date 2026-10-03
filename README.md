@@ -5,6 +5,7 @@ A static browser-based financial planning simulator built around dynamic SPX-bet
 The planner lets you enter plan years, current net worth, beta mode, SPX beta, simulation count, and annual income, then describe spending with a lifestyle builder instead of computing every expense by hand (manual expenditure rows are still available for anything else). It then shows:
 
 - probability of running out of money before the expected year of death
+- the starting net worth needed for a target run-out risk (1%–20%), with a run-out risk vs starting net worth chart
 - expected (mean) terminal wealth in current dollars, with the median alongside
 - current SPX beta for the first plan year
 - historical return span used by the model
@@ -53,6 +54,21 @@ The simulated portfolio return is converted into current-dollar real returns usi
 Dynamic beta is the default mode. It builds a backward dynamic-programming policy over plan year and current wealth before running the simulation paths. The policy is global to the scenario, not to any one simulation path. It uses a zero bucket plus 180 log-spaced positive wealth buckets from `$10,000` to `$1 trillion`, searches beta values from `0.0` to `1.5` in `0.1` steps, chooses the beta with the lowest estimated depletion probability, then breaks ties by highest expected terminal wealth. Every dynamic run also solves a risk/wealth frontier from scenario-calibrated risk-penalty policies, shown on the Overview; the frontier plots expected terminal wealth against run-out probability and shows each point's current recommended SPX beta on hover. Simulation rows and CSV exports include the SPX beta used each year. Dynamic runs also show the scenario-level minimum-risk policy in the Beta Policy tab: per-beta alternatives for a selected wealth bucket, a hoverable visible wealth bucket plot that can show optimal SPX beta, estimated depletion risk, or expected terminal wealth, and a path explorer that forces one beta for a selected number of years under a selected return assumption. The policy CSV includes every evaluated year/bucket/beta combination and flags the recommended beta and whether the bucket is shown in the UI.
 
 The frontier costs two extra backward sweeps rather than one per policy: the min-risk and max-expected-wealth policies are solved together (which calibrates the risk-penalty scale), then all risk-penalty policies are solved together. Within a sweep, each node's ending wealth and bucket interpolation for every beta and historical return row is computed once and shared by all objectives. The frontier's cost does not depend on the simulation count.
+
+## How Much You Need
+
+After each run, 10,000 extra paths of historical years are drawn. For each path, a bisection finds the least starting net worth that survives it under the same beta policy and cash flows. Sorted, those thresholds give the run-out risk at every starting net worth at once: the risk at an amount is the share of paths whose threshold is above it, and the net worth needed for a target risk is a percentile of the thresholds. The "Needed for X% risk" metric and the How much you need chart on the Overview read from this, and changing the target is instant. (The policy solver's own value table is not used here because its grid interpolation overstates risk.)
+
+## Performance
+
+Runs execute in a Web Worker (`js/simulation-worker.js`), so the page stays responsive and Stop is immediate. The dynamic-beta solver precomputes each beta's growth factors and pools return rows into the few wealth buckets they land in before scoring each objective; a default dynamic run takes about 1 to 2 seconds on a laptop.
+
+## Tests
+
+```bash
+node tests/unit.js                              # pure modules: lifestyle builder, engine, required net worth
+NODE_PATH=$(npm root -g) node tests/smoke.js    # headless browser end to end (needs Playwright + Chromium)
+```
 
 ## Sharing Plans
 
