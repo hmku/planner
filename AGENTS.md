@@ -63,7 +63,7 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 - Canvas charts use `fitCanvas()` to handle device-pixel-ratio scaling.
 - The app uses current-dollar values throughout the UI.
 - The Details dropdown only lists downsampled inspection paths, not every simulation.
-- Lifestyle builder prices and options live in `js/lifestyle.js`; keep README's Lifestyle Builder section in sync when they change.
+- Lifestyle builder prices and options live in `js/lifestyle.js`; keep README's Lifestyle Builder section in sync when they change. The Methodology tab's assumptions tables (`renderLifestyleAssumptions()` in `js/lifestyle-ui.js`) read those constants directly; when you add a priced option or rule, add it there too.
 - `sw.js` precaches the app shell for offline use. When `index.html` gains or loses a script, stylesheet, data file, or icon, update `APP_SHELL` and bump `CACHE_VERSION`. Fetches are network-first, so ordinary code edits need no version bump.
 - Keep edits scoped; this repo often has user changes in progress.
 

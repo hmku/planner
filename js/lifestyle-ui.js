@@ -169,12 +169,141 @@
     total.append(strong, ` in ${years.currentYear}`);
     if (peak.amount > now * 1.02) total.append(`, peaking at ${Planner.formatCompactCurrency(peak.amount)} in ${peak.year}`);
     total.append(". ");
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "link-button";
-    link.textContent = "See spending";
-    link.addEventListener("click", () => Planner.switchPage("spending"));
-    total.append(link);
+    total.append(
+      linkButton("See spending", () => Planner.switchPage("spending")),
+      " · ",
+      linkButton("Assumptions", showLifestyleAssumptions)
+    );
+  }
+
+  function linkButton(text, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "link-button";
+    button.textContent = text;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function showLifestyleAssumptions() {
+    Planner.switchPage("methodology");
+    Planner.els.lifestyleAssumptionsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // ---------- Assumptions tables (Methodology tab) ----------
+
+  // Built from the same constants the generator prices with, so the tables
+  // can't drift from the model. A "Your area" column appears when the selected
+  // area scales local costs.
+  function renderLifestyleAssumptions() {
+    const { LIFESTYLE_OPTIONS: options, LIFESTYLE_PRICES: prices } = Planner;
+    const tier = options.costTier.find((option) => option.value === Planner.state.lifestyle.costTier) || options.costTier[0];
+    const scaled = tier.factor !== 1;
+    const money = Planner.formatCurrency;
+    const localCells = (amount) => (scaled ? [money(amount), money(amount * tier.factor)] : [money(amount)]);
+    const flatCells = (amount) => (scaled ? [money(amount), money(amount)] : [money(amount)]);
+    const priceHeaders = scaled ? ["SF / NYC", `Your area (×${tier.factor})`] : ["Per year"];
+    const ages = (from, to) => `${from}–${to}`;
+
+    const tables = [
+      {
+        title: "Area cost tiers",
+        note: "Local costs (childcare, school, activities, kid basics, help, everyday living) are priced for SF/NYC and multiplied by the area factor. College, travel, and health are not scaled.",
+        headers: ["Area", "Factor"],
+        rows: options.costTier.map((option) => [option.label, `×${option.factor}`])
+      },
+      {
+        title: "Kids (per kid, per year)",
+        note: "Each line runs only for the ages shown, starting from the kid's birth year.",
+        headers: ["Item", "Ages", ...priceHeaders],
+        rows: [
+          ["Basics (food, clothes, gear)", ages(0, prices.kidHomeEndAge), ...localCells(prices.kidBasics)],
+          ...options.childcare.map((option) => [`Childcare: ${option.label}`, ages(0, prices.childcareEndAge), ...localCells(option.amount)]),
+          ...options.school.map((option) => [`School: ${option.label}`, ages(prices.schoolStartAge, prices.kidHomeEndAge), ...localCells(option.amount)]),
+          ...options.activities.map((option) => [`Activities: ${option.label}`, ages(prices.schoolStartAge, prices.kidHomeEndAge), ...localCells(option.amount)]),
+          ...options.college.map((option) => [`College: ${option.label}`, ages(prices.collegeStartAge, prices.collegeEndAge), ...flatCells(option.amount)])
+        ]
+      },
+      {
+        title: "Household help (per year)",
+        note: "One level applies while any kid is 0–17, the other before kids and after the youngest turns 18.",
+        headers: ["Level", ...priceHeaders],
+        rows: options.help.map((option) => [option.label, ...localCells(option.amount)])
+      },
+      {
+        title: "Everyday living (per year, couple)",
+        note: `A single adult pays ×${Planner.LIFESTYLE_SINGLE_ADULT_FACTOR}. Amounts are SF/NYC${scaled ? `; your area pays ×${tier.factor}` : ""}.`,
+        headers: ["Line", ...options.everydayTier.map((option) => option.label)],
+        rows: Planner.LIFESTYLE_EVERYDAY_LINES.map((line) => [line.label, ...line.amounts.map(Planner.formatCompactCurrency)])
+      },
+      {
+        title: "Flights (round trip)",
+        note: "Commercial fares are per traveler; kids travel through age 17 when \"Kids come along\" is on. Private charter is per trip for the whole plane, so it doesn't grow with the family.",
+        headers: ["Class", "Domestic", "International", "Priced per"],
+        rows: options.flightClass.map((option) => option.perTrip
+          ? [option.label, money(option.perTrip[0]), money(option.perTrip[1]), "Trip"]
+          : [option.label, money(option.fares[0]), money(option.fares[1]), "Traveler"])
+      },
+      {
+        title: "Hotels and trip spending (per night)",
+        note: "Adults share one room; each kid adds half a room. Daily spending covers food, activities, and local transport per traveler.",
+        headers: ["Tier", "Room", "Daily spending per traveler"],
+        rows: options.hotel.map((option) => [option.label, money(option.nightly), money(option.dailySpend)])
+      },
+      {
+        title: "Housing",
+        note: "Rent is whatever you enter. Mortgage payments are monthly amortization held flat in today's dollars.",
+        headers: ["Rule", "Value"],
+        rows: [
+          ["Closing costs on a purchase (one time)", `${prices.closingCostShare * 100}% of price`],
+          ["Property tax, insurance, upkeep (default, editable)", `${Planner.defaultLifestyle(0).housing.carryingPct}% of value per year`],
+          ["Mortgage defaults (editable)", `${Planner.defaultLifestyle(0).housing.downPaymentPct}% down, ${Planner.defaultLifestyle(0).housing.mortgageRate}%, ${Planner.defaultLifestyle(0).housing.mortgageYears} years`]
+        ]
+      },
+      {
+        title: "Health (per year)",
+        note: "Employer coverage is treated as free until the year you set; then private insurance until Medicare at 65 (needs your birth year).",
+        headers: ["Item", "Amount"],
+        rows: [
+          ["Private insurance, per adult", money(prices.privateHealthPerAdult)],
+          [`Private insurance, per kid (ages 0–${prices.kidHealthEndAge})`, money(prices.privateHealthPerKid)],
+          ["Out-of-pocket, per household", money(prices.privateHealthOutOfPocket)],
+          [`Medicare + supplemental, per adult (from ${prices.medicareAge})`, money(prices.medicarePerAdult)]
+        ]
+      }
+    ];
+
+    Planner.els.lifestyleAssumptions.replaceChildren(...tables.map(renderAssumptionTable));
+    Planner.els.lifestyleAssumptionsSummary.textContent =
+      `Annual prices in today's dollars for ${tier.label}. Every generated line can still be overridden in the builder.`;
+  }
+
+  function renderAssumptionTable({ title, note, headers, rows }) {
+    const block = document.createElement("article");
+    block.className = "assumption-block";
+    const heading = document.createElement("h3");
+    heading.textContent = title;
+    const description = document.createElement("p");
+    description.textContent = note;
+    const table = document.createElement("table");
+    const headRow = table.createTHead().insertRow();
+    headers.forEach((text) => {
+      const cell = document.createElement("th");
+      cell.textContent = text;
+      headRow.appendChild(cell);
+    });
+    const body = table.createTBody();
+    rows.forEach((cells) => {
+      const row = body.insertRow();
+      cells.forEach((text) => {
+        row.insertCell().textContent = text;
+      });
+    });
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.appendChild(table);
+    block.append(heading, description, wrap);
+    return block;
   }
 
   function renderItems() {
@@ -219,6 +348,7 @@
     updateConditionalFields();
     if (!keepItemRows) renderItems();
     updateSummaries(years);
+    renderLifestyleAssumptions();
     Planner.renderSpendingView();
   }
 

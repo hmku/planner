@@ -1161,6 +1161,55 @@ td.empty {
   line-height: 1.55;
 }
 
+/* ---------- Lifestyle assumptions ---------- */
+
+.assumption-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px 16px;
+  align-items: start;
+}
+
+.assumption-block {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.assumption-block h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.assumption-block p {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.assumption-block .table-wrap {
+  max-height: none;
+}
+
+.assumption-block th,
+.assumption-block td {
+  white-space: normal;
+}
+
+#lifestyleAssumptionsSection {
+  scroll-margin-top: 90px;
+}
+
+@media (max-width: 640px) {
+  .assumption-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assumption-block th,
+  .assumption-block td {
+    padding: 7px 8px;
+  }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1100px) {

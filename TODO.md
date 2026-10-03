@@ -28,6 +28,7 @@ when they ship.
 
 ## Done
 
+- Lifestyle builder assumptions: full tables of prices and rules on the Methodology tab, generated from the builder's constants, with a "Your area" column; linked from the Lifestyle card.
 - Lines moved out of the lifestyle builder can be restored (Restore button; removes the manual copy so nothing double counts).
 - Default simulation count lowered from 50,000 to 10,000 for faster runs.
 - Installable mobile app (PWA): manifest, home-screen icons, offline support via a service worker, safe-area layout, native share sheet on phones.
