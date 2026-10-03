@@ -28,6 +28,7 @@ when they ship.
 
 ## Done
 
+- Mobile: zooming disabled (viewport, iOS gesture events, double-tap), 16px fields on touch screens so tapping one doesn't zoom, and the tab row scrolls horizontally only.
 - Lifestyle builder assumptions: full tables of prices and rules on the Methodology tab, generated from the builder's constants, with a "Your area" column; linked from the Lifestyle card.
 - Lines moved out of the lifestyle builder can be restored (Restore button; removes the manual copy so nothing double counts).
 - Default simulation count lowered from 50,000 to 10,000 for faster runs.

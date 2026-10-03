@@ -65,7 +65,7 @@ The planner is an installable web app (PWA), so there is no app store step:
 - **iPhone (Safari):** open the site, tap the Share button, then **Add to Home Screen**.
 - **Android (Chrome):** open the site, tap the menu, then **Install app** (or accept the install prompt).
 
-It opens full screen from its own icon and works offline (the service worker caches the app and market data; when online it always fetches the latest deploy first). Share opens the phone's native share sheet. On iPhone, the installed app keeps its own storage, separate from Safari, so saved plans don't carry over between them; send a plan across with a Share link and save it there.
+It opens full screen from its own icon, behaves like an app (no pinch or double-tap zoom, and fields don't zoom the page when tapped), and works offline (the service worker caches the app and market data; when online it always fetches the latest deploy first). Share opens the phone's native share sheet. On iPhone, the installed app keeps its own storage, separate from Safari, so saved plans don't carry over between them; send a plan across with a Share link and save it there.
 
 ## Run Locally
 

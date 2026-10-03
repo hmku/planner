@@ -441,6 +441,11 @@
 
   registerServiceWorker();
 
+  // iOS Safari ignores user-scalable=no, so block its pinch gestures directly.
+  ["gesturestart", "gesturechange"].forEach((type) => {
+    document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+  });
+
   document.addEventListener("DOMContentLoaded", async () => {
     Planner.mountSectionHeaders();
     cacheElements();
