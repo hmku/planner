@@ -261,23 +261,23 @@
     row.querySelector('[data-field="endYear"]').hidden = row.querySelector('[data-field="endMode"]').value !== "fixed";
   }
 
-  function resolveFlowYear(mode, fixedInput, scenario) {
-    if (mode === "current") return scenario.currentYear;
-    if (mode === "death") return scenario.deathYear;
+  function resolveFlowYear(mode, fixedInput, years) {
+    if (mode === "current") return years.currentYear;
+    if (mode === "death") return years.deathYear;
     return Planner.numberFromInput(fixedInput);
   }
 
   // Rows with no positive amount, or that end before they start, contribute nothing
   // and are skipped.
-  function readFlowRows(container, scenario) {
+  function readFlowRows(container, years) {
     return [...container.querySelectorAll(".flow-row")]
       .map((row) => {
         const field = (name) => row.querySelector(`[data-field="${name}"]`);
         const name = field("name").value.trim();
         const startMode = field("startMode").value;
         const endMode = field("endMode").value;
-        const startYear = resolveFlowYear(startMode, field("startYear"), scenario);
-        const endYear = resolveFlowYear(endMode, field("endYear"), scenario);
+        const startYear = resolveFlowYear(startMode, field("startYear"), years);
+        const endYear = resolveFlowYear(endMode, field("endYear"), years);
         const label = name || "Cash flow";
         if (startMode === "fixed") Planner.validatePlanYear(startYear, `${label} start year`);
         if (endMode === "fixed") Planner.validatePlanYear(endYear, `${label} end year`);
@@ -314,8 +314,9 @@
     return percent / 100;
   }
 
-  // Cash flows for the Spending view, which needs only valid plan years.
-  function readCashFlowInputs() {
+  // The plan's first and last years, validated (shared by runs, the Spending
+  // view, and the lifestyle builder).
+  function readPlanYears() {
     const years = {
       currentYear: Planner.numberFromInput(Planner.els.currentYear),
       deathYear: Planner.numberFromInput(Planner.els.deathYear)
@@ -326,14 +327,19 @@
     if (years.deathYear - years.currentYear + 1 > Planner.MAX_PLAN_LENGTH_YEARS) {
       throw new Error(`Plan length cannot exceed ${Planner.MAX_PLAN_LENGTH_YEARS} years.`);
     }
+    return years;
+  }
+
+  // Cash flows for the Spending view, which needs only valid plan years.
+  function readCashFlowInputs() {
+    const years = readPlanYears();
     return { ...years, ...readCashFlows(years), withdrawalTaxRate: readWithdrawalTaxRate() };
   }
 
   function readScenario() {
     const { els } = Planner;
     const scenario = {
-      currentYear: Planner.numberFromInput(els.currentYear),
-      deathYear: Planner.numberFromInput(els.deathYear),
+      ...readPlanYears(),
       netWorth: Planner.numberFromInput(els.netWorth),
       betaMode: Planner.normalizeBetaMode(els.betaMode.value),
       spxBeta: Planner.numberFromInput(els.spxBeta),
@@ -341,15 +347,7 @@
       withdrawalTaxRate: readWithdrawalTaxRate()
     };
 
-    Planner.validatePlanYear(scenario.currentYear, "Current year");
-    Planner.validatePlanYear(scenario.deathYear, "Year of death");
-    if (scenario.deathYear < scenario.currentYear) {
-      throw new Error("Year of death must not be before the current year.");
-    }
     const planLength = scenario.deathYear - scenario.currentYear + 1;
-    if (planLength > Planner.MAX_PLAN_LENGTH_YEARS) {
-      throw new Error(`Plan length cannot exceed ${Planner.MAX_PLAN_LENGTH_YEARS} years.`);
-    }
     if (!Number.isFinite(scenario.netWorth) || scenario.netWorth < 0) {
       throw new Error("Enter a non-negative current net worth.");
     }
@@ -434,12 +432,6 @@
   // inline. Both paths use the same seed and code, so results are identical.
   let cancelActiveRun = null;
 
-  function cancellationError() {
-    const error = new Error("Simulation canceled.");
-    error.name = "SimulationCanceledError";
-    return error;
-  }
-
   function runSimulationJob(scenario, returnRows, seed) {
     const runInline = () => Planner.simulateScenario(
       scenario,
@@ -465,7 +457,7 @@
       };
       cancelActiveRun = () => {
         finish();
-        reject(cancellationError());
+        reject(Planner.createCancellationError());
       };
       worker.onmessage = ({ data }) => {
         started = true;
@@ -494,6 +486,7 @@
     setStatus,
     updateBetaModeControls,
     addFlowRow,
+    readPlanYears,
     readScenario,
     readCashFlowInputs
   });

@@ -8,13 +8,14 @@
   }
 
 
-  // Rows may be any iterable (including a generator), so large exports are built
-  // in chunks rather than as one giant string.
-  function downloadCsvFile(filename, headers, rows) {
-    const parts = [headers.map(csvCell).join(",")];
+  // Columns: [header, value(record)]. Records may be any iterable (including a
+  // generator), so large exports are built in chunks rather than as one giant
+  // string.
+  function downloadCsvFile(filename, columns, records) {
+    const parts = [columns.map(([header]) => csvCell(header)).join(",")];
     let chunk = [];
-    for (const row of rows) {
-      chunk.push(row.map(csvCell).join(","));
+    for (const record of records) {
+      chunk.push(columns.map(([, value]) => csvCell(value(record))).join(","));
       if (chunk.length === 5000) {
         parts.push(`\n${chunk.join("\n")}`);
         chunk = [];
@@ -84,6 +85,14 @@
   // deflateFrom; everything else is flat in today's dollars.
   function flowAmountForYear(flow, year) {
     return flow.deflateRate ? flow.amount / (1 + flow.deflateRate) ** (year - flow.deflateFrom) : flow.amount;
+  }
+
+
+  // Total of the flows active in a year (startYear..endYear inclusive).
+  function flowsTotalForYear(flows, year) {
+    return flows.reduce((sum, flow) => (
+      year < flow.startYear || year > flow.endYear ? sum : sum + flowAmountForYear(flow, year)
+    ), 0);
   }
 
 
@@ -236,6 +245,7 @@
 
   Object.assign(Planner, {
     flowAmountForYear,
+    flowsTotalForYear,
     downloadCsvFile,
     populateSelect,
     renderTableBody,

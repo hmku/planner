@@ -60,10 +60,6 @@
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
 
-  function isLifestyleKey(value) {
-    return typeof value === "string" && /^[A-Za-z0-9.:_-]{1,40}$/.test(value);
-  }
-
   function normalizeFlows(flows) {
     return (Array.isArray(flows) ? flows : [])
       .slice(0, Planner.MAX_SHARED_FLOWS)
@@ -75,7 +71,7 @@
         startYear: finiteOrNull(flow.startYear),
         endMode: FLOW_MODES.includes(flow.endMode) ? flow.endMode : "death",
         endYear: finiteOrNull(flow.endYear),
-        ...(isLifestyleKey(flow.lifestyleKey) ? { lifestyleKey: flow.lifestyleKey } : {})
+        ...(Planner.isLifestyleKey(flow.lifestyleKey) ? { lifestyleKey: flow.lifestyleKey } : {})
       }));
   }
 
@@ -371,7 +367,6 @@
     normalizePlanState,
     bindSavedPlanControls,
     restoreInitialPlan,
-    noteUserEdit,
-    updateSaveControls
+    noteUserEdit
   });
 })(window.Planner = window.Planner || {});

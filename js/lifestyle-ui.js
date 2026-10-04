@@ -48,11 +48,13 @@
     });
   }
 
+  // Valid plan years, or null while they're being edited.
   function readPlanYears() {
-    const currentYear = Planner.numberFromInput(Planner.els.currentYear);
-    const deathYear = Planner.numberFromInput(Planner.els.deathYear);
-    const valid = (year) => Number.isInteger(year) && year >= Planner.MIN_PLAN_YEAR && year <= Planner.MAX_PLAN_YEAR;
-    return valid(currentYear) && valid(deathYear) && deathYear >= currentYear ? { currentYear, deathYear } : null;
+    try {
+      return Planner.readPlanYears();
+    } catch (error) {
+      return null;
+    }
   }
 
   // ---------- Rendering ----------
@@ -100,25 +102,24 @@
     Planner.els.expenseHeading.textContent = lifestyle.enabled ? "Other expenditures" : "Expenditures";
   }
 
-  function totalForYear(items, year) {
-    return items.reduce((sum, item) => (item.startYear <= year && year <= item.endYear ? sum + Planner.flowAmountForYear(item, year) : sum), 0);
-  }
+  const recurring = (items) => items.filter((item) => !item.oneTime);
 
-  function peakOf(items, years) {
-    let peak = { year: null, amount: 0 };
-    if (!years) return peak;
-    for (let year = years.currentYear; year <= years.deathYear; year += 1) {
-      const amount = totalForYear(items.filter((item) => !item.oneTime), year);
+  // Recurring spending in the first plan year and at its peak.
+  function nowAndPeak(items, years) {
+    const lines = recurring(items);
+    const now = Planner.flowsTotalForYear(lines, years.currentYear);
+    let peak = { year: years.currentYear, amount: now };
+    for (let year = years.currentYear + 1; year <= years.deathYear; year += 1) {
+      const amount = Planner.flowsTotalForYear(lines, year);
       if (amount > peak.amount) peak = { year, amount };
     }
-    return peak;
+    return { now, peak };
   }
 
   function describeAmounts(items, years) {
     if (!years) return "";
     if (!items.length) return "None";
-    const now = totalForYear(items.filter((item) => !item.oneTime), years.currentYear);
-    const peak = peakOf(items, years);
+    const { now, peak } = nowAndPeak(items, years);
     const oneTime = items.filter((item) => item.oneTime).reduce((sum, item) => sum + item.amount, 0);
     const parts = [];
     if (now > 0) parts.push(`${Planner.formatMoney(now)}/yr`);
@@ -161,8 +162,7 @@
       total.textContent = "Enter a valid current year and year of death to price the lifestyle.";
       return;
     }
-    const now = totalForYear(currentItems.filter((item) => !item.oneTime), years.currentYear);
-    const peak = peakOf(currentItems, years);
+    const { now, peak } = nowAndPeak(currentItems, years);
     total.textContent = "";
     const strong = document.createElement("strong");
     strong.textContent = `${Planner.formatMoney(now)}/yr`;
@@ -227,6 +227,9 @@
     const tier = options.costTier.find((option) => option.value === Planner.state.lifestyle.costTier) || options.costTier[0];
     const scaled = tier.factor !== 1;
     const money = Planner.formatMoney;
+    const defaults = Planner.defaultLifestyle(0).housing;
+    // Housing inputs are whole percents (2.5 means 2.5%).
+    const pct = (value) => Planner.formatPercent(value / 100);
     const localCells = (amount) => (scaled ? [money(amount), money(amount * tier.factor)] : [money(amount)]);
     const flatCells = (amount) => (scaled ? [money(amount), money(amount)] : [money(amount)]);
     const priceHeaders = scaled ? ["SF / NYC", `Your area (×${tier.factor})`] : ["Per year"];
@@ -283,14 +286,14 @@
         headers: ["Rule", "Value"],
         rows: [
           ["Closing costs on a purchase (one time)", `${Planner.formatPercent(prices.closingCostShare)} of price`],
-          ["Home appreciation, after inflation (default, editable)", `${Planner.defaultLifestyle(0).housing.appreciationPct}% per year`],
+          ["Home appreciation, after inflation (default, editable)", `${pct(defaults.appreciationPct)} per year`],
           ["Selling costs if sold", `${Planner.formatPercent(prices.homeSellingCostShare)} of value`],
           ["Rent for a similar home after selling", `${Planner.formatPercent(prices.homeRentYield)} of value per year`],
           ["Safe return the money would earn in T-bills (for the rent-vs-own comparison; the home is riskless in the model)", `${Planner.formatPercent(prices.riskFreeRealReturn)} per year, real`],
-          ["Existing mortgage balance (Already own)", `remaining payments valued at ${prices.existingMortgageRatePct}%`],
+          ["Existing mortgage balance (Already own)", `remaining payments valued at ${pct(prices.existingMortgageRatePct)}`],
           ["Inflation that shrinks mortgage payments and balance", `${Planner.formatPercent(prices.mortgageInflation)} per year`],
-          ["Property tax, insurance, upkeep (default, editable)", `${Planner.defaultLifestyle(0).housing.carryingPct}% of value per year`],
-          ["Mortgage defaults (editable)", `${Planner.defaultLifestyle(0).housing.downPaymentPct}% down, ${Planner.defaultLifestyle(0).housing.mortgageRate}%, ${Planner.defaultLifestyle(0).housing.mortgageYears} years`]
+          ["Property tax, insurance, upkeep (default, editable)", `${pct(defaults.carryingPct)} of value per year`],
+          ["Mortgage defaults (editable)", `${pct(defaults.downPaymentPct)} down, ${pct(defaults.mortgageRate)}, ${defaults.mortgageYears} years`]
         ]
       },
       {
@@ -460,16 +463,8 @@
   // amount and years, and stops generating it.
   function detachItem(key) {
     const lifestyle = Planner.state.lifestyle;
-    currentItems.filter((item) => item.key === key).forEach((item) => {
-      Planner.addFlowRow(Planner.els.expenseRows, {
-        name: item.name,
-        amount: item.amount,
-        startMode: "fixed",
-        startYear: item.startYear,
-        endMode: "fixed",
-        endYear: item.endYear,
-        lifestyleKey: key
-      });
+    Planner.lifestyleItemsToFlows(currentItems.filter((item) => item.key === key)).forEach((flow) => {
+      Planner.addFlowRow(Planner.els.expenseRows, { ...flow, lifestyleKey: key });
     });
     delete lifestyle.overrides[key];
     if (!lifestyle.detached.includes(key)) lifestyle.detached.push(key);

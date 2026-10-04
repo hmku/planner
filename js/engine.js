@@ -12,11 +12,14 @@
     return error && error.name === "SimulationCanceledError";
   }
 
-  function throwIfCanceled(shouldCancel) {
-    if (!shouldCancel()) return;
+  function createCancellationError() {
     const error = new Error("Simulation canceled.");
     error.name = "SimulationCanceledError";
-    throw error;
+    return error;
+  }
+
+  function throwIfCanceled(shouldCancel) {
+    if (shouldCancel()) throw createCancellationError();
   }
 
   // ---------- Returns ----------
@@ -47,36 +50,25 @@
     };
   }
 
-  // Wealth after one year with continuous compounding and a continuous cash
-  // flow. May be negative; callers treat <= 0 as depletion.
-  function advanceWealth(startingWealth, netCashFlow, logReturn) {
-    if (Math.abs(logReturn) < 0.0000001) {
-      return startingWealth + netCashFlow;
-    }
+  // One year with continuous compounding and a continuous cash flow, as two
+  // factors: ending = start * growth + netCashFlow * cashFactor. The ending
+  // may be negative; callers treat <= 0 as depletion.
+  function growthFactorsOf(realGrowthFactor) {
+    const logReturn = Math.log(realGrowthFactor);
+    if (Math.abs(logReturn) < 0.0000001) return { growth: 1, cashFactor: 1 };
     const growth = Math.exp(logReturn);
-    return startingWealth * growth + netCashFlow * ((growth - 1) / logReturn);
+    return { growth, cashFactor: (growth - 1) / logReturn };
   }
 
-  function applyContinuousYear(startingWealth, netCashFlow, realGrowthFactor) {
-    const endingWealth = advanceWealth(startingWealth, netCashFlow, Math.log(realGrowthFactor));
-    return { startingWealth, endingWealth: Math.max(0, endingWealth), depleted: endingWealth <= 0 };
-  }
-
-  // advanceWealth() split into per-historical-row factors for one beta, so hot
-  // loops skip Math.exp: ending = start * growth + cashFlow * cashFactor, with
-  // the same operations (and so the same results) as advanceWealth().
+  // growthFactorsOf() for every historical row at one beta, so hot loops skip
+  // Math.exp.
   function createGrowthFactors(returnRows, beta) {
     const growth = new Float64Array(returnRows.length);
     const cashFactor = new Float64Array(returnRows.length);
     returnRows.forEach((row, index) => {
-      const logReturn = Math.log(buildReturnMetrics(row, beta).realGrowthFactor);
-      if (Math.abs(logReturn) < 0.0000001) {
-        growth[index] = 1;
-        cashFactor[index] = 1;
-      } else {
-        growth[index] = Math.exp(logReturn);
-        cashFactor[index] = (growth[index] - 1) / logReturn;
-      }
+      const factors = growthFactorsOf(buildReturnMetrics(row, beta).realGrowthFactor);
+      growth[index] = factors.growth;
+      cashFactor[index] = factors.cashFactor;
     });
     return { growth, cashFactor };
   }
@@ -92,22 +84,20 @@
 
   // ---------- Cash flows ----------
 
-  function cashFlowForYear(flows, year, skipHomeCosts = false) {
-    return flows.reduce((sum, flow) => {
-      if (year < flow.startYear || year > flow.endYear || (skipHomeCosts && flow.homeCost)) return sum;
-      return sum + Planner.flowAmountForYear(flow, year);
-    }, 0);
+  // Covering a shortfall S between spending and income from the portfolio at
+  // tax rate t takes S / (1 - t) of withdrawals; this is the tax part.
+  function withdrawalTaxFor(expenses, income, rate) {
+    return rate > 0 ? Math.max(0, expenses - income) * rate / (1 - rate) : 0;
   }
 
   // One year's cash flows. Spending that income doesn't cover comes from the
-  // portfolio, and selling to fund it costs tax: covering a shortfall S at
-  // rate t takes S / (1 - t). After a home sale, its ownership costs stop and
-  // rent at its rent-equivalent starts.
+  // portfolio, taxed per withdrawalTaxFor(). After a home sale, its ownership
+  // costs stop and rent at its rent-equivalent starts.
   function cashFlowsForYear(scenario, year, { homeSold = false, rent = 0 } = {}) {
-    const income = cashFlowForYear(scenario.income, year);
-    const expenses = cashFlowForYear(scenario.expenses, year, homeSold) + rent;
-    const rate = scenario.withdrawalTaxRate || 0;
-    const withdrawalTax = rate > 0 ? Math.max(0, expenses - income) * rate / (1 - rate) : 0;
+    const income = Planner.flowsTotalForYear(scenario.income, year);
+    const expenseFlows = homeSold ? scenario.expenses.filter((flow) => !flow.homeCost) : scenario.expenses;
+    const expenses = Planner.flowsTotalForYear(expenseFlows, year) + rent;
+    const withdrawalTax = withdrawalTaxFor(expenses, income, scenario.withdrawalTaxRate || 0);
     return { income, expenses, withdrawalTax, net: income - expenses - withdrawalTax };
   }
 
@@ -207,11 +197,13 @@
 
   Object.assign(Planner, {
     isCancellationError,
+    createCancellationError,
     throwIfCanceled,
     nominalSpxReturnOf,
     buildReturnMetrics,
-    applyContinuousYear,
+    growthFactorsOf,
     createGrowthFactorCache,
+    withdrawalTaxFor,
     cashFlowsForYear,
     buildPlanCashFlows,
     stepPathYear,

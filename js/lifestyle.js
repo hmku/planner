@@ -218,8 +218,13 @@
     return Number.isFinite(year) ? Math.round(year) : year;
   }
 
+  // Line-item keys (overrides, moved lines, and manual rows that remember one).
+  function isLifestyleKey(value) {
+    return typeof value === "string" && /^[A-Za-z0-9.:_-]{1,40}$/.test(value);
+  }
+
   function pickKey(value) {
-    return typeof value === "string" && /^[A-Za-z0-9.:_-]{1,40}$/.test(value) ? value : null;
+    return isLifestyleKey(value) ? value : null;
   }
 
   function normalizeLifestyle(raw, currentYear) {
@@ -307,6 +312,24 @@
     return 12 * principal * monthlyRate / (1 - (1 + monthlyRate) ** -months);
   }
 
+  // When a bought home is owned from: its purchase year, never before this
+  // year. An already-owned home is owned from this year.
+  function homeOwnedFrom(housing, currentYear) {
+    return housing.mode !== "own" && Number.isInteger(housing.purchaseYear)
+      ? Math.max(housing.purchaseYear, currentYear)
+      : currentYear;
+  }
+
+  function mortgageTermYears(housing) {
+    return Math.round(Number.isFinite(housing.mortgageYears) ? housing.mortgageYears : 0) || 30;
+  }
+
+  // The price of the home the plan owns or buys, or 0 when there is none.
+  function ownedHomePrice(housing) {
+    const price = Number.isFinite(housing.homePrice) ? housing.homePrice : 0;
+    return ["own", "buyCash", "buyMortgage"].includes(housing.mode) && price > 0 ? price : 0;
+  }
+
   function formatYearRange(startYear, endYear) {
     return startYear === endYear ? String(startYear) : `${startYear}–${endYear}`;
   }
@@ -365,14 +388,14 @@
     if (housing.mode === "rent") {
       add("housing.rent", "housing", "Rent", rent, currentYear, deathYear);
     } else if (housing.mode === "buyCash" || housing.mode === "buyMortgage") {
-      const purchaseYear = Number.isInteger(housing.purchaseYear) ? Math.max(housing.purchaseYear, currentYear) : currentYear;
+      const purchaseYear = homeOwnedFrom(housing, currentYear);
       add("housing.rentBeforePurchase", "housing", "Rent until purchase", rent, currentYear, purchaseYear - 1);
       const closingCosts = homePrice * PRICES.closingCostShare;
       if (housing.mode === "buyCash") {
         add("housing.purchase", "housing", "Home purchase (price + closing)", homePrice + closingCosts, purchaseYear, purchaseYear, { oneTime: true });
       } else {
         const downPayment = homePrice * num(housing.downPaymentPct) / 100;
-        const years = Math.round(num(housing.mortgageYears)) || 30;
+        const years = mortgageTermYears(housing);
         add("housing.downPayment", "housing", "Down payment + closing", downPayment + closingCosts, purchaseYear, purchaseYear, { oneTime: true });
         add("housing.mortgage", "housing", `Mortgage (${years} yr, ${num(housing.mortgageRate)}%; falls with inflation)`,
           annualMortgagePayment(homePrice - downPayment, num(housing.mortgageRate), years), purchaseYear, purchaseYear + years - 1,
@@ -532,20 +555,17 @@
   // balances shrink with inflation like the payment lines.
   function buildHomeModel(lifestyle, currentYear, deathYear) {
     if (!lifestyle || !lifestyle.enabled) return null;
-    const housing = lifestyle.housing;
-    const price = Number.isFinite(housing.homePrice) ? housing.homePrice : 0;
-    if (!["own", "buyCash", "buyMortgage"].includes(housing.mode) || !(price > 0)) return null;
     if (!Number.isInteger(currentYear) || !Number.isInteger(deathYear) || deathYear < currentYear) return null;
-
-    const ownedFrom = housing.mode === "own"
-      ? currentYear
-      : (Number.isInteger(housing.purchaseYear) ? Math.max(housing.purchaseYear, currentYear) : currentYear);
+    const housing = lifestyle.housing;
+    const price = ownedHomePrice(housing);
+    if (!price) return null;
+    const ownedFrom = homeOwnedFrom(housing, currentYear);
     const growth = 1 + (Number.isFinite(housing.appreciationPct) ? housing.appreciationPct : 0) / 100;
 
     let balanceAt = () => 0;
     if (housing.mode === "buyMortgage") {
       const principal = price * (1 - (housing.downPaymentPct || 0) / 100);
-      const years = Math.round(housing.mortgageYears || 30);
+      const years = mortgageTermYears(housing);
       const monthlyRate = (housing.mortgageRate || 0) / 100 / 12;
       const monthlyPayment = annualMortgagePayment(principal, housing.mortgageRate || 0, years) / 12;
       balanceAt = (year) => (year - ownedFrom >= years ? 0 : mortgageBalance(principal, monthlyPayment, monthlyRate, (year - ownedFrom) * 12));
@@ -576,8 +596,8 @@
   // invested - appreciation; renting = the home's value times the rent yield.
   function homeOwnershipComparison(lifestyle) {
     const housing = lifestyle.housing;
-    const price = Number.isFinite(housing.homePrice) ? housing.homePrice : 0;
-    if (!["own", "buyCash", "buyMortgage"].includes(housing.mode) || !(price > 0)) return null;
+    const price = ownedHomePrice(housing);
+    if (!price) return null;
     const carrying = (housing.carryingPct || 0) / 100;
     const appreciation = (housing.appreciationPct || 0) / 100;
     return {
@@ -596,13 +616,13 @@
     LIFESTYLE_MAX_KIDS: MAX_KIDS,
     createKid,
     defaultLifestyle,
+    isLifestyleKey,
     normalizeLifestyle,
     buildLifestyleItems,
     groupLifestyleItems,
     lifestyleItemsToFlows,
     buildHomeModel,
     homeOwnershipComparison,
-    annualMortgagePayment,
-    formatYearRange
+    annualMortgagePayment
   });
 })(window.Planner = window.Planner || {});

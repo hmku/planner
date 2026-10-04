@@ -137,6 +137,10 @@ async function main() {
     const csvLines = fs.readFileSync(await download.path(), "utf8").trim().split("\n").length;
     check(csvLines === options.length * 61 + 1, "CSV has a row per sampled path per year", `${csvLines} lines`);
     await page.click('[data-page="policy"]');
+    check(/^Forcing beta .* End node: /.test(await text(page, "#policyPathSummary")), "the policy path explorer renders");
+    const [policyDownload] = await Promise.all([page.waitForEvent("download"), page.click("#downloadPolicyCsv")]);
+    const policyCsv = fs.readFileSync(await policyDownload.path(), "utf8").trim().split("\n");
+    check(policyCsv[0].startsWith("year,bucket_index,") && policyCsv.length === 61 * 181 * 16 + 1, "policy CSV has a row per year, wealth bucket, and beta", `${policyCsv.length} lines`);
     await page.click('[data-page="methodology"]');
     check(await page.locator("#lifestyleAssumptions table").count() >= 8, "Methodology shows the assumptions tables");
     await page.click('[data-page="overview"]');

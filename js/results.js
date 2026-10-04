@@ -358,6 +358,8 @@
 
   // Deterministic what-if: force one beta for N years under a single return
   // assumption, then read the policy's risk and next beta at the resulting node.
+  // Years step like simulated paths (stepPathYear), so the home sells when the
+  // portfolio would run out and the policy continues from its after-sale layer.
   function buildPolicyPathExplorer(results) {
     const { scenario, years } = results;
     const overrideBeta = Number(Planner.els.policyPathBeta.value);
@@ -369,21 +371,24 @@
     const returnRow = getPolicyPathReturnRow(results.returnRows, returnMode);
     const returnLabel = returnMode === "expected" ? "Expected" : `${RETURN_MODE_LABELS[returnMode] || "Selected"} ${returnRow.year}`;
     const metrics = Planner.buildReturnMetrics(returnRow, overrideBeta);
+    const { growth, cashFactor } = Planner.growthFactorsOf(metrics.realGrowthFactor);
+    const cash = Planner.buildPlanCashFlows(scenario, years);
+    const state = { wealth: scenario.netWorth, sold: false, soldThisYear: false };
     const rows = [];
-    const points = [{ year: scenario.currentYear, wealth: scenario.netWorth }];
-    let wealth = scenario.netWorth;
+    const points = [{ year: scenario.currentYear, wealth: state.wealth }];
     let depleted = false;
+    let saleYear = null;
 
     for (let yearIndex = 0; yearIndex < overrideYears; yearIndex += 1) {
       const year = years[yearIndex];
-      const startingWealth = wealth;
+      const startingWealth = state.wealth;
       if (!depleted) {
-        const netCashFlow = Planner.cashFlowsForYear(scenario, year).net;
-        const yearResult = Planner.applyContinuousYear(wealth, netCashFlow, metrics.realGrowthFactor);
-        wealth = yearResult.endingWealth;
-        depleted = yearResult.depleted;
+        const endingWealth = Planner.stepPathYear(cash, state, yearIndex, growth, cashFactor);
+        state.wealth = Math.max(0, endingWealth);
+        depleted = endingWealth <= 0;
+        if (state.soldThisYear) saleYear = year;
       }
-      const nodeMetrics = getPolicyNodeMetrics(results, yearIndex + 1, wealth, depleted);
+      const nodeMetrics = getPolicyNodeMetrics(results, cash, yearIndex + 1, state, depleted);
       rows.push({
         year,
         startingWealth,
@@ -391,14 +396,14 @@
         returnLabel,
         nominalSpxReturn: metrics.nominalSpxReturn,
         inflation: metrics.inflation,
-        endingWealth: wealth,
+        endingWealth: state.wealth,
         nextPolicyBeta: nodeMetrics.nextPolicyBeta,
         nodeRisk: nodeMetrics.risk
       });
-      points.push({ year: years[yearIndex + 1] ?? year + 1, wealth });
+      points.push({ year: years[yearIndex + 1] ?? year + 1, wealth: state.wealth });
     }
 
-    const finalMetrics = getPolicyNodeMetrics(results, overrideYears, wealth, depleted);
+    const finalMetrics = getPolicyNodeMetrics(results, cash, overrideYears, state, depleted);
     return {
       overrideBeta,
       overrideYears,
@@ -406,7 +411,9 @@
       returnLabel,
       rows,
       points,
-      finalWealth: wealth,
+      saleYear,
+      depleted,
+      finalWealth: state.wealth,
       finalRisk: finalMetrics.risk,
       finalExpectedTerminalWealth: finalMetrics.expectedTerminalWealth,
       finalPolicyBeta: finalMetrics.nextPolicyBeta
@@ -414,18 +421,23 @@
   }
 
 
-  function getPolicyNodeMetrics(results, yearIndex, wealth, depleted) {
+  // The policy's view of a node: run-out risk, expected terminal wealth (with
+  // home equity while the home is owned), and its beta, from the after-sale
+  // layer once the home is sold.
+  function getPolicyNodeMetrics(results, cash, yearIndex, state, depleted) {
     if (depleted) {
       return { risk: 1, expectedTerminalWealth: 0, nextPolicyBeta: null };
     }
+    const { wealth, sold } = state;
     if (yearIndex >= results.years.length) {
-      return { risk: 0, expectedTerminalWealth: wealth, nextPolicyBeta: null };
+      return { risk: 0, expectedTerminalWealth: wealth + (sold ? 0 : cash.equity[yearIndex - 1]), nextPolicyBeta: null };
     }
     const policy = results.dynamicPolicy;
+    const tables = sold && policy.sold ? policy.sold : policy;
     return {
-      risk: Planner.interpolateBucketValue(policy.wealthBuckets, policy.valueByYear[yearIndex], wealth),
-      expectedTerminalWealth: Planner.interpolateBucketValue(policy.wealthBuckets, policy.expectedWealthByYear[yearIndex], wealth),
-      nextPolicyBeta: Planner.selectDynamicBeta(policy, yearIndex, wealth)
+      risk: Planner.interpolateBucketValue(policy.wealthBuckets, tables.valueByYear[yearIndex], wealth),
+      expectedTerminalWealth: Planner.interpolateBucketValue(policy.wealthBuckets, tables.expectedWealthByYear[yearIndex], wealth),
+      nextPolicyBeta: Planner.selectDynamicBeta(policy, yearIndex, wealth, sold)
     };
   }
 
@@ -451,114 +463,89 @@
 
 
   function buildPolicyPathSummary(explorer) {
-    const resume = Number.isFinite(explorer.finalPolicyBeta)
-      ? `the policy then resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
-      : "the plan horizon is reached";
-    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}. End node: ${Planner.formatMoney(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} run-out risk, ${Planner.formatMoney(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
+    const resume = explorer.depleted
+      ? "the portfolio runs out first"
+      : Number.isFinite(explorer.finalPolicyBeta)
+        ? `the policy then resumes at beta ${Planner.formatBeta(explorer.finalPolicyBeta)}`
+        : "the plan horizon is reached";
+    const sale = explorer.saleYear ? ` The home is sold in ${explorer.saleYear} to keep the portfolio going.` : "";
+    return `Forcing beta ${Planner.formatBeta(explorer.overrideBeta)} for ${Planner.formatNumber(explorer.overrideYears)} years of ${explorer.returnLabel.toLowerCase()} returns; ${resume}.${sale} End node: ${Planner.formatMoney(explorer.finalWealth)}, ${Planner.formatPolicyRiskPercent(explorer.finalRisk)} run-out risk, ${Planner.formatMoney(explorer.finalExpectedTerminalWealth)} expected terminal wealth.`;
   }
 
   // ---------- CSV ----------
+
+  const yesNo = (value) => (value ? "yes" : "no");
+
+  // Simulation-year rows with their path's inspection rank and summary.
+  const SIMULATION_CSV_COLUMNS = [
+    ["inspection_rank", (row) => row.rank],
+    ["simulation", (row) => row.simulation],
+    ["year", (row) => row.year],
+    ["historical_return_year", (row) => row.historicalReturnYear],
+    ["starting_wealth_current_dollars", (row) => row.startingWealth],
+    ["income_current_dollars", (row) => row.income],
+    ["expenses_current_dollars", (row) => row.expenses],
+    ["withdrawal_tax_current_dollars", (row) => row.withdrawalTax],
+    ["net_cash_flow_current_dollars", (row) => row.netCashFlow],
+    ["nominal_spx_return", (row) => row.nominalSpxReturn],
+    ["risk_free_return", (row) => row.nominalRiskFreeReturn],
+    ["spx_excess_return", (row) => row.nominalSpxExcessReturn],
+    ["spx_beta_used", (row) => row.spxBetaUsed],
+    ["portfolio_nominal_return", (row) => row.nominalPortfolioReturn],
+    ["inflation", (row) => row.inflation],
+    ["real_spx_return", (row) => row.realSpxReturn],
+    ["real_risk_free_return", (row) => row.realRiskFreeReturn],
+    ["portfolio_real_return", (row) => row.portfolioRealReturn],
+    ["ending_wealth_current_dollars", (row) => row.endingWealth],
+    ["home_equity_current_dollars", (row) => row.homeEquity],
+    ["home_sale_proceeds_current_dollars", (row) => row.homeSaleProceeds],
+    ["depleted_this_year", (row) => yesNo(row.depletedThisYear)],
+    ["depletion_year", (row) => row.depletionYear],
+    ["terminal_wealth_current_dollars", (row) => row.summary.terminalWealth],
+    ["ending_percentile", (row) => row.summary.endingPercentile]
+  ];
 
   // Exports the sampled inspection paths (the ones in the Simulation picker), in
   // picker order, rather than every simulation-year of the run.
   function downloadSimulationCsv() {
     const results = Planner.state.results;
     if (!results) return;
-    const headers = [
-      "inspection_rank",
-      "simulation",
-      "year",
-      "historical_return_year",
-      "starting_wealth_current_dollars",
-      "income_current_dollars",
-      "expenses_current_dollars",
-      "withdrawal_tax_current_dollars",
-      "net_cash_flow_current_dollars",
-      "nominal_spx_return",
-      "risk_free_return",
-      "spx_excess_return",
-      "spx_beta_used",
-      "portfolio_nominal_return",
-      "inflation",
-      "real_spx_return",
-      "real_risk_free_return",
-      "portfolio_real_return",
-      "ending_wealth_current_dollars",
-      "home_equity_current_dollars",
-      "home_sale_proceeds_current_dollars",
-      "depleted_this_year",
-      "depletion_year",
-      "terminal_wealth_current_dollars",
-      "ending_percentile"
-    ];
     function* rows() {
       for (const [index, path] of results.inspectionPaths.entries()) {
         const summary = results.simulationRows[path.simulation - 1];
         for (const row of Planner.getSimulationYearRows(results, path.simulation)) {
-          yield [
-            index + 1,
-            row.simulation,
-            row.year,
-            row.historicalReturnYear,
-            row.startingWealth,
-            row.income,
-            row.expenses,
-            row.withdrawalTax,
-            row.netCashFlow,
-            row.nominalSpxReturn,
-            row.nominalRiskFreeReturn,
-            row.nominalSpxExcessReturn,
-            row.spxBetaUsed,
-            row.nominalPortfolioReturn,
-            row.inflation,
-            row.realSpxReturn,
-            row.realRiskFreeReturn,
-            row.portfolioRealReturn,
-            row.endingWealth,
-            row.homeEquity,
-            row.homeSaleProceeds,
-            row.depletedThisYear ? "yes" : "no",
-            row.depletionYear,
-            summary.terminalWealth,
-            summary.endingPercentile
-          ];
+          yield { ...row, rank: index + 1, summary };
         }
       }
     }
-    Planner.downloadCsvFile(`financial-planner-sampled-paths-${Date.now()}.csv`, headers, rows());
+    Planner.downloadCsvFile(`financial-planner-sampled-paths-${Date.now()}.csv`, SIMULATION_CSV_COLUMNS, rows());
   }
 
+
+  // One row per year, wealth bucket, and evaluated beta.
+  const POLICY_CSV_COLUMNS = [
+    ["year", (row) => row.year],
+    ["bucket_index", (row) => row.bucketIndex],
+    ["bucket_wealth_current_dollars", (row) => row.wealth],
+    ["evaluated_spx_beta", (row) => row.beta],
+    ["estimated_depletion_probability", (row) => row.estimatedDepletionRisk],
+    ["expected_terminal_wealth_current_dollars", (row) => row.expectedTerminalWealth],
+    ["is_recommended_beta", (row) => yesNo(row.isRecommended)],
+    ["recommended_spx_beta", (row) => row.recommendedBeta],
+    ["shown_in_ui", (row) => yesNo(row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET)]
+  ];
 
   function downloadPolicyCsv() {
     const results = Planner.state.results;
     if (!hasDynamicPolicy(results)) return;
-    const headers = [
-      "year",
-      "bucket_index",
-      "bucket_wealth_current_dollars",
-      "evaluated_spx_beta",
-      "estimated_depletion_probability",
-      "expected_terminal_wealth_current_dollars",
-      "is_recommended_beta",
-      "recommended_spx_beta",
-      "shown_in_ui"
-    ];
-    const rows = results.years.flatMap((year, yearIndex) => (
-      results.dynamicPolicy.wealthBuckets.flatMap((_, bucketIndex) => (
-        getDynamicPolicyActionRows(results, yearIndex, bucketIndex).map((row) => [
-          year,
-          row.bucketIndex,
-          row.wealth,
-          row.beta,
-          row.estimatedDepletionRisk,
-          row.expectedTerminalWealth,
-          row.isRecommended ? "yes" : "no",
-          row.recommendedBeta,
-          row.wealth <= Planner.DYNAMIC_DISPLAY_MAX_WEALTH_BUCKET ? "yes" : "no"
-        ])
-      ))
-    ));
-    Planner.downloadCsvFile(`financial-planner-dynamic-beta-policy-${Date.now()}.csv`, headers, rows);
+    function* rows() {
+      for (const [yearIndex, year] of results.years.entries()) {
+        for (const bucketIndex of results.dynamicPolicy.wealthBuckets.keys()) {
+          for (const row of getDynamicPolicyActionRows(results, yearIndex, bucketIndex)) yield { ...row, year };
+        }
+      }
+    }
+    Planner.downloadCsvFile(`financial-planner-dynamic-beta-policy-${Date.now()}.csv`, POLICY_CSV_COLUMNS, rows());
   }
 
   // ---------- Spending ----------
@@ -603,7 +590,7 @@
     if (rate > 0) {
       const taxes = byKey.get("taxes");
       years.forEach((_, index) => {
-        const tax = Math.max(0, totals[index] - income[index]) * rate / (1 - rate);
+        const tax = Planner.withdrawalTaxFor(totals[index], income[index], rate);
         taxes.values[index] = tax;
         totals[index] += tax;
         recurringTotals[index] += tax;
@@ -683,8 +670,6 @@
   Object.assign(Planner, {
     getSpendingModel,
     renderSpendingView,
-    updateRequiredWealth,
-    hasDynamicPolicy,
     renderResults,
     resetDetailsControls,
     updateScenarioSummary,

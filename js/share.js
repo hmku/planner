@@ -42,9 +42,10 @@
   async function sharePlan() {
     let seed;
     let url;
+    let state;
     try {
       Planner.readScenario();
-      const state = Planner.getPlanState();
+      state = Planner.getPlanState();
       seed = Planner.state.results && !Planner.state.isDirty && Number.isInteger(Planner.state.results.seed)
         ? Planner.state.results.seed
         : Planner.generateSimulationSeed();
@@ -57,7 +58,7 @@
     // Phones get the native share sheet; elsewhere the link is copied.
     if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
       try {
-        await navigator.share({ title: Planner.getPlanState().name || "Financial Runway Planner", url });
+        await navigator.share({ title: state.name || "Financial Runway Planner", url });
         if (Planner.state.isDirty) Planner.state.nextSimulationSeed = seed;
         return;
       } catch (error) {
@@ -222,7 +223,7 @@
     const startMode = decodeFlowMode(flow[2]);
     const endMode = decodeFlowMode(flow[4]);
     return {
-      name: decodeShareText(flow[0]).slice(0, 80),
+      name: decodeShareText(flow[0]),
       amount: parseSharedNumber(flow[1], `${type} amount`),
       startMode,
       startYear: startMode === "fixed" ? parseSharedNumber(flow[3], `${type} start year`) : scenario.currentYear,

@@ -109,7 +109,7 @@
         betaPoints: years.map((year, index) => ({ year, beta: pathBeta[index] }))
       }));
     }
-    const requiredWealth = buildRequiredWealth(extraPaths, years, stepper);
+    const requiredWealth = buildRequiredWealth(extraPaths, stepper);
     onProgress(1);
 
     const terminalWealthSorted = simulationRows.map((row) => row.terminalWealth).sort((a, b) => a - b);
@@ -253,7 +253,25 @@
   function drawExtraPaths(pathCount, yearCount, rowCount, random) {
     const rows = new Uint8Array(pathCount * yearCount);
     for (let index = 0; index < rows.length; index += 1) rows[index] = Planner.randomIndex(rowCount, random);
-    return { rows, pathCount };
+    return { rows, pathCount, yearCount };
+  }
+
+
+  // Steps one extra path from a starting portfolio, leaving the final state
+  // in `state`. Returns false (portfolio 0) if the path runs out.
+  function runExtraPath(stepper, state, extraPaths, path, startingWealth) {
+    const { rows, yearCount } = extraPaths;
+    const offset = path * yearCount;
+    state.wealth = startingWealth;
+    state.sold = false;
+    for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
+      state.wealth = stepper.step(state, yearIndex, rows[offset + yearIndex]);
+      if (state.wealth <= 0) {
+        state.wealth = 0;
+        return false;
+      }
+    }
+    return true;
   }
 
 
@@ -262,22 +280,11 @@
   // has a threshold: the least net worth that survives it, found by bisection
   // in log wealth. Sorted, the thresholds give run-out risk at every starting
   // net worth at once.
-  function buildRequiredWealth(extraPaths, years, stepper) {
-    const { rows: sampledRows, pathCount } = extraPaths;
-    const yearCount = years.length;
-
+  function buildRequiredWealth(extraPaths, stepper) {
+    const { pathCount } = extraPaths;
     const topWealth = Planner.DYNAMIC_MAX_WEALTH_BUCKET;
     const state = stepper.newState(0);
-    const survives = (path, startingWealth) => {
-      state.wealth = startingWealth;
-      state.sold = false;
-      const offset = path * yearCount;
-      for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
-        state.wealth = stepper.step(state, yearIndex, sampledRows[offset + yearIndex]);
-        if (state.wealth <= 0) return false;
-      }
-      return true;
-    };
+    const survives = (path, startingWealth) => runExtraPath(stepper, state, extraPaths, path, startingWealth);
 
     const thresholds = new Float64Array(pathCount);
     for (let path = 0; path < pathCount; path += 1) {
@@ -307,7 +314,6 @@
   // simulated run-out risk, expected terminal wealth, and median terminal
   // wealth. Terminal wealth includes home equity, as in the main run.
   function simulateFrontier(frontier, scenario, returnRows, years, extraPaths) {
-    const yearCount = years.length;
     const pathCount = Math.min(Planner.FRONTIER_PATHS, extraPaths.pathCount);
     const terminal = new Float64Array(pathCount);
     return frontier.map((point) => {
@@ -315,26 +321,15 @@
       const state = stepper.newState(0);
       let depletedCount = 0;
       for (let path = 0; path < pathCount; path += 1) {
-        state.wealth = scenario.netWorth;
-        state.sold = false;
-        const offset = path * yearCount;
-        for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
-          state.wealth = stepper.step(state, yearIndex, extraPaths.rows[offset + yearIndex]);
-          if (state.wealth <= 0) {
-            state.wealth = 0;
-            depletedCount += 1;
-            break;
-          }
-        }
-        terminal[path] = stepper.netWorth(state, yearCount - 1);
+        if (!runExtraPath(stepper, state, extraPaths, path, scenario.netWorth)) depletedCount += 1;
+        terminal[path] = stepper.netWorth(state, years.length - 1);
       }
       terminal.sort();
-      const middle = pathCount >> 1;
       return {
         ...point,
         depletionRisk: depletedCount / pathCount,
         expectedTerminalWealth: terminal.reduce((sum, value) => sum + value, 0) / pathCount,
-        medianTerminalWealth: pathCount % 2 ? terminal[middle] : (terminal[middle - 1] + terminal[middle]) / 2
+        medianTerminalWealth: Planner.percentileOfSorted(terminal, 0.5)
       };
     }).sort((a, b) => a.depletionRisk - b.depletionRisk || a.expectedTerminalWealth - b.expectedTerminalWealth);
   }

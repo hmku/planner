@@ -64,6 +64,14 @@ async function main() {
   check(kidTravel.amount < 20000, "private jet is priced per trip, not per kid");
   check(Math.abs(Planner.annualMortgagePayment(1600000, 6.5, 30) / 12 - 10113) < 5, "mortgage amortization");
 
+  const oddTerm = Planner.defaultLifestyle(currentYear);
+  oddTerm.housing = { ...oddTerm.housing, mode: "buyMortgage", purchaseYear: 2020, mortgageYears: 0.3 };
+  const oddMortgage = Planner.buildLifestyleItems(oddTerm, currentYear, deathYear).find((item) => item.key === "housing.mortgage");
+  const oddHome = Planner.buildHomeModel(oddTerm, currentYear, deathYear);
+  const paidOff = oddHome.balances.findIndex((balance) => balance === 0);
+  check(oddMortgage.startYear === currentYear && oddHome.ownedFrom === currentYear && oddMortgage.endYear === currentYear + paidOff - 1,
+    "mortgage payments and the home's balance share one purchase year and term");
+
   const normalized = Planner.normalizeLifestyle({
     kids: [{ id: "BAD!", birthYear: "2030", school: "nope" }],
     overrides: { "a b": 1, "ok.key": "5" },
@@ -149,6 +157,13 @@ async function main() {
   const taxedRows = Planner.getSimulationYearRows(taxedRun, taxedRun.inspectionPaths[0].simulation);
   check(Math.abs(taxedRows[taxedRows.length - 1].endingWealth - taxedRun.inspectionPaths[0].terminalWealth) < 1e-6, "row replay matches with the tax");
 
+  const flows = [{ amount: 100, startYear: 2030, endYear: 2032 }, { amount: 50, startYear: 2031, endYear: 2040, deflateRate: 0.1, deflateFrom: 2031 }];
+  check(Planner.flowsTotalForYear(flows, 2029) === 0 && Planner.flowsTotalForYear(flows, 2031) === 150 && Math.abs(Planner.flowsTotalForYear(flows, 2033) - 50 / 1.21) < 1e-9,
+    "flow totals respect years and deflating payments");
+  const factors = Planner.createGrowthFactorCache(returnRows)(0.7);
+  const one = Planner.growthFactorsOf(Planner.buildReturnMetrics(returnRows[3], 0.7).realGrowthFactor);
+  check(one.growth === factors.growth[3] && one.cashFactor === factors.cashFactor[3], "one-off growth factors match the cached per-row factors");
+
   console.log("How much you need");
   const { requiredWealth } = first;
   const samples = [0, 1e4, 1e5, 3e5, 1e6, 3e6, 1e7].map((wealth) => Planner.riskAtWealth(requiredWealth, wealth));
@@ -167,6 +182,7 @@ async function main() {
 
   console.log("Display formatting");
   check(Planner.formatMoney(2140000) === "$2.1M" && Planner.formatMoney(850000) === "$850K" && Planner.formatMoney(450) === "$450" && Planner.formatMoney(NaN) === "--", "formatMoney is compact ($2.1M, $850K, $450)");
+  check([0.0004, 0.09996, 0.1234, 0.99966, 1].map(Planner.formatPolicyRiskPercent).join(" ") === "0.04% 10.0% 12.3% 100% 100%", "small risks keep precision without rounding up to 100.0%");
   check(!("formatCurrency" in Planner) && !("formatCompactCurrency" in Planner), "there is only one money formatter");
   // Every number shown in the UI goes through js/format.js: nothing else may
   // build number formats or hand-format amounts. Number(x.toFixed(n)) rounding

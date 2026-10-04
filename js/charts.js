@@ -739,8 +739,10 @@
       return;
     }
 
+    // Net worth (portfolio plus home equity), as on the Overview's paths.
+    const netWorthOf = (row) => row.endingWealth + row.homeEquity;
     const { years } = results;
-    const yScale = Planner.niceZeroScale(Math.max(1, ...rows.flatMap((row) => [row.startingWealth, row.endingWealth])), 4);
+    const yScale = Planner.niceZeroScale(Math.max(1, results.scenario.netWorth, ...rows.map(netWorthOf)), 4);
     const xOf = yearScale(frame, years);
     const yOf = linearScale(0, yScale.max, frame.bottom, frame.top);
 
@@ -748,7 +750,7 @@
     drawYAxis(frame, yScale.ticks, yOf, Planner.formatMoney);
     drawYearAxis(frame, years, xOf);
 
-    const items = rows.map((row) => ({ key: row.year, row, x: xOf(row.year), y: yOf(row.endingWealth) }));
+    const items = rows.map((row) => ({ key: row.year, row, x: xOf(row.year), y: yOf(netWorthOf(row)) }));
     const hover = trackHover(frame, items);
     const depletion = items.find((item) => item.row.depletedThisYear);
 
@@ -764,13 +766,15 @@
     });
     if (depletion) drawDot(frame, depletion.x, depletion.y, 5.5, theme.critical);
     drawLegend(frame, [
-      { label: "Ending wealth", color: theme.series, shape: "line" },
+      { label: "Net worth", color: theme.series, shape: "line" },
       ...(depletion ? [{ label: "Depleted", color: theme.critical, shape: "dot" }] : [])
     ]);
 
     if (hover) {
       const { row } = hover.item;
-      const lines = [`Ending wealth: ${Planner.formatMoney(row.endingWealth)}`];
+      const lines = [`Net worth: ${Planner.formatMoney(netWorthOf(row))}`];
+      if (row.homeEquity > 0) lines.push(`Portfolio ${Planner.formatMoney(row.endingWealth)} · home ${Planner.formatMoney(row.homeEquity)}`);
+      if (row.homeSoldThisYear) lines.push(`Sold home (+${Planner.formatMoney(row.homeSaleProceeds)})`);
       if (row.historicalReturnYear) {
         lines.push(`Sampled ${row.historicalReturnYear}: SPX ${Planner.formatPercent(row.nominalSpxReturn)}`);
         lines.push(`Beta ${Planner.formatBeta(row.spxBetaUsed)} · real ${Planner.formatPercent(row.portfolioRealReturn)}`);
@@ -1072,7 +1076,7 @@
 
     drawLegend(frame, [
       { label: "Run-out risk", color: theme.series, shape: "line" },
-      { label: "Needed for 10%, 5%, 1%, 0.1%", color: theme.highlight, shape: "dot" },
+      { label: `Needed for ${Planner.REQUIRED_WEALTH_LABELS.map(Planner.formatPercent).join(", ")}`, color: theme.highlight, shape: "dot" },
       { label: "You", color: theme.seriesStrong, shape: "dot" }
     ]);
 

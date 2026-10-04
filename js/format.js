@@ -129,11 +129,9 @@
     if (value === 0) return "0%";
     const percent = value * 100;
     const absolutePercent = Math.abs(percent);
-    const fractionDigits = absolutePercent > 0 && absolutePercent < 10
-      ? 2
-      : absolutePercent < 100
-        ? 1
-        : 0;
+    // Thresholds sit where rounding would carry into the next digit, so
+    // 99.97% shows as 100%, not 100.0%.
+    const fractionDigits = absolutePercent < 9.995 ? 2 : absolutePercent < 99.95 ? 1 : 0;
     return `${percent.toFixed(fractionDigits)}%`;
   }
 

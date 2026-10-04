@@ -16,7 +16,6 @@ when they ship.
 - Richer tax modeling: gain share rising over time, brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
 - Income presets: salary until a quit year, then a founder salary or other runway scenarios.
-
 - Let the user set the acceptable run-out risk (now a 0.5% constant) or pick a frontier point to run with.
 
 ### Lifestyle builder
@@ -31,6 +30,7 @@ when they ship.
 
 ## Done
 
+- Code review cleanup: one extra-path runner for How much you need and the frontier; shared helpers for flow totals, growth factors, the withdrawal tax (engine and Spending view), plan-year validation, cancellation errors, and the owned home's purchase year and mortgage term; CSV exports defined as column lists; unused exports dropped. Fixes: the Beta Policy path explorer now sells the home like simulated paths (and says when the portfolio runs out), the Simulation chart plots net worth including home equity like the Overview, a fractional mortgage term no longer disagrees between the payments and the balance, and small risks no longer round to "100.0%".
 - Removed the "rent is too personal to preset" hint, which contradicted the prefilled default rent.
 - One money format: every displayed amount is compact ($2.1M) through `Planner.formatMoney`; a unit check rejects number formatting outside `js/format.js` and literal amounts like `$10,000`.
 - Run policy chosen by simulation: the highest median terminal wealth among frontier policies with run-out risk at most 0.5% or the lowest reachable (instead of pure risk minimization). Per-beta alternatives in the Beta Policy tab are computed on demand, so the solver keeps no per-beta tables.
