@@ -31,6 +31,7 @@ when they ship.
 
 ## Done
 
+- Travel with kids: choose how many of the domestic and international trips the kids join (instead of all or none) and how they fly (with the adults, or their own class, such as economy while the adults fly business). Older plans keep their all-or-none setting.
 - Plan menu: "Your plans" now shows the plan being edited and whether it's saved (instead of a fixed "Open a saved plan…" prompt), saving under a new name renames the open plan instead of copying it, and "+ New plan" starts over from the defaults. Picking from the menu no longer counts as an unsaved edit.
 - Code review cleanup: one extra-path runner for How much you need and the frontier; shared helpers for flow totals, growth factors, the withdrawal tax (engine and Spending view), plan-year validation, cancellation errors, and the owned home's purchase year and mortgage term; CSV exports defined as column lists; unused exports dropped. Fixes: the Beta Policy path explorer now sells the home like simulated paths (and says when the portfolio runs out), the Simulation chart plots net worth including home equity like the Overview, a fractional mortgage term no longer disagrees between the payments and the balance, and small risks no longer round to "100.0%".
 - Removed the "rent is too personal to preset" hint, which contradicted the prefilled default rent.

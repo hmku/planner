@@ -227,12 +227,21 @@
                     <span>Hotels</span>
                     <select data-ls="travel.hotel" data-ls-options="hotel"></select>
                   </label>
-                  <label class="toggle field-wide" data-ls-show="hasKids">
-                    <input type="checkbox" data-ls="travel.kidsTravel">
-                    <span>Kids come along until 18</span>
+                  <label class="field" data-ls-show="hasKids">
+                    <span>Domestic with kids</span>
+                    <input data-ls="travel.kidsDomesticTrips" type="number" min="0" max="100" step="1">
+                  </label>
+                  <label class="field" data-ls-show="hasKids">
+                    <span>International with kids</span>
+                    <input data-ls="travel.kidsInternationalTrips" type="number" min="0" max="100" step="1">
+                  </label>
+                  <label class="field field-wide" data-ls-show="hasKids">
+                    <span>Kids fly</span>
+                    <select data-ls="travel.kidsFlightClass" data-ls-options="kidFlightClass"></select>
                   </label>
                 </div>
                 <p class="ls-hint" data-ls-show="travel.flightClass=private">Private is priced per trip for the whole plane (charter, ~$80K domestic, ~$300K international round trip), so it doesn&apos;t grow with the family.</p>
+                <p class="ls-hint" data-ls-show="hasKids">Kids (until 18) join that many of the year&apos;s trips, never more than you take.</p>
                 <div class="ls-items" data-ls-items="travel"></div>
               </details>
 

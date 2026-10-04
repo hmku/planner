@@ -62,6 +62,20 @@ async function main() {
   const privateItems = Planner.buildLifestyleItems(lifestyle, currentYear, deathYear);
   const kidTravel = privateItems.find((item) => item.key.startsWith("kid.") && item.key.endsWith(".travel"));
   check(kidTravel.amount < 20000, "private jet is priced per trip, not per kid");
+  lifestyle.travel.flightClass = "business";
+  const kidTravelCost = (travel) => {
+    const items = Planner.buildLifestyleItems({ ...lifestyle, travel: { ...lifestyle.travel, ...travel } }, currentYear, deathYear);
+    return items.find((item) => item.key.startsWith("kid.") && item.key.endsWith(".travel"))?.amount ?? 0;
+  };
+  const allTrips = kidTravelCost({});
+  check(kidTravelCost({ kidsFlightClass: "economy" }) < allTrips, "kids can fly economy while adults fly business");
+  check(kidTravelCost({ kidsDomesticTrips: 1 }) < allTrips && kidTravelCost({ kidsDomesticTrips: 0, kidsInternationalTrips: 0 }) === 0, "kids can join only some trips, or none");
+  check(kidTravelCost({ kidsDomesticTrips: 50 }) === allTrips, "kids never join more trips than the adults take");
+  const legacy = Planner.normalizeLifestyle({ travel: { domesticTrips: 4, internationalTrips: 2, kidsTravel: true } }, currentYear);
+  const legacyOff = Planner.normalizeLifestyle({ travel: { domesticTrips: 4, kidsTravel: false } }, currentYear);
+  check(legacy.travel.kidsDomesticTrips === 4 && legacy.travel.kidsInternationalTrips === 2 && legacyOff.travel.kidsDomesticTrips === 0,
+    "older plans keep their all-or-none kid travel");
+  lifestyle.travel.flightClass = "private";
   check(Math.abs(Planner.annualMortgagePayment(1600000, 6.5, 30) / 12 - 10113) < 5, "mortgage amortization");
 
   const oddTerm = Planner.defaultLifestyle(currentYear);

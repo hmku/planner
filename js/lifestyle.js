@@ -71,6 +71,13 @@
     { value: "private", label: "Private jet", perTrip: [80000, 300000] }
   ];
 
+  // How kids fly on the trips they join: with the adults (riding along free
+  // on a private charter) or in their own commercial class.
+  const KID_FLIGHT_CLASSES = [
+    { value: "same", label: "Same as adults" },
+    ...FLIGHT_CLASSES.filter((option) => option.fares)
+  ];
+
   // Nightly room rate plus daily spending (food, activities, local transport)
   // per traveler.
   const HOTELS = [
@@ -146,6 +153,7 @@
     help: HELP,
     housingMode: HOUSING_MODES,
     flightClass: FLIGHT_CLASSES,
+    kidFlightClass: KID_FLIGHT_CLASSES,
     hotel: HOTELS,
     everydayTier: EVERYDAY_TIERS
   };
@@ -193,7 +201,10 @@
         internationalNights: 7,
         flightClass: "economy",
         hotel: "midrange",
-        kidsTravel: true
+        // How many of the trips above the kids join, and how they fly.
+        kidsDomesticTrips: 2,
+        kidsInternationalTrips: 1,
+        kidsFlightClass: "same"
       },
       everyday: { tier: "comfortable" },
       health: { employerUntilYear: currentYear + 19 },
@@ -293,7 +304,12 @@
         internationalNights: pickNumber(travel.internationalNights, 0, 365, null),
         flightClass: pickEnum(travel.flightClass, FLIGHT_CLASSES, d.travel.flightClass),
         hotel: pickEnum(travel.hotel, HOTELS, d.travel.hotel),
-        kidsTravel: travel.kidsTravel !== false
+        // Plans from before per-trip kid travel had kidsTravel: all trips or none.
+        kidsDomesticTrips: pickNumber(travel.kidsDomesticTrips, 0, 100,
+          travel.kidsTravel === false ? 0 : pickNumber(travel.domesticTrips, 0, 100, null)),
+        kidsInternationalTrips: pickNumber(travel.kidsInternationalTrips, 0, 100,
+          travel.kidsTravel === false ? 0 : pickNumber(travel.internationalTrips, 0, 100, null)),
+        kidsFlightClass: pickEnum(travel.kidsFlightClass, KID_FLIGHT_CLASSES, d.travel.kidsFlightClass)
       },
       everyday: { tier: pickEnum(everyday.tier, EVERYDAY_TIERS, d.everyday.tier) },
       health: { employerUntilYear: pickYear(health.employerUntilYear, null) },
@@ -440,29 +456,35 @@
       add(key, "help", `${level.label}${suffix}`, local(level.amount), startYear, endYear);
     });
 
-    // Travel. Adults pay one room; each kid adds half a room.
+    // Travel. Adults pay one room; each kid adds half a room on the trips the
+    // kids join (never more than the adults take), flying with the adults or
+    // in their own class.
     const travel = lifestyle.travel;
     const flight = findOption(FLIGHT_CLASSES, travel.flightClass);
+    const kidFlight = travel.kidsFlightClass === "same" ? flight : findOption(FLIGHT_CLASSES, travel.kidsFlightClass);
     const hotel = findOption(HOTELS, travel.hotel);
     const tripKinds = [
-      { trips: num(travel.domesticTrips), nights: num(travel.domesticNights), index: 0 },
-      { trips: num(travel.internationalTrips), nights: num(travel.internationalNights), index: 1 }
+      { trips: num(travel.domesticTrips), kidTrips: num(travel.kidsDomesticTrips), nights: num(travel.domesticNights), index: 0 },
+      { trips: num(travel.internationalTrips), kidTrips: num(travel.kidsInternationalTrips), nights: num(travel.internationalNights), index: 1 }
     ];
-    const travelCost = (travelers, roomShare, includePrivateFlight) => tripKinds.reduce((sum, kind) => {
-      const flights = flight.perTrip
-        ? (includePrivateFlight ? flight.perTrip[kind.index] : 0)
-        : flight.fares[kind.index] * travelers;
-      const stay = kind.nights * (hotel.nightly * roomShare + hotel.dailySpend * travelers);
+    const adultCost = tripKinds.reduce((sum, kind) => {
+      const flights = flight.perTrip ? flight.perTrip[kind.index] : flight.fares[kind.index] * adults;
+      const stay = kind.nights * (hotel.nightly + hotel.dailySpend * adults);
       return sum + kind.trips * (flights + stay);
     }, 0);
+    const kidTripCount = tripKinds.reduce((sum, kind) => sum + Math.min(kind.kidTrips, kind.trips), 0);
+    const kidCost = tripKinds.reduce((sum, kind) => {
+      // A kid on the adults' charter adds no flight cost.
+      const flights = kidFlight.perTrip ? 0 : kidFlight.fares[kind.index];
+      const stay = kind.nights * (hotel.nightly * 0.5 + hotel.dailySpend);
+      return sum + Math.min(kind.kidTrips, kind.trips) * (flights + stay);
+    }, 0);
     add("travel.adults", "travel", `Travel · ${flight.label.toLowerCase()}, ${hotel.label.toLowerCase()} hotels`,
-      travelCost(adults, 1, true), currentYear, deathYear);
-    if (travel.kidsTravel) {
-      kids.forEach((kid) => {
-        add(`kid.${kid.id}.travel`, "travel", `${kidLabels.get(kid.id)} · travel`,
-          travelCost(1, 0.5, false), kid.birthYear, kid.birthYear + PRICES.kidHomeEndAge);
-      });
-    }
+      adultCost, currentYear, deathYear);
+    kids.forEach((kid) => {
+      add(`kid.${kid.id}.travel`, "travel", `${kidLabels.get(kid.id)} · travel (${kidTripCount} ${kidTripCount === 1 ? "trip" : "trips"}, ${kidFlight.label.toLowerCase()})`,
+        kidCost, kid.birthYear, kid.birthYear + PRICES.kidHomeEndAge);
+    });
 
     // Everyday living.
     const tierIndex = Math.max(0, EVERYDAY_TIERS.findIndex((tier) => tier.value === lifestyle.everyday.tier));

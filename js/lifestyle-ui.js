@@ -268,7 +268,7 @@
       },
       {
         title: "Flights (round trip)",
-        note: "Commercial fares are per traveler; kids travel through age 17 when \"Kids come along\" is on. Private charter is per trip for the whole plane, so it doesn't grow with the family.",
+        note: "Commercial fares are per traveler. Kids (through age 17) join as many trips as you set, flying with you or in their own class; on a private charter they ride along at no extra cost. Private charter is per trip for the whole plane, so it doesn't grow with the family.",
         headers: ["Class", "Domestic", "International", "Priced per"],
         rows: options.flightClass.map((option) => option.perTrip
           ? [option.label, money(option.perTrip[0]), money(option.perTrip[1]), "Trip"]

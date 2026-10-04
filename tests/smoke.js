@@ -107,6 +107,11 @@ async function main() {
     await page.click("#addKid");
     check(await page.locator("#kidRows .kid-row").count() === 1, "adding a kid adds a kid row");
     check(await page.locator('[data-ls-items="kids"] .ls-item').count() > 0, "kid line items appear");
+    await page.click('[data-ls-section="travel"] summary');
+    await page.selectOption('[data-ls="travel.kidsFlightClass"]', "premium");
+    await page.fill('[data-ls="travel.kidsInternationalTrips"]', "0");
+    check(/travel \(2 trips, premium economy\)/.test(await text(page, '[data-ls-items="travel"]')), "kids can join some trips in their own flight class");
+    await page.click('[data-ls-section="travel"] summary');
     await page.click('[data-ls-section="housing"] summary');
     await page.selectOption('[data-ls="housing.mode"]', "buyMortgage");
     check(await page.locator('[data-item-key="housing.mortgage"]').count() === 1, "buying with a mortgage adds a mortgage line");
