@@ -31,6 +31,7 @@ when they ship.
 
 ## Done
 
+- Removed the "rent is too personal to preset" hint, which contradicted the prefilled default rent.
 - One money format: every displayed amount is compact ($2.1M) through `Planner.formatMoney`; a unit check rejects number formatting outside `js/format.js` and literal amounts like `$10,000`.
 - Run policy chosen by simulation: the highest median terminal wealth among frontier policies with run-out risk at most 0.5% or the lowest reachable (instead of pure risk minimization). Per-beta alternatives in the Beta Policy tab are computed on demand, so the solver keeps no per-beta tables.
 - Frontier shows expected and median terminal wealth; each policy is simulated on 10,000 shared paths instead of read from the solver's grid estimates.
