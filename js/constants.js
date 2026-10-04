@@ -31,8 +31,11 @@ Planner.DYNAMIC_MAX_WEALTH_BUCKET = 1000000000000;
 Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS = [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100];
 Planner.DYNAMIC_POLICY_PROGRESS_SHARE = 0.75;
 Planner.EPSILON = 0.000000001;
+// The default retirement year is this many years out; work income and
+// employer health coverage follow it by default.
+Planner.DEFAULT_YEARS_TO_RETIREMENT = 20;
 Planner.DEFAULT_INCOME = [
-  { name: "Take-home pay", amount: 200000, startMode: "current", startYear: 2026, endMode: "fixed", endYear: 2045 }
+  { name: "Take-home pay", amount: 200000, startMode: "current", startYear: 2026, endMode: "retirement", endYear: 2045 }
 ];
 
 // The lifestyle builder supplies default spending; manual rows are for extras.

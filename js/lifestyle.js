@@ -52,6 +52,14 @@
     { value: "staff", label: "Full staff", amount: 250000 }
   ];
 
+  // Employer health coverage: through the last working year (the year before
+  // retirement), through a set year, or none.
+  const EMPLOYER_COVERAGE = [
+    { value: "retirement", label: "Until retirement" },
+    { value: "year", label: "Through a set year" },
+    { value: "none", label: "None" }
+  ];
+
   const HOUSING_MODES = [
     { value: "rent", label: "Rent" },
     { value: "buyCash", label: "Buy with cash" },
@@ -152,6 +160,7 @@
     activities: ACTIVITIES,
     help: HELP,
     housingMode: HOUSING_MODES,
+    employerCoverage: EMPLOYER_COVERAGE,
     flightClass: FLIGHT_CLASSES,
     kidFlightClass: KID_FLIGHT_CLASSES,
     hotel: HOTELS,
@@ -207,7 +216,7 @@
         kidsFlightClass: "same"
       },
       everyday: { tier: "comfortable" },
-      health: { employerUntilYear: currentYear + 19 },
+      health: { employerCoverage: "retirement", employerUntilYear: currentYear + 19 },
       overrides: {},
       detached: []
     };
@@ -312,7 +321,12 @@
         kidsFlightClass: pickEnum(travel.kidsFlightClass, KID_FLIGHT_CLASSES, d.travel.kidsFlightClass)
       },
       everyday: { tier: pickEnum(everyday.tier, EVERYDAY_TIERS, d.everyday.tier) },
-      health: { employerUntilYear: pickYear(health.employerUntilYear, null) },
+      health: {
+        // Plans from before the retirement year set a year, or none when blank.
+        employerCoverage: pickEnum(health.employerCoverage, EMPLOYER_COVERAGE,
+          "employerUntilYear" in health ? (pickYear(health.employerUntilYear, null) === null ? "none" : "year") : d.health.employerCoverage),
+        employerUntilYear: pickYear(health.employerUntilYear, null)
+      },
       overrides,
       detached
     };
@@ -355,7 +369,7 @@
   // to the plan window. Items sharing a key (for example household help before
   // kids and after they leave) share one override. Lines moved to manual rows are
   // left out unless includeDetached is set (the builder lists them to restore).
-  function buildLifestyleItems(lifestyle, currentYear, deathYear, { includeDetached = false } = {}) {
+  function buildLifestyleItems(lifestyle, currentYear, deathYear, { includeDetached = false, retirementYear = null } = {}) {
     const items = [];
     if (!lifestyle || !lifestyle.enabled) return items;
     if (!Number.isInteger(currentYear) || !Number.isInteger(deathYear) || deathYear < currentYear) return items;
@@ -493,9 +507,12 @@
       add(`everyday.${line.key}`, "everyday", line.label, local(line.amounts[tierIndex] * householdFactor), currentYear, deathYear);
     });
 
-    // Health: employer plan (no cost here) until a year, then private insurance,
+    // Health: employer plan (no cost here) until retirement or a set year, then private insurance,
     // then Medicare at 65 when a birth year is known.
-    const employerUntil = Number.isInteger(lifestyle.health.employerUntilYear) ? lifestyle.health.employerUntilYear : currentYear - 1;
+    const { employerCoverage, employerUntilYear } = lifestyle.health;
+    const employerUntil = employerCoverage === "retirement" && Number.isInteger(retirementYear)
+      ? retirementYear - 1
+      : employerCoverage === "year" && Number.isInteger(employerUntilYear) ? employerUntilYear : currentYear - 1;
     const privateStart = Math.max(currentYear, employerUntil + 1);
     const medicareYear = Number.isInteger(lifestyle.birthYear) ? lifestyle.birthYear + PRICES.medicareAge : deathYear + 1;
     add("health.private", "health", "Private health insurance + out-of-pocket",

@@ -15,7 +15,8 @@ when they ship.
 - Borrow-instead-of-sell mode (securities-backed line of credit): loan balance at T-bill + spread, LTV cap with forced selling, step-up in basis at death.
 - Richer tax modeling: gain share rising over time, brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
-- Income presets: salary until a quit year, then a founder salary or other runway scenarios.
+- Income presets: salary until retirement, then a founder salary or other runway scenarios.
+- Social Security / pensions starting at an age (needs the birth year), alongside "At retirement" rows.
 - Let the user set the acceptable run-out risk (now a 0.5% constant) or pick a frontier point to run with.
 
 ### Lifestyle builder
@@ -31,6 +32,7 @@ when they ship.
 
 ## Done
 
+- Retirement year: one Plan field that income and expense rows ("Until retirement", "At retirement") and employer health coverage follow by default, so changing it moves them together. Older plans keep their fixed years.
 - Travel with kids: choose how many of the domestic and international trips the kids join (instead of all or none) and how they fly (with the adults, or their own class, such as economy while the adults fly business). Older plans keep their all-or-none setting.
 - Plan menu: "Your plans" now shows the plan being edited and whether it's saved (instead of a fixed "Open a saved plan…" prompt), saving under a new name renames the open plan instead of copying it, and "+ New plan" starts over from the defaults. Picking from the menu no longer counts as an unsaved edit.
 - Code review cleanup: one extra-path runner for How much you need and the frontier; shared helpers for flow totals, growth factors, the withdrawal tax (engine and Spending view), plan-year validation, cancellation errors, and the owned home's purchase year and mortgage term; CSV exports defined as column lists; unused exports dropped. Fixes: the Beta Policy path explorer now sells the home like simulated paths (and says when the portfolio runs out), the Simulation chart plots net worth including home equity like the Overview, a fractional mortgage term no longer disagrees between the payments and the balance, and small risks no longer round to "100.0%".

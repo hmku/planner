@@ -63,7 +63,11 @@
                 <span>Year of death</span>
                 <input id="deathYear" name="deathYear" type="number" min="1900" max="2200" step="1" required>
               </label>
-              <label class="field field-wide">
+              <label class="field" title="The first year without work income. Income set to &quot;Until retirement&quot; ends the year before, &quot;At retirement&quot; starts this year, and employer health coverage can follow it.">
+                <span>Retirement year</span>
+                <input id="retirementYear" name="retirementYear" type="number" min="1900" max="2200" step="1" required>
+              </label>
+              <label class="field">
                 <span>Current net worth</span>
                 <input id="netWorth" name="netWorth" type="text" inputmode="decimal" data-format="money" autocomplete="off" required>
               </label>
@@ -259,8 +263,12 @@
               <details class="ls-section" data-ls-section="health">
                 <summary><span>Health</span><span class="ls-section-amount"></span></summary>
                 <div class="field-grid">
-                  <label class="field field-wide">
-                    <span>Employer coverage until (blank = none)</span>
+                  <label class="field">
+                    <span>Employer coverage</span>
+                    <select data-ls="health.employerCoverage" data-ls-options="employerCoverage"></select>
+                  </label>
+                  <label class="field" data-ls-show="health.employerCoverage=year">
+                    <span>Covered through</span>
                     <input data-ls="health.employerUntilYear" type="number" min="1900" max="2200" step="1">
                   </label>
                 </div>
@@ -720,6 +728,7 @@
           <div class="flow-bound">
             <select data-field="startMode" aria-label="Start">
               <option value="current">From now</option>
+              <option value="retirement">At retirement</option>
               <option value="death">From death</option>
               <option value="fixed">From year</option>
             </select>
@@ -728,6 +737,7 @@
           <div class="flow-bound">
             <select data-field="endMode" aria-label="End">
               <option value="death">Until death</option>
+              <option value="retirement">Until retirement</option>
               <option value="current">Until now</option>
               <option value="fixed">Until year</option>
             </select>

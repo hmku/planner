@@ -159,7 +159,7 @@
       return;
     }
     if (!years) {
-      total.textContent = "Enter a valid current year and year of death to price the lifestyle.";
+      total.textContent = "Enter valid plan years (current, death, and retirement) to price the lifestyle.";
       return;
     }
     const { now, peak } = nowAndPeak(currentItems, years);
@@ -298,7 +298,7 @@
       },
       {
         title: "Health (per year)",
-        note: "Employer coverage is treated as free until the year you set; then private insurance until Medicare at 65 (needs your birth year).",
+        note: "Employer coverage is treated as free until retirement (or through the year you set); then private insurance until Medicare at 65 (needs your birth year).",
         headers: ["Item", "Amount"],
         rows: [
           ["Private insurance, per adult", money(prices.privateHealthPerAdult)],
@@ -373,7 +373,7 @@
   function refreshLifestyle({ keepItemRows = false } = {}) {
     const years = readPlanYears();
     allItems = years
-      ? Planner.buildLifestyleItems(Planner.state.lifestyle, years.currentYear, years.deathYear, { includeDetached: true })
+      ? Planner.buildLifestyleItems(Planner.state.lifestyle, years.currentYear, years.deathYear, { includeDetached: true, retirementYear: years.retirementYear })
       : [];
     currentItems = allItems.filter((item) => !item.isDetached);
     updateConditionalFields();
@@ -384,8 +384,8 @@
     Planner.renderSpendingView();
   }
 
-  function getLifestyleItems(currentYear, deathYear) {
-    return Planner.buildLifestyleItems(Planner.state.lifestyle, currentYear, deathYear);
+  function getLifestyleItems(years) {
+    return Planner.buildLifestyleItems(Planner.state.lifestyle, years.currentYear, years.deathYear, { retirementYear: years.retirementYear });
   }
 
   // ---------- Events ----------

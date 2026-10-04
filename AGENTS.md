@@ -71,6 +71,7 @@ The Overview shows, in order: net worth, dynamic beta frontier, SPX beta over ti
 ## Important Implementation Details
 
 - Default inputs are set in `setDefaults()`.
+- The retirement year (`readPlanYears()`, with the current and death years) is the first year without work income: flow rows "Until retirement" end the year before and "At retirement" start that year (`resolveFlowYear`), and the builder's employer health coverage follows it (`buildLifestyleItems(..., { retirementYear })`).
 - SPX beta currently defaults to `0.8`.
 - Share links use the `p` query parameter to store the full plan state (`getPlanState()`) as compressed JSON plus an optional seed; links with a seed restore inputs and auto-run after market data loads. Saved plans, the draft, and share links all pass through `normalizePlanState()` because they are untrusted; extend it (and `normalizeLifestyle()`) whenever plan state gains a field.
 - On load, a `p` link wins over the localStorage draft; with neither, defaults are used.

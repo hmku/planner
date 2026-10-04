@@ -86,6 +86,16 @@ async function main() {
   check(oddMortgage.startYear === currentYear && oddHome.ownedFrom === currentYear && oddMortgage.endYear === currentYear + paidOff - 1,
     "mortgage payments and the home's balance share one purchase year and term");
 
+  const retiring = { ...Planner.defaultLifestyle(currentYear), birthYear: 1990 };
+  const privateFrom = (lifestyleIn, retirementYear) => Planner.buildLifestyleItems(lifestyleIn, currentYear, deathYear, { retirementYear })
+    .find((item) => item.key === "health.private")?.startYear;
+  check(privateFrom(retiring, 2040) === 2040 && privateFrom(retiring, 2050) === 2050, "employer health coverage follows the retirement year by default");
+  check(privateFrom({ ...retiring, health: { employerCoverage: "year", employerUntilYear: 2035 } }, 2040) === 2036 &&
+    privateFrom({ ...retiring, health: { employerCoverage: "none", employerUntilYear: 2035 } }, 2040) === currentYear, "employer coverage can instead end at a set year, or be off");
+  const coverageOf = (health) => Planner.normalizeLifestyle({ health }, currentYear).health.employerCoverage;
+  check(coverageOf({ employerUntilYear: 2030 }) === "year" && coverageOf({ employerUntilYear: null }) === "none" && coverageOf(undefined) === "retirement",
+    "older plans keep their employer coverage year (or none)");
+
   const normalized = Planner.normalizeLifestyle({
     kids: [{ id: "BAD!", birthYear: "2030", school: "nope" }],
     overrides: { "a b": 1, "ok.key": "5" },

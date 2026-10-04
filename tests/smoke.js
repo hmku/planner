@@ -102,6 +102,16 @@ async function main() {
     await page.fill("#withdrawalTax", "15");
     await page.click('[data-page="overview"]');
 
+    console.log("Retirement year");
+    const thisYear = Number(await page.inputValue("#currentYear"));
+    check(await page.inputValue("#retirementYear") === String(thisYear + 20) && await page.inputValue('#incomeRows [data-field="endMode"]') === "retirement",
+      "the default retirement year ends the default income");
+    await page.fill("#retirementYear", String(thisYear + 10));
+    await page.click('[data-ls-section="health"] summary');
+    check((await text(page, '[data-item-key="health.private"] .ls-item-years')).startsWith(String(thisYear + 10)), "private health insurance starts at the retirement year");
+    await page.click('[data-ls-section="health"] summary');
+    await page.fill("#retirementYear", String(thisYear + 20));
+
     console.log("Lifestyle builder");
     await page.click('[data-ls-section="kids"] summary');
     await page.click("#addKid");

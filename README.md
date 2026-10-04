@@ -15,7 +15,11 @@ The planner lets you enter plan years, current net worth, beta mode, SPX beta, s
 - a Beta Policy view with per-beta alternatives, a visible wealth bucket plot, and a deterministic policy path explorer over a hoverable policy heatmap
 - saved plans and an autosaved draft in the browser, plus shareable links that restore the plan inputs and rerun the same seeded simulation paths
 
-By default, the app starts with the current year, an expected year of death 60 years later, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, `10,000` simulations, `$200,000` of take-home pay through 2045, and a lifestyle-builder default of a couple renting for `$5,000`/month in a very-high-cost area with comfortable everyday spending and modest economy travel.
+By default, the app starts with the current year, an expected year of death 60 years later, a retirement year 20 years out, `$100,000` in current net worth, dynamic beta mode, `0.8` fixed-mode SPX beta, `10,000` simulations, `$200,000` of take-home pay until retirement, and a lifestyle-builder default of a couple renting for `$5,000`/month in a very-high-cost area with comfortable everyday spending and modest economy travel.
+
+## Retirement Year
+
+The Plan card's retirement year is the first year without work income. Income and expense rows can run "Until retirement" (ending the year before) or start "At retirement", and employer health coverage follows it by default, so moving the retirement year moves all of them together. Rows can still use fixed years instead. Plans saved before the retirement year existed open with it set to the year after their employer coverage ended (or 20 years out), and keep their fixed years.
 
 ## Lifestyle Builder
 
@@ -27,7 +31,7 @@ The Lifestyle card turns a described lifestyle into dated annual expenses in tod
 - **Household help**: one level while any kid is at home and another before kids and after they leave (none, weekly housekeeper, after-school nanny plus housekeeper, household manager, full staff).
 - **Travel**: domestic and international trips per year and nights per trip; economy, premium economy, business, first, or private jet; mid-range to ultra-luxury hotels. Commercial fares are per traveler. With kids, you set how many of the domestic and international trips they join (until 18) and how they fly: with you, or in their own class (for example economy while the adults fly business). Private charter is priced per trip for the whole plane, so kids on it add only their hotel share and daily spending.
 - **Everyday living**: modest, comfortable, affluent, or lavish, itemized into groceries, dining, cars, utilities, and personal spending.
-- **Health**: employer coverage (no cost) until a chosen year, then private insurance, then Medicare at 65.
+- **Health**: employer coverage (no cost) until retirement by default (or through a set year, or none), then private insurance, then Medicare at 65.
 
 The Methodology tab lists every price and rule the builder uses (area factors, kids by age, help, everyday living, flights, hotels, housing, health), generated from the same constants as the builder, with a "Your area" column when a cheaper area is selected; the Lifestyle card's "Assumptions" link jumps there.
 

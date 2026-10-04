@@ -8,7 +8,7 @@
   const PLANS_KEY = "planner.plans.v1";
   const MAX_SAVED_PLANS = 100;
   const MAX_NAME_LENGTH = 80;
-  const FLOW_MODES = ["current", "death", "fixed"];
+  const FLOW_MODES = ["current", "retirement", "death", "fixed"];
   const AUTOSAVE_DELAY_MS = 400;
 
   let autosaveTimer = null;
@@ -44,6 +44,7 @@
       plan: {
         currentYear: numberOrNull(els.currentYear),
         deathYear: numberOrNull(els.deathYear),
+        retirementYear: numberOrNull(els.retirementYear),
         netWorth: numberOrNull(els.netWorth),
         betaMode: els.betaMode.value,
         spxBeta: numberOrNull(els.spxBeta),
@@ -83,11 +84,17 @@
     const plan = raw.plan && typeof raw.plan === "object" ? raw.plan : {};
     const currentYear = finiteOrNull(plan.currentYear);
     const lifestyleYear = Number.isInteger(currentYear) ? currentYear : new Date().getFullYear();
+    const lifestyle = Planner.normalizeLifestyle(raw.lifestyle, lifestyleYear);
+    // Plans from before the retirement year: the year after employer health
+    // coverage ended, or the default.
+    const coverageEnd = lifestyle.health.employerCoverage === "year" ? lifestyle.health.employerUntilYear : null;
+    const missingRetirementYear = Number.isInteger(coverageEnd) ? coverageEnd + 1 : lifestyleYear + Planner.DEFAULT_YEARS_TO_RETIREMENT;
     return {
       name: typeof raw.name === "string" ? raw.name.trim().slice(0, MAX_NAME_LENGTH) : "",
       plan: {
         currentYear,
         deathYear: finiteOrNull(plan.deathYear),
+        retirementYear: "retirementYear" in plan ? finiteOrNull(plan.retirementYear) : missingRetirementYear,
         netWorth: finiteOrNull(plan.netWorth),
         betaMode: Planner.normalizeBetaMode(plan.betaMode),
         spxBeta: finiteOrNull(plan.spxBeta),
@@ -96,7 +103,7 @@
       },
       income: normalizeFlows(raw.income),
       expenses: normalizeFlows(raw.expenses),
-      lifestyle: JSON.parse(JSON.stringify(Planner.normalizeLifestyle(raw.lifestyle, lifestyleYear)))
+      lifestyle: JSON.parse(JSON.stringify(lifestyle))
     };
   }
 
@@ -105,6 +112,7 @@
     els.planName.value = state.name;
     els.currentYear.value = state.plan.currentYear ?? "";
     els.deathYear.value = state.plan.deathYear ?? "";
+    els.retirementYear.value = state.plan.retirementYear ?? "";
     els.netWorth.value = state.plan.netWorth ?? "";
     els.betaMode.value = state.plan.betaMode;
     els.spxBeta.value = state.plan.spxBeta ?? Planner.DEFAULT_SPX_BETA;

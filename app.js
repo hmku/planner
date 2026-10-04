@@ -17,7 +17,7 @@
   const ELEMENT_IDS = [
     "plannerForm", "runSimulation", "runProgress", "runProgressBar", "runStatus", "sharePlan", "savePlan",
     "planName", "savedPlanSelect", "deletePlan",
-    "currentYear", "deathYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount", "withdrawalTax",
+    "currentYear", "deathYear", "retirementYear", "netWorth", "betaMode", "fixedBetaControl", "spxBeta", "simulationCount", "withdrawalTax",
     "incomeRows", "expenseRows", "addIncome", "addExpense", "flowRowTemplate", "expenseHeading",
     "lifestyleBody", "lifestyleTotal", "kidRows", "addKid", "lifestyleAssumptions", "lifestyleAssumptionsSummary",
     "lifestyleAssumptionsSection",
@@ -50,6 +50,7 @@
     const currentYear = new Date().getFullYear();
     Planner.els.currentYear.value = currentYear;
     Planner.els.deathYear.value = currentYear + 60;
+    Planner.els.retirementYear.value = currentYear + Planner.DEFAULT_YEARS_TO_RETIREMENT;
     Planner.els.netWorth.value = 100000;
     Planner.els.betaMode.value = Planner.BETA_MODE_DYNAMIC;
     Planner.els.spxBeta.value = Planner.DEFAULT_SPX_BETA;
@@ -263,9 +264,12 @@
     row.querySelector('[data-field="endYear"]').hidden = row.querySelector('[data-field="endMode"]').value !== "fixed";
   }
 
-  function resolveFlowYear(mode, fixedInput, years) {
+  // Retirement is the first year without work income, so a flow "until
+  // retirement" ends the year before and one "at retirement" starts that year.
+  function resolveFlowYear(mode, fixedInput, years, isEnd) {
     if (mode === "current") return years.currentYear;
     if (mode === "death") return years.deathYear;
+    if (mode === "retirement") return isEnd ? years.retirementYear - 1 : years.retirementYear;
     return Planner.numberFromInput(fixedInput);
   }
 
@@ -278,8 +282,8 @@
         const name = field("name").value.trim();
         const startMode = field("startMode").value;
         const endMode = field("endMode").value;
-        const startYear = resolveFlowYear(startMode, field("startYear"), years);
-        const endYear = resolveFlowYear(endMode, field("endYear"), years);
+        const startYear = resolveFlowYear(startMode, field("startYear"), years, false);
+        const endYear = resolveFlowYear(endMode, field("endYear"), years, true);
         const label = name || "Cash flow";
         if (startMode === "fixed") Planner.validatePlanYear(startYear, `${label} start year`);
         if (endMode === "fixed") Planner.validatePlanYear(endYear, `${label} end year`);
@@ -299,7 +303,7 @@
   // their own categories.
   function readCashFlows(years) {
     const manualExpenses = readFlowRows(Planner.els.expenseRows, years).map((flow) => ({ ...flow, category: "other" }));
-    const lifestyleExpenses = Planner.lifestyleItemsToFlows(Planner.getLifestyleItems(years.currentYear, years.deathYear));
+    const lifestyleExpenses = Planner.lifestyleItemsToFlows(Planner.getLifestyleItems(years));
     return {
       income: readFlowRows(Planner.els.incomeRows, years),
       expenses: [...lifestyleExpenses, ...manualExpenses],
@@ -316,15 +320,17 @@
     return percent / 100;
   }
 
-  // The plan's first and last years, validated (shared by runs, the Spending
-  // view, and the lifestyle builder).
+  // The plan's first and last years and the retirement year, validated
+  // (shared by runs, the Spending view, and the lifestyle builder).
   function readPlanYears() {
     const years = {
       currentYear: Planner.numberFromInput(Planner.els.currentYear),
-      deathYear: Planner.numberFromInput(Planner.els.deathYear)
+      deathYear: Planner.numberFromInput(Planner.els.deathYear),
+      retirementYear: Planner.numberFromInput(Planner.els.retirementYear)
     };
     Planner.validatePlanYear(years.currentYear, "Current year");
     Planner.validatePlanYear(years.deathYear, "Year of death");
+    Planner.validatePlanYear(years.retirementYear, "Retirement year");
     if (years.deathYear < years.currentYear) throw new Error("Year of death must not be before the current year.");
     if (years.deathYear - years.currentYear + 1 > Planner.MAX_PLAN_LENGTH_YEARS) {
       throw new Error(`Plan length cannot exceed ${Planner.MAX_PLAN_LENGTH_YEARS} years.`);
