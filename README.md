@@ -41,7 +41,7 @@ The Housing section shows a one-line rent-vs-own comparison: owning costs upkeep
 
 ## Saving Plans
 
-The inputs autosave to the browser's local storage as you edit, so closing or refreshing the page never loses work; opening the app again restores the last session. `Save` stores the current inputs under the plan name in local storage, and the Saved plans menu reopens or deletes them (Save reads "Saved" while the open plan matches what's stored). Saved plans live only in that browser; use Share to move a plan elsewhere.
+The inputs autosave to the browser's local storage as you edit, so closing or refreshing the page never loses work; opening the app again restores the last session. `Save` stores the current inputs under the plan name in local storage; saving an open plan under a new name renames it. The Your plans menu shows the plan you're editing ("(edited)" when it has unsaved changes, "(not saved)" or "Unsaved plan" before its first save), opens a saved plan, or starts a new plan from the defaults; the trash button deletes the open plan. Save reads "Saved" while the open plan matches what's stored. Saved plans live only in that browser; use Share to move a plan elsewhere.
 
 ## How It Works
 

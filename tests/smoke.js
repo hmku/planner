@@ -179,6 +179,20 @@ async function main() {
     await waitForRun(fresh);
     check(!(await fresh.isChecked('[data-ls="enabled"]')) && await fresh.locator("#expenseRows .flow-row").count() === 1, "old-format links open with the builder off");
 
+    console.log("Plan switcher");
+    const selectedPlan = () => page.$eval("#savedPlanSelect", (select) => select.selectedOptions[0].textContent);
+    const planOptions = () => page.$$eval("#savedPlanSelect option", (items) => items.map((item) => item.textContent));
+    check(await selectedPlan() === "Smoke test plan", "the plan menu shows the open plan", await selectedPlan());
+    await page.fill("#planName", "Renamed plan");
+    await sleep(600);
+    check(await selectedPlan() === "Smoke test plan (edited)", "the plan menu flags unsaved changes", await selectedPlan());
+    await page.click("#savePlan");
+    const afterRename = await planOptions();
+    check(afterRename.includes("Renamed plan") && !afterRename.some((name) => name.startsWith("Smoke test plan")), "saving under a new name renames the plan", afterRename.join(", "));
+    await page.selectOption("#savedPlanSelect", "__new__");
+    await sleep(300);
+    check(await page.inputValue("#planName") === "" && await selectedPlan() === "Unsaved plan", "New plan starts from the defaults, unsaved", await selectedPlan());
+
     console.log("Phone");
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
     const mobile = await phone.newPage();

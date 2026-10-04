@@ -164,6 +164,8 @@
   // results stale, and autosave. Renaming the plan doesn't stale the results.
   function handleFormEdit(event) {
     const target = event.target;
+    // The plan menu switches plans; it isn't an edit.
+    if (target === Planner.els.savedPlanSelect) return;
     if (target === Planner.els.planName) {
       Planner.noteUserEdit();
       return;
@@ -511,6 +513,7 @@
     cacheElements();
     Planner.initLifestyleBuilder(noteLifestyleEdit);
     setDefaults();
+    Planner.captureDefaultPlan();
     bindEvents();
     Planner.bindSavedPlanControls(markDirty);
     const restored = await Planner.restoreInitialPlan();

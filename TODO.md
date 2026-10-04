@@ -25,11 +25,13 @@ when they ship.
 - Revisit prices periodically (tuition, fares, charter rates); they live in `js/lifestyle.js`.
 
 ### App
+- "Duplicate plan" in the plan menu, now that saving under a new name renames instead of copying.
 - Native App Store / Play Store builds (for example a Capacitor wrapper) if the installable web app isn't enough.
 - Sync saved plans across devices (saved plans currently live only in one browser; the installed iPhone app has storage separate from Safari).
 
 ## Done
 
+- Plan menu: "Your plans" now shows the plan being edited and whether it's saved (instead of a fixed "Open a saved plan…" prompt), saving under a new name renames the open plan instead of copying it, and "+ New plan" starts over from the defaults. Picking from the menu no longer counts as an unsaved edit.
 - Code review cleanup: one extra-path runner for How much you need and the frontier; shared helpers for flow totals, growth factors, the withdrawal tax (engine and Spending view), plan-year validation, cancellation errors, and the owned home's purchase year and mortgage term; CSV exports defined as column lists; unused exports dropped. Fixes: the Beta Policy path explorer now sells the home like simulated paths (and says when the portfolio runs out), the Simulation chart plots net worth including home equity like the Overview, a fractional mortgage term no longer disagrees between the payments and the balance, and small risks no longer round to "100.0%".
 - Removed the "rent is too personal to preset" hint, which contradicted the prefilled default rent.
 - One money format: every displayed amount is compact ($2.1M) through `Planner.formatMoney`; a unit check rejects number formatting outside `js/format.js` and literal amounts like `$10,000`.

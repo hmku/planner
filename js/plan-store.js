@@ -209,21 +209,31 @@
 
   // ---------- Saved plans UI ----------
 
+  const NEW_PLAN_VALUE = "__new__";
+  const DRAFT_VALUE = "__draft__";
+
+  // The plan switcher: shows the plan being edited (and whether it is saved),
+  // lists the saved plans to open, and starts a new plan.
   function renderSavedPlanSelect() {
     const select = Planner.els.savedPlanSelect;
-    const plans = readSavedPlans().sort((a, b) => a.name.localeCompare(b.name));
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = plans.length ? "Open a saved plan…" : "No saved plans yet";
-    const options = plans.map((plan) => {
-      const option = document.createElement("option");
-      option.value = plan.name;
-      option.textContent = plan.name;
-      return option;
-    });
-    select.replaceChildren(placeholder, ...options);
-    select.disabled = !plans.length;
-    select.value = plans.some((plan) => plan.name === Planner.state.openPlanName) ? Planner.state.openPlanName : "";
+    const openName = findSavedPlan(Planner.state.openPlanName)?.name || null;
+    const isSaved = isSavedAsOpenPlan();
+    const option = (value, text) => {
+      const element = document.createElement("option");
+      element.value = value;
+      element.textContent = text;
+      return element;
+    };
+    const options = readSavedPlans()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((plan) => option(plan.name, plan.name === openName && !isSaved ? `${plan.name} (edited)` : plan.name));
+    if (!openName) {
+      const name = Planner.els.planName.value.trim();
+      options.unshift(option(DRAFT_VALUE, name ? `${name} (not saved)` : "Unsaved plan"));
+    }
+    options.push(option(NEW_PLAN_VALUE, "+ New plan"));
+    select.replaceChildren(...options);
+    select.value = openName || DRAFT_VALUE;
   }
 
   function isSavedAsOpenPlan(state = getPlanState()) {
@@ -234,12 +244,17 @@
   function updateSaveControls() {
     const { els } = Planner;
     const isSaved = isSavedAsOpenPlan();
+    const openName = findSavedPlan(Planner.state.openPlanName)?.name || null;
+    const name = els.planName.value.trim();
     els.savePlan.textContent = isSaved ? "Saved" : "Save";
     els.savePlan.disabled = isSaved;
     els.savePlan.title = isSaved
-      ? `“${Planner.state.openPlanName}” is saved in this browser`
-      : "Save this plan in this browser";
-    els.deletePlan.disabled = !findSavedPlan(Planner.state.openPlanName);
+      ? `“${openName}” is saved in this browser`
+      : openName && name && name !== openName
+        ? `Save as “${name}” (renames “${openName}”)`
+        : "Save this plan in this browser";
+    els.deletePlan.disabled = !openName;
+    renderSavedPlanSelect();
   }
 
   function nextUntitledName(plans) {
@@ -255,47 +270,68 @@
     const plans = readSavedPlans();
     if (!els.planName.value.trim()) els.planName.value = nextUntitledName(plans);
     const state = getPlanState();
+    // Saving an open plan under a new name renames it rather than copying it.
+    const renamedFrom = findSavedPlan(Planner.state.openPlanName) && Planner.state.openPlanName !== state.name
+      ? Planner.state.openPlanName
+      : null;
     const existingIndex = plans.findIndex((plan) => plan.name === state.name);
     if (existingIndex !== -1 && Planner.state.openPlanName !== state.name &&
         !window.confirm(`Replace the saved plan “${state.name}”?`)) {
       return;
     }
-    if (existingIndex === -1 && plans.length >= MAX_SAVED_PLANS) {
+    if (existingIndex === -1 && !renamedFrom && plans.length >= MAX_SAVED_PLANS) {
       Planner.setStatus(`You can keep up to ${MAX_SAVED_PLANS} saved plans. Delete one first.`, "error");
       return;
     }
     const entry = { name: state.name, savedAt: Date.now(), state };
-    if (existingIndex === -1) plans.push(entry);
-    else plans[existingIndex] = entry;
-    if (!writeSavedPlans(plans)) {
+    const nextPlans = plans.filter((plan) => plan.name !== state.name && plan.name !== renamedFrom);
+    nextPlans.push(entry);
+    if (!writeSavedPlans(nextPlans)) {
       Planner.setStatus("Could not save: this browser is blocking or out of local storage.", "error");
       return;
     }
     Planner.state.openPlanName = state.name;
     editedSinceOpen = false;
     saveDraftNow();
-    renderSavedPlanSelect();
     updateSaveControls();
-    Planner.setStatus(`Saved “${state.name}” in this browser.`);
+    Planner.setStatus(renamedFrom ? `Renamed “${renamedFrom}” to “${state.name}” and saved it.` : `Saved “${state.name}” in this browser.`);
   }
 
   function openSavedPlan(name, onOpened) {
     const plan = findSavedPlan(name);
     if (!plan) return;
-    if (editedSinceOpen && !isSavedAsOpenPlan() &&
-        !window.confirm("Open this plan and discard your unsaved changes?")) {
-      renderSavedPlanSelect();
-      return;
-    }
-    applyPlanState(plan.state);
-    Planner.state.openPlanName = plan.name;
+    if (!confirmDiscard("Open this plan")) return;
+    switchToPlan(plan.state, plan.name, onOpened);
+    Planner.setStatus(`Opened “${plan.name}”.`);
+  }
+
+  // Starts over from the default inputs (captured at startup).
+  function startNewPlan(onOpened) {
+    if (!confirmDiscard("Start a new plan")) return;
+    switchToPlan(defaultPlanState, null, onOpened);
+    Planner.setStatus("Started a new plan. Save it to keep it.");
+  }
+
+  function confirmDiscard(action) {
+    if (!editedSinceOpen || isSavedAsOpenPlan() || window.confirm(`${action} and discard your unsaved changes?`)) return true;
+    renderSavedPlanSelect();
+    return false;
+  }
+
+  function switchToPlan(state, openPlanName, onOpened) {
+    applyPlanState(state);
+    Planner.state.openPlanName = openPlanName;
     editedSinceOpen = false;
     saveDraftNow();
-    renderSavedPlanSelect();
     updateSaveControls();
     onOpened();
-    Planner.syncShareUrl(plan.state, null);
-    Planner.setStatus(`Opened “${plan.name}”.`);
+    Planner.syncShareUrl(state, null);
+  }
+
+  let defaultPlanState = null;
+
+  function captureDefaultPlan() {
+    defaultPlanState = getPlanState();
   }
 
   function deleteOpenPlan() {
@@ -304,7 +340,6 @@
     writeSavedPlans(readSavedPlans().filter((plan) => plan.name !== name));
     Planner.state.openPlanName = null;
     saveDraftNow();
-    renderSavedPlanSelect();
     updateSaveControls();
     Planner.setStatus(`Deleted “${name}”. The current inputs are unchanged.`);
   }
@@ -314,12 +349,13 @@
     els.savePlan.addEventListener("click", savePlan);
     els.deletePlan.addEventListener("click", deleteOpenPlan);
     els.savedPlanSelect.addEventListener("change", () => {
-      if (els.savedPlanSelect.value) openSavedPlan(els.savedPlanSelect.value, onOpened);
+      const { value } = els.savedPlanSelect;
+      if (value === NEW_PLAN_VALUE) startNewPlan(onOpened);
+      else if (value !== DRAFT_VALUE) openSavedPlan(value, onOpened);
     });
     window.addEventListener("storage", (event) => {
       if (event.key !== PLANS_KEY) return;
       savedPlansCache = null;
-      renderSavedPlanSelect();
       updateSaveControls();
     });
     window.addEventListener("pagehide", flushPendingAutosave);
@@ -357,7 +393,6 @@
       }
     }
     editedSinceOpen = Boolean(source) && !isSavedAsOpenPlan();
-    renderSavedPlanSelect();
     updateSaveControls();
     return source ? { source, seed } : null;
   }
@@ -365,6 +400,7 @@
   Object.assign(Planner, {
     getPlanState,
     normalizePlanState,
+    captureDefaultPlan,
     bindSavedPlanControls,
     restoreInitialPlan,
     noteUserEdit
