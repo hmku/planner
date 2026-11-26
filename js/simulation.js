@@ -14,14 +14,15 @@
     const { stepPathYear, selectDynamicBeta } = Planner;
     return {
       cash,
-      newState: (wealth) => ({ wealth, sold: false, soldThisYear: false, beta: null }),
+      // Starting net worth is all after-tax money, so it starts as the basis.
+      newState: (wealth) => ({ wealth, basis: wealth, sold: false, soldThisYear: false, withdrawalTax: 0, beta: null }),
       // Returns the ending portfolio (<= 0 means depleted); sets state.beta.
       step(state, yearIndex, rowIndex) {
         state.beta = dynamicPolicy
           ? selectDynamicBeta(dynamicPolicy, yearIndex, state.wealth, state.sold)
           : scenario.spxBeta;
-        const { growth, cashFactor } = fixedFactors || factorsFor(state.beta);
-        return stepPathYear(cash, state, yearIndex, growth[rowIndex], cashFactor[rowIndex]);
+        const { growth, cashFactor, deflator } = fixedFactors || factorsFor(state.beta);
+        return stepPathYear(cash, state, yearIndex, growth[rowIndex], cashFactor[rowIndex], deflator[rowIndex]);
       },
       // Net worth counts home equity while the home is owned.
       netWorth: (state, yearIndex) => state.wealth + (state.sold ? 0 : cash.equity[yearIndex])
@@ -169,7 +170,8 @@
       const startingWealth = state.wealth;
       const endingWealth = stepper.step(state, yearIndex, rowIndex);
       const metrics = Planner.buildReturnMetrics(row, state.beta);
-      const { income, expenses, withdrawalTax, net } = (state.sold ? cash.sold : cash.owned)[yearIndex];
+      const { income, expenses, net } = (state.sold ? cash.sold : cash.owned)[yearIndex];
+      const { withdrawalTax } = state;
       const depleted = endingWealth <= 0;
       if (depleted) failureYear = year;
       state.wealth = Math.max(0, endingWealth);
@@ -183,7 +185,7 @@
         income,
         expenses,
         withdrawalTax,
-        netCashFlow: net,
+        netCashFlow: net - withdrawalTax,
         nominalSpxReturn: metrics.nominalSpxReturn,
         nominalRiskFreeReturn: metrics.nominalRiskFreeReturn,
         nominalSpxExcessReturn: metrics.nominalSpxExcessReturn,
@@ -263,6 +265,7 @@
     const { rows, yearCount } = extraPaths;
     const offset = path * yearCount;
     state.wealth = startingWealth;
+    state.basis = startingWealth;
     state.sold = false;
     for (let yearIndex = 0; yearIndex < yearCount; yearIndex += 1) {
       state.wealth = stepper.step(state, yearIndex, rows[offset + yearIndex]);

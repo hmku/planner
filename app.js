@@ -315,7 +315,7 @@
   function readWithdrawalTaxRate() {
     const percent = Planner.numberFromInput(Planner.els.withdrawalTax);
     if (!Number.isFinite(percent) || percent < 0 || percent > Planner.MAX_WITHDRAWAL_TAX_PCT) {
-      throw new Error(`Enter a tax on withdrawals between 0% and ${Planner.MAX_WITHDRAWAL_TAX_PCT}%.`);
+      throw new Error(`Enter a tax on gains between 0% and ${Planner.MAX_WITHDRAWAL_TAX_PCT}%.`);
     }
     return percent / 100;
   }

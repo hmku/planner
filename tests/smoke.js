@@ -84,7 +84,7 @@ async function main() {
     watchErrors(page, errors, "desktop");
     await openApp(page, base);
     check(await page.inputValue("#simulationCount") === "10,000", "default simulation count is 10,000");
-    check(await page.inputValue("#withdrawalTax") === "15", "default tax on withdrawals is 15%");
+    check(await page.inputValue("#withdrawalTax") === "25", "default tax on gains is 25%");
     await page.selectOption("#betaMode", "fixed");
     check(await page.inputValue("#spxBeta") === "0.8", "default fixed SPX beta is 0.8");
     await page.selectOption("#betaMode", "dynamic");
@@ -96,11 +96,6 @@ async function main() {
     check(/10% risk: .* · 5%: .* · 1%: .* · 0\.1%: /.test(await text(page, "#requiredWealthSummary")), "How much you need lists 10%, 5%, 1%, 0.1%");
     const overviewTitles = await page.$$eval("#overviewPage h2", (titles) => titles.map((title) => title.textContent));
     check(overviewTitles[2] === "How much you need", "How much you need is the third Overview section", overviewTitles.join(", "));
-    await page.fill("#withdrawalTax", "30");
-    await page.click('[data-page="spending"]');
-    check(await page.locator("#spendingPage .chart-legend li", { hasText: "Taxes on withdrawals" }).count() === 1, "withdrawal tax shows in the Spending view");
-    await page.fill("#withdrawalTax", "15");
-    await page.click('[data-page="overview"]');
 
     console.log("Retirement year");
     const thisYear = Number(await page.inputValue("#currentYear"));
@@ -204,6 +199,18 @@ async function main() {
     await page.click("#savePlan");
     const afterRename = await planOptions();
     check(afterRename.includes("Renamed plan") && !afterRename.some((name) => name.startsWith("Smoke test plan")), "saving under a new name renames the plan", afterRename.join(", "));
+    await page.$eval('[data-ls-section="travel"]', (section) => { section.open = true; });
+    await page.fill('[data-ls="travel.domesticTrips"]', "7");
+    await sleep(600);
+    page.once("dialog", (dialog) => dialog.accept("Forked plan"));
+    await page.selectOption("#savedPlanSelect", "__save_as__");
+    await sleep(300);
+    const storedTrips = await page.evaluate(() => Object.fromEntries(JSON.parse(localStorage.getItem("planner.plans.v1"))
+      .map((plan) => [plan.name, plan.state.lifestyle.travel.domesticTrips])));
+    check(await selectedPlan() === "Forked plan" && await page.inputValue("#planName") === "Forked plan" && await text(page, "#savePlan") === "Saved",
+      "Save as makes the copy the open plan", await selectedPlan());
+    check(Number(storedTrips["Forked plan"]) === 7 && "Renamed plan" in storedTrips && Number(storedTrips["Renamed plan"]) !== 7,
+      "Save as keeps the original plan unchanged", JSON.stringify(storedTrips));
     await page.selectOption("#savedPlanSelect", "__new__");
     await sleep(300);
     check(await page.inputValue("#planName") === "" && await selectedPlan() === "Unsaved plan", "New plan starts from the defaults, unsaved", await selectedPlan());

@@ -373,7 +373,8 @@
     const metrics = Planner.buildReturnMetrics(returnRow, overrideBeta);
     const { growth, cashFactor } = Planner.growthFactorsOf(metrics.realGrowthFactor);
     const cash = Planner.buildPlanCashFlows(scenario, years);
-    const state = { wealth: scenario.netWorth, sold: false, soldThisYear: false };
+    const deflator = Planner.deflatorOf(metrics.inflation);
+    const state = { wealth: scenario.netWorth, basis: scenario.netWorth, sold: false, soldThisYear: false };
     const rows = [];
     const points = [{ year: scenario.currentYear, wealth: state.wealth }];
     let depleted = false;
@@ -383,7 +384,7 @@
       const year = years[yearIndex];
       const startingWealth = state.wealth;
       if (!depleted) {
-        const endingWealth = Planner.stepPathYear(cash, state, yearIndex, growth, cashFactor);
+        const endingWealth = Planner.stepPathYear(cash, state, yearIndex, growth, cashFactor, deflator);
         state.wealth = Math.max(0, endingWealth);
         depleted = endingWealth <= 0;
         if (state.soldThisYear) saleYear = year;
@@ -585,17 +586,8 @@
     spread(inputs.income, (flow, index) => {
       income[index] += Planner.flowAmountForYear(flow, first + index);
     });
-    // Tax on portfolio withdrawals, same rule as the engine.
-    const rate = inputs.withdrawalTaxRate;
-    if (rate > 0) {
-      const taxes = byKey.get("taxes");
-      years.forEach((_, index) => {
-        const tax = Planner.withdrawalTaxFor(totals[index], income[index], rate);
-        taxes.values[index] = tax;
-        totals[index] += tax;
-        recurringTotals[index] += tax;
-      });
-    }
+    // The tax on withdrawals depends on each path's gains, so it shows per
+    // simulation (Simulation tab), not here.
     return { years, categories, totals, recurringTotals, income };
   }
 

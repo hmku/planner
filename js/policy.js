@@ -10,15 +10,16 @@
   // beta, every historical row's ending wealth and bucket interpolation is
   // computed once and pooled into the few buckets it lands in; each objective
   // then sums its own next-year risk and expected terminal wealth over those.
-  // fallback ({ saleProceeds, soldNet, soldLayers }) routes draining rows into
-  // the sold layer; terminalExtra (home equity at the end) is added to the
+  // netAt(yearIndex, wealth) is a node's net cash flow after tax. fallback
+  // ({ saleProceeds, soldNetAt, soldLayers }) routes draining rows into the
+  // sold layer; terminalExtra (home equity at the end) is added to the
   // terminal wealth of every bucket.
   async function solvePolicyLayer({
     returnRows,
     years,
     wealthBuckets,
     objectives,
-    net,
+    netAt,
     terminalExtra = 0,
     fallback = null,
     shouldCancel,
@@ -75,9 +76,7 @@
 
     for (let yearIndex = years.length - 1; yearIndex >= 0; yearIndex -= 1) {
       Planner.throwIfCanceled(shouldCancel);
-      const netCashFlow = net[yearIndex];
       const saleProceeds = fallback ? fallback.saleProceeds[yearIndex] : 0;
-      const soldNetCashFlow = fallback ? fallback.soldNet[yearIndex] : 0;
       const nextValues = policies.map((policy) => policy.valueByYear[yearIndex + 1]);
       const nextWealth = policies.map((policy) => policy.expectedWealthByYear[yearIndex + 1]);
       const soldValues = fallback ? fallback.soldLayers.map((layer) => layer.valueByYear[yearIndex + 1]) : null;
@@ -97,6 +96,8 @@
           continue;
         }
 
+        const netCashFlow = netAt(yearIndex, startingWealth);
+        const soldNetCashFlow = saleProceeds > 0 ? fallback.soldNetAt(yearIndex, startingWealth + saleProceeds, saleProceeds) : 0;
         bestRisk.fill(Number.POSITIVE_INFINITY);
         bestWealth.fill(Number.NEGATIVE_INFINITY);
         bestBeta.fill(betaValues[0]);
@@ -199,6 +200,9 @@
   async function buildDynamicBetaPolicy(scenario, returnRows, years, onProgress, shouldCancel) {
     const wealthBuckets = Planner.buildWealthBuckets(scenario);
     const cash = Planner.buildPlanCashFlows(scenario, years);
+    const referenceBasis = referenceBasisOf(scenario, returnRows, years, cash);
+    const ownedNetAt = (yearIndex, wealth) => Planner.solverNetOf(cash, referenceBasis, yearIndex, wealth, false);
+    const soldNetAt = (yearIndex, wealth, proceeds = 0) => Planner.solverNetOf(cash, referenceBasis, yearIndex, wealth, true, proceeds);
     const penaltyFactors = Planner.DYNAMIC_FRONTIER_RISK_PENALTY_FACTORS;
     const layers = cash.hasHome ? 2 : 1;
     // Progress weights approximate sweep cost: shared transitions plus per-objective work.
@@ -220,13 +224,13 @@
           if (yearIndex % 4 === 0) await Planner.yieldToBrowser();
         }
       };
-      if (!cash.hasHome) return solvePolicyLayer({ ...common, net: cash.ownedNet });
-      const soldLayers = await solvePolicyLayer({ ...common, net: cash.soldNet });
+      if (!cash.hasHome) return solvePolicyLayer({ ...common, netAt: ownedNetAt });
+      const soldLayers = await solvePolicyLayer({ ...common, netAt: soldNetAt });
       const ownedLayers = await solvePolicyLayer({
         ...common,
-        net: cash.ownedNet,
+        netAt: ownedNetAt,
         terminalExtra: cash.equity[years.length - 1],
-        fallback: { saleProceeds: cash.saleProceeds, soldNet: cash.soldNet, soldLayers }
+        fallback: { saleProceeds: cash.saleProceeds, soldNetAt, soldLayers }
       });
       return ownedLayers.map((policy, k) => ({ ...policy, sold: soldLayers[k] }));
     };
@@ -309,6 +313,7 @@
   // computed on demand so the solver keeps no per-beta tables.
   function createActionEvaluator(policy, scenario, returnRows, years) {
     const cash = Planner.buildPlanCashFlows(scenario, years);
+    const referenceBasis = referenceBasisOf(scenario, returnRows, years, cash);
     const factorsFor = Planner.createGrowthFactorCache(returnRows);
     const { wealthBuckets } = policy;
     const { upperBucketIndex } = Planner;
@@ -334,12 +339,15 @@
       const { growth, cashFactor } = factorsFor(beta);
       risk = 0;
       wealth = 0;
+      const proceeds = cash.saleProceeds[yearIndex];
+      const ownedNet = Planner.solverNetOf(cash, referenceBasis, yearIndex, startingWealth, false);
+      const soldNet = proceeds > 0 ? Planner.solverNetOf(cash, referenceBasis, yearIndex, startingWealth + proceeds, true, proceeds) : 0;
       for (let row = 0; row < rowCount; row += 1) {
         let tables = policy;
-        let ending = startingWealth * growth[row] + cash.ownedNet[yearIndex] * cashFactor[row];
-        if (ending <= 0 && policy.sold && cash.saleProceeds[yearIndex] > 0) {
+        let ending = startingWealth * growth[row] + ownedNet * cashFactor[row];
+        if (ending <= 0 && policy.sold && proceeds > 0) {
           tables = policy.sold;
-          ending = (startingWealth + cash.saleProceeds[yearIndex]) * growth[row] + cash.soldNet[yearIndex] * cashFactor[row];
+          ending = (startingWealth + proceeds) * growth[row] + soldNet * cashFactor[row];
         }
         if (ending <= 0) {
           risk += 1;
@@ -349,6 +357,13 @@
       }
       return { beta, risk: risk / rowCount, expectedWealth: wealth / rowCount };
     });
+  }
+
+  // The reference basis the solver and the action evaluator share; the path
+  // earns average returns at the fixed beta (the default without one).
+  function referenceBasisOf(scenario, returnRows, years, cash) {
+    const beta = Number.isFinite(scenario.spxBeta) ? scenario.spxBeta : Planner.DEFAULT_SPX_BETA;
+    return Planner.buildReferenceBasis(scenario, returnRows, years, cash, beta);
   }
 
   Object.assign(Planner, {

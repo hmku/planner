@@ -172,14 +172,35 @@ async function main() {
 
   console.log("Withdrawal tax");
   const taxed = { ...scenario, withdrawalTaxRate: 0.15 };
-  const earlyYear = Planner.cashFlowsForYear(taxed, 2030);
-  check(earlyYear.withdrawalTax === 0, "no tax while income covers spending");
-  const lateYear = Planner.cashFlowsForYear(taxed, 2050);
-  check(Math.abs(lateYear.withdrawalTax - 133000 * 0.15 / 0.85) < 1e-6 && Math.abs(lateYear.net + 133000 / 0.85) < 1e-6, "a shortfall S costs S / (1 - t) of withdrawals");
+  const taxCash = { ownedNet: Float64Array.of(-100000), soldNet: Float64Array.of(-100000), saleProceeds: Float64Array.of(0), taxRate: 0.25 };
+  const stepTax = (wealth, basis, growth = 1, deflator = 1) => {
+    const state = { wealth, basis, sold: false };
+    const ending = Planner.stepPathYear(taxCash, state, 0, growth, growth, deflator);
+    return { ending, ...state };
+  };
+  const untaxed = stepTax(1000000, 1000000);
+  check(untaxed.withdrawalTax === 0 && untaxed.ending === 900000, "no tax while the portfolio is all basis (net worth starts post-tax)");
+  const underwater = stepTax(800000, 1000000);
+  check(underwater.withdrawalTax === 0, "no tax on a portfolio below its basis (losses aren't taxed)");
+  const half = stepTax(1000000, 500000);
+  const effective = 0.25 * 0.5;
+  check(Math.abs(half.withdrawalTax - 100000 * effective / (1 - effective)) < 1e-6, "half gain: a shortfall S costs S / (1 - t g) of withdrawals");
+  check(Math.abs(half.basis - 500000 * (1 - (100000 + half.withdrawalTax) / 1000000)) < 1e-6, "withdrawals take their share of the basis");
+  const inflated = stepTax(1000000, 1000000, 1, 1 / 1.03);
+  check(Math.abs(inflated.basis - 900000 / 1.03) < 1e-6, "inflation shrinks the basis in today's dollars (nominal gains are taxed)");
+  const saver = { ...taxCash, ownedNet: Float64Array.of(50000) };
+  const saved = { wealth: 1000000, basis: 600000, sold: false };
+  Planner.stepPathYear(saver, saved, 0, 1, 1, 1);
+  check(saved.withdrawalTax === 0 && saved.basis === 650000, "saved income adds to the basis untaxed");
   const taxedRun = await Planner.simulateScenario(taxed, returnRows, Planner.createSeededRandom(42));
   check(taxedRun.risk > first.risk, `withdrawal tax raises run-out risk (${(first.risk * 100).toFixed(2)}% → ${(taxedRun.risk * 100).toFixed(2)}%)`);
   const taxedRows = Planner.getSimulationYearRows(taxedRun, taxedRun.inspectionPaths[0].simulation);
   check(Math.abs(taxedRows[taxedRows.length - 1].endingWealth - taxedRun.inspectionPaths[0].terminalWealth) < 1e-6, "row replay matches with the tax");
+  const allTaxedRows = taxedRun.inspectionPaths.slice(0, 20).flatMap((path) => Planner.getSimulationYearRows(taxedRun, path.simulation));
+  check(allTaxedRows.some((row) => row.withdrawalTax > 0) && allTaxedRows.every((row) => Math.abs(row.netCashFlow - (row.income - row.expenses - row.withdrawalTax)) < 1e-6), "replayed rows show each year's tax on gains");
+  const fixedTaxed = await Planner.simulateScenario({ ...taxed, betaMode: "fixed" }, returnRows, Planner.createSeededRandom(42));
+  const fixedUntaxed = await Planner.simulateScenario({ ...taxed, betaMode: "fixed", withdrawalTaxRate: 0 }, returnRows, Planner.createSeededRandom(42));
+  check(fixedTaxed.risk >= fixedUntaxed.risk && fixedTaxed.expectedTerminalWealth < fixedUntaxed.expectedTerminalWealth, "tax on gains costs wealth on the same paths");
 
   const flows = [{ amount: 100, startYear: 2030, endYear: 2032 }, { amount: 50, startYear: 2031, endYear: 2040, deflateRate: 0.1, deflateFrom: 2031 }];
   check(Planner.flowsTotalForYear(flows, 2029) === 0 && Planner.flowsTotalForYear(flows, 2031) === 150 && Math.abs(Planner.flowsTotalForYear(flows, 2033) - 50 / 1.21) < 1e-9,

@@ -86,8 +86,8 @@
                 <span>Simulations</span>
                 <input id="simulationCount" name="simulationCount" type="text" inputmode="numeric" data-format="integer" autocomplete="off" required>
               </label>
-              <label class="field" title="Tax on portfolio withdrawals: applied to spending your income doesn't cover. 15% is a rough California figure for a taxable account; lower if you hold recent money or live in a no-income-tax state.">
-                <span>Tax on withdrawals</span>
+              <label class="field" title="Tax rate on the gains in portfolio withdrawals (spending your income doesn't cover). Your current net worth counts as already taxed, so only growth above it is taxed, and never losses. 25% is a rough federal plus California capital gains rate; lower it in a no-income-tax state.">
+                <span>Tax on gains</span>
                 <span class="input-suffix"><input id="withdrawalTax" name="withdrawalTax" type="number" min="0" max="60" step="1" required><em>%</em></span>
               </label>
             </div>
@@ -619,11 +619,11 @@
               </article>
               <article>
                 <h3>Taxes</h3>
-                <p>Income is entered after tax. Spending that income doesn&apos;t cover is withdrawn from the portfolio, and selling costs tax on the gains: covering a shortfall S at the plan&apos;s withdrawal tax rate t takes S / (1 &minus; t). The default 15% approximates California taxes on a taxable account where about 60% of each sale is gain. Dividends taxed while invested, account types, and borrowing against the portfolio are not modeled.</p>
+                <p>Income is entered after tax. Spending that income doesn&apos;t cover is withdrawn from the portfolio, and only the gains in what is sold are taxed. Each simulated path tracks the portfolio&apos;s cost basis (average cost): your current net worth counts as already taxed, so it all starts as basis, and saved income and home sale proceeds add to it. When a fraction g of the portfolio is gain, covering a shortfall S at the tax on gains t takes S / (1 &minus; t&thinsp;g) of withdrawals, and those withdrawals take their share of the basis. A portfolio worth less than its basis pays no tax; losses are not credited or carried forward. Gains are nominal: inflation shrinks the basis in today&apos;s dollars, so a portfolio that only kept up with inflation still has taxable gains. The default 25% roughly combines federal long-term capital gains and California income tax. The beta policy solver has no per-path basis, so it estimates a node&apos;s gains against the basis of a path earning average returns; simulated runs use each path&apos;s own basis. Dividends and interest taxed while invested, account types, and borrowing against the portfolio are not modeled.</p>
               </article>
               <article>
                 <h3>Lifestyle builder</h3>
-                <p>The builder prices a described lifestyle as dated annual expenses in today&apos;s dollars. Kid costs follow each kid&apos;s age: childcare to 4, school 5&ndash;17, college 18&ndash;21. Local costs (childcare, school, help, everyday living) are priced for SF/NYC and scaled down for cheaper areas. Every line can be overridden or moved to a manual row. Above-inflation cost growth is not modeled; taxes are handled by the plan&apos;s withdrawal tax.</p>
+                <p>The builder prices a described lifestyle as dated annual expenses in today&apos;s dollars. Kid costs follow each kid&apos;s age: childcare to 4, school 5&ndash;17, college 18&ndash;21. Local costs (childcare, school, help, everyday living) are priced for SF/NYC and scaled down for cheaper areas. Every line can be overridden or moved to a manual row. Above-inflation cost growth is not modeled; taxes are handled by the plan&apos;s tax on gains.</p>
               </article>
               <article>
                 <h3>Cash flows</h3>

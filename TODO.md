@@ -13,7 +13,9 @@ when they ship.
 - Spending guardrails: when projected wealth runs low, cut flexible spending and keep crucial spending.
 - Leverage cost: betas above 1 (the dynamic grid goes to 1.5) are financed at the T-bill rate, which is optimistic; add a borrowing spread. More important now that the run's policy can choose high betas when risk is low.
 - Borrow-instead-of-sell mode (securities-backed line of credit): loan balance at T-bill + spread, LTV cap with forced selling, step-up in basis at death.
-- Richer tax modeling: gain share rising over time, brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
+- Richer tax modeling: capital-loss carryforward, step-up in basis at death, starting with an unrealized-gain share (today all net worth is basis), brackets (0% federal on gains at low income after quitting), dividends taxed while invested, and account types (taxable, tax-deferred, Roth).
+- Spending view: show an estimated tax on gains (for example on an average-return path) now that the tax is path-dependent and left out of it.
+- Policy solver: track basis (for example a gain-share dimension) instead of the average-return reference basis.
 - Real cost growth per category (for example tuition and healthcare rising faster than inflation).
 - Income presets: salary until retirement, then a founder salary or other runway scenarios.
 - Social Security / pensions starting at an age (needs the birth year), alongside "At retirement" rows.
@@ -26,12 +28,13 @@ when they ship.
 - Revisit prices periodically (tuition, fares, charter rates); they live in `js/lifestyle.js`.
 
 ### App
-- "Duplicate plan" in the plan menu, now that saving under a new name renames instead of copying.
 - Native App Store / Play Store builds (for example a Capacitor wrapper) if the installable web app isn't enough.
 - Sync saved plans across devices (saved plans currently live only in one browser; the installed iPhone app has storage separate from Safari).
 
 ## Done
 
+- Save as… in the plan menu: saves a copy of the open plan under a new name, opens it, and leaves the original unchanged.
+- Tax on gains only: each path tracks its cost basis (starting net worth is all basis; saved income and home sale proceeds add to it; inflation shrinks it), withdrawals are taxed only on their gain share, and losses aren't taxed. Default rate 25%. The policy solver estimates gains against an average-return reference basis; the Spending view drops the tax.
 - Retirement year: one Plan field that income and expense rows ("Until retirement", "At retirement") and employer health coverage follow by default, so changing it moves them together. Older plans keep their fixed years.
 - Travel with kids: choose how many of the domestic and international trips the kids join (instead of all or none) and how they fly (with the adults, or their own class, such as economy while the adults fly business). Older plans keep their all-or-none setting.
 - Plan menu: "Your plans" now shows the plan being edited and whether it's saved (instead of a fixed "Open a saved plan…" prompt), saving under a new name renames the open plan instead of copying it, and "+ New plan" starts over from the defaults. Picking from the menu no longer counts as an unsaved edit.

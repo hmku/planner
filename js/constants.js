@@ -9,7 +9,9 @@ Planner.ACCEPTABLE_RUN_OUT_RISK = 0.005;
 // REQUIRED_WEALTH_TARGET.
 Planner.REQUIRED_WEALTH_LABELS = [0.1, 0.05, 0.01, 0.001];
 Planner.REQUIRED_WEALTH_TARGET = 0.01;
-Planner.DEFAULT_WITHDRAWAL_TAX_PCT = 15;
+// Tax rate on the gains in portfolio withdrawals (roughly federal long-term
+// capital gains plus California income tax).
+Planner.DEFAULT_WITHDRAWAL_TAX_PCT = 25;
 Planner.MAX_WITHDRAWAL_TAX_PCT = 60;
 Planner.SIMULATION_CHUNK_SIZE = 100;
 Planner.MIN_PLAN_YEAR = 1900;

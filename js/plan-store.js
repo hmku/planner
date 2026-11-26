@@ -218,10 +218,11 @@
   // ---------- Saved plans UI ----------
 
   const NEW_PLAN_VALUE = "__new__";
+  const SAVE_AS_VALUE = "__save_as__";
   const DRAFT_VALUE = "__draft__";
 
   // The plan switcher: shows the plan being edited (and whether it is saved),
-  // lists the saved plans to open, and starts a new plan.
+  // lists the saved plans to open, copies the open plan, and starts a new plan.
   function renderSavedPlanSelect() {
     const select = Planner.els.savedPlanSelect;
     const openName = findSavedPlan(Planner.state.openPlanName)?.name || null;
@@ -239,6 +240,7 @@
       const name = Planner.els.planName.value.trim();
       options.unshift(option(DRAFT_VALUE, name ? `${name} (not saved)` : "Unsaved plan"));
     }
+    if (openName) options.push(option(SAVE_AS_VALUE, "Save as…"));
     options.push(option(NEW_PLAN_VALUE, "+ New plan"));
     select.replaceChildren(...options);
     select.value = openName || DRAFT_VALUE;
@@ -273,36 +275,79 @@
     return `Untitled plan ${index}`;
   }
 
-  function savePlan() {
+  // Saves the current inputs. With copyName, saves them as a new plan under
+  // that name and leaves the open saved plan as it was.
+  function savePlan(copyName = null) {
     const { els } = Planner;
     const plans = readSavedPlans();
-    if (!els.planName.value.trim()) els.planName.value = nextUntitledName(plans);
+    const previousName = els.planName.value;
+    const fail = (message) => {
+      if (copyName) els.planName.value = previousName;
+      if (message) Planner.setStatus(message, "error");
+      updateSaveControls();
+    };
+    if (copyName) els.planName.value = copyName;
+    else if (!els.planName.value.trim()) els.planName.value = nextUntitledName(plans);
     const state = getPlanState();
     // Saving an open plan under a new name renames it rather than copying it.
-    const renamedFrom = findSavedPlan(Planner.state.openPlanName) && Planner.state.openPlanName !== state.name
+    const renamedFrom = !copyName && findSavedPlan(Planner.state.openPlanName) && Planner.state.openPlanName !== state.name
       ? Planner.state.openPlanName
       : null;
+    const copiedFrom = copyName ? findSavedPlan(Planner.state.openPlanName)?.name || null : null;
     const existingIndex = plans.findIndex((plan) => plan.name === state.name);
     if (existingIndex !== -1 && Planner.state.openPlanName !== state.name &&
         !window.confirm(`Replace the saved plan “${state.name}”?`)) {
+      fail();
       return;
     }
     if (existingIndex === -1 && !renamedFrom && plans.length >= MAX_SAVED_PLANS) {
-      Planner.setStatus(`You can keep up to ${MAX_SAVED_PLANS} saved plans. Delete one first.`, "error");
+      fail(`You can keep up to ${MAX_SAVED_PLANS} saved plans. Delete one first.`);
       return;
     }
     const entry = { name: state.name, savedAt: Date.now(), state };
     const nextPlans = plans.filter((plan) => plan.name !== state.name && plan.name !== renamedFrom);
     nextPlans.push(entry);
     if (!writeSavedPlans(nextPlans)) {
-      Planner.setStatus("Could not save: this browser is blocking or out of local storage.", "error");
+      fail("Could not save: this browser is blocking or out of local storage.");
       return;
     }
     Planner.state.openPlanName = state.name;
     editedSinceOpen = false;
     saveDraftNow();
     updateSaveControls();
-    Planner.setStatus(renamedFrom ? `Renamed “${renamedFrom}” to “${state.name}” and saved it.` : `Saved “${state.name}” in this browser.`);
+    if (copyName) Planner.syncShareUrl(state, null);
+    Planner.setStatus(renamedFrom
+      ? `Renamed “${renamedFrom}” to “${state.name}” and saved it.`
+      : copiedFrom
+        ? `Saved a copy as “${state.name}”. “${copiedFrom}” is unchanged.`
+        : `Saved “${state.name}” in this browser.`);
+  }
+
+  function nextCopyName(plans, baseName) {
+    const names = new Set(plans.map((plan) => plan.name));
+    const base = baseName.slice(0, MAX_NAME_LENGTH - 8);
+    if (!names.has(`${base} copy`)) return `${base} copy`;
+    let index = 2;
+    while (names.has(`${base} copy ${index}`)) index += 1;
+    return `${base} copy ${index}`;
+  }
+
+  // "Save as…": asks for a name and saves the current inputs as a new plan.
+  function saveCopyOfPlan() {
+    const openName = findSavedPlan(Planner.state.openPlanName)?.name || null;
+    const suggested = nextCopyName(readSavedPlans(), Planner.els.planName.value.trim() || openName || "Untitled plan");
+    const input = window.prompt("Save a copy of this plan as:", suggested);
+    const name = typeof input === "string" ? input.trim().slice(0, MAX_NAME_LENGTH) : "";
+    if (!name) {
+      renderSavedPlanSelect();
+      return;
+    }
+    if (name === openName) {
+      Planner.els.planName.value = name;
+      savePlan();
+      return;
+    }
+    savePlan(name);
   }
 
   function openSavedPlan(name, onOpened) {
@@ -354,11 +399,12 @@
 
   function bindSavedPlanControls(onOpened) {
     const { els } = Planner;
-    els.savePlan.addEventListener("click", savePlan);
+    els.savePlan.addEventListener("click", () => savePlan());
     els.deletePlan.addEventListener("click", deleteOpenPlan);
     els.savedPlanSelect.addEventListener("change", () => {
       const { value } = els.savedPlanSelect;
       if (value === NEW_PLAN_VALUE) startNewPlan(onOpened);
+      else if (value === SAVE_AS_VALUE) saveCopyOfPlan();
       else if (value !== DRAFT_VALUE) openSavedPlan(value, onOpened);
     });
     window.addEventListener("storage", (event) => {
